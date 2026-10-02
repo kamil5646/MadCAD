@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { attachDrawingProjections, drawingProjectionGroups, drawingProjectionTolerance, prepareDrawingExport, validateDrawingSources } from '../cad-core/drawing-projections.js';
 import {
-  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Blocks,
   Box,
   Check,
   ChevronDown,
-  ChevronRight,
   CircleDotDashed,
   Copy,
   Crosshair,
@@ -34,7 +33,6 @@ import {
   Move3d,
   Pencil,
   PencilRuler,
-  Printer,
   Redo2,
   Rotate3d,
   RotateCw,
@@ -48,7 +46,6 @@ import {
   Spline,
   StepBack,
   StepForward,
-  Sun,
   Triangle,
   Trash2,
   Type,
@@ -133,31 +130,20 @@ import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeP
 import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import { measureSelection } from '../cad-core/measure-selection.js';
 import { calculateMassProperties } from '../cad-core/mass-properties.js';
-import { calculateCantileverScreening } from '../cad-core/static-screening.js';
-import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../cad-core/beam-fea.js';
-import { calculateSolidFea } from '../cad-core/solid-fea.js';
-import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
-import { applyPrinterProfile, applyPrintMaterialProfile, PRINTER_PROFILES, PRINT_MATERIAL_PROFILES } from '../cad-core/printer-profiles.js';
 import { DEFAULT_LICENSE_STATUS, describeLicensePlan, normalizeLicenseStatus } from './license-plan.js';
-import { calculatePrintLayout, orientationForBedFace, recommendPrintOrientation } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
-import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMeshFaces, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
-import { analyzePrintability } from '../cad-core/print-analysis.js';
+import { inspectMesh } from '../cad-core/mesh-tools.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { sketchDxf } from '../cad-core/sketch-dxf-export.js';
 import { createId } from '../cad-core/ids.js';
-import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createPointDrawingDimension, createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { DEFAULT_LAYER_ID, assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
-import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
-import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../cad-core/assembly-motion.js';
-import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboardState, updateAssemblyStoryboard } from '../cad-core/assembly-animation.js';
-import { assemblyInstructionHtml } from '../cad-core/assembly-instructions.js';
+import { createAssemblyJoint, deleteAssemblyJoint, setJointValue, updateAssemblyJoint } from '../cad-core/assembly-joints.js';
+import { applyAssemblyConfiguration, createAssemblyConfiguration, deleteAssemblyConfiguration, detectAssemblyCollisions, updateAssemblyConfiguration } from '../cad-core/assembly-motion.js';
 import { createNamedView, deleteNamedView } from '../cad-core/named-views.js';
-import { MAX_RENDER_DECAL_BYTES, createRenderDecal, deleteRenderDecal, updateRenderDecal } from '../cad-core/render-scene.js';
 import {
   addBlockAttributeDefinition,
   createBlockDefinition,
@@ -195,7 +181,6 @@ import { analyzeSurfaceContinuity, summarizeMeshCurvature } from './surface-anal
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext, ToolMenuButton } from './WorkspaceRibbon.jsx';
-import { ManufacturingPanel } from './ManufacturingPanel.jsx';
 import {
   AnglePlaneCadIcon,
   AssemblyCadIcon,
@@ -215,7 +200,6 @@ import {
   ImportMeshCadIcon,
   LoftCadIcon,
   MassCadIcon,
-  ManufacturingSetupCadIcon,
   MeshBodyCadIcon,
   MidplaneCadIcon,
   MoveBodyCadIcon,
@@ -256,7 +240,7 @@ import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import { AdaptiveToolShelf } from './WorkspaceSketchUi.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDashboard, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BeamFeaPanel, BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, RenderScenePanel, SectionPanel, SolidFeaPanel, StaticScreeningPanel, SurfaceAnalysisPanel, ThermalScreeningPanel } from './WorkspacePanels.jsx';
+import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, SectionPanel, SurfaceAnalysisPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -272,6 +256,7 @@ function pointerPromptForCommand(command) {
   const step = command.gesturePoints?.length || 0;
   if (command.type === 'rectangle') {
     if (command.definition === 'center') return step ? 'Wskaż narożnik wyznaczający rozmiar' : 'Wskaż środek prostokąta';
+    if (command.definition === 'corner') return step ? 'Wskaż przeciwległy narożnik' : 'Wskaż pierwszy narożnik';
     if (command.definition === 'threePoints') return ['Wskaż początek pierwszego boku', 'Wskaż koniec pierwszego boku', 'Wskaż punkt wysokości'][step] || 'Wskaż punkt wysokości';
     return step ? 'Wskaż przeciwległy narożnik' : 'Wskaż pierwszy narożnik';
   }
@@ -311,7 +296,6 @@ const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp
 const WORKSPACE_OPTIONS = [
   { id: 'solid', label: 'PROJEKTUJ' },
   { id: 'drawing', label: 'ARKUSZ 2D' },
-  { id: 'manufacture', label: 'WYTWARZANIE' },
   { id: 'tools', label: 'ZARZĄDZAJ' },
 ];
 
@@ -331,131 +315,6 @@ const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
 
 
-
-function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed, onSelectIssue, onExport, onSendToSlicer, onClose, onToggleCollapsed, readOnly = false }) {
-  const [automaticOrientation, setAutomaticOrientation] = useState(null);
-  const layoutResult = useMemo(() => calculatePrintLayout(bodies, document.print), [bodies, document.print]);
-  const printAnalysis = useMemo(() => analyzePrintability(bodies, document.print), [bodies, document.print]);
-  const bounds = layoutResult.dimensions;
-  const fits = printAnalysis.fitsBed;
-  const updateBed = (key, value) => commit((next) => { next.print[key] = Math.max(1, Number(value) || 1); next.print.profileId = 'custom'; });
-  const updateLayout = (key, value) => commit((next) => {
-    const parsed = Number(value);
-    if (key === 'scale') next.print[key] = Math.max(0.01, Number.isFinite(parsed) ? parsed : 1);
-    else if (key === 'copies') next.print[key] = Math.max(1, Math.min(100, Math.round(Number.isFinite(parsed) ? parsed : 1)));
-    else if (key === 'copySpacing') next.print[key] = Math.max(0, Number.isFinite(parsed) ? parsed : 0);
-    else next.print[key] = Number.isFinite(parsed) ? parsed : 0;
-  });
-  const updateAnalysis = (key, value) => commit((next) => {
-    const parsed = Number(value);
-    next.print[key] = key === 'overhangAngle'
-      ? Math.max(0, Math.min(89, Number.isFinite(parsed) ? parsed : 45))
-      : Math.max(0.05, Number.isFinite(parsed) ? parsed : 0.4);
-  });
-  const selectProfile = (profileId) => commit((next) => { next.print = applyPrinterProfile(next.print, profileId); });
-  const selectMaterialProfile = (profileId) => commit((next) => { next.print = applyPrintMaterialProfile(next.print, profileId); });
-  const materialProfile = PRINT_MATERIAL_PROFILES.find((profile) => profile.id === document.print.materialProfileId);
-  const generalMaterialProfiles = PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'general');
-  const manufacturerMaterialProfiles = Object.groupBy
-    ? Object.groupBy(PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'manufacturer'), (profile) => profile.manufacturer)
-    : PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'manufacturer').reduce((groups, profile) => ({ ...groups, [profile.manufacturer]: [...(groups[profile.manufacturer] || []), profile] }), {});
-  const orientToSelectedFace = () => commit((next) => {
-    const orientation = orientationForBedFace(selectedFace.normal);
-    const candidate = {
-      ...next.print,
-      rotationX: 0, rotationY: 0, rotationZ: 0,
-      positionZ: 0,
-      orientationAxis: orientation.axis,
-      orientationAngle: orientation.angle,
-    };
-    const result = calculatePrintLayout(bodies, candidate);
-    next.print = { ...candidate, positionZ: -result.min[2] };
-  });
-  const orientAutomatically = () => {
-    const recommendation = recommendPrintOrientation(bodies, document.print);
-    if (!recommendation) return;
-    commit((next) => { next.print = { ...next.print, ...recommendation.layout }; });
-    setAutomaticOrientation(recommendation);
-  };
-  const resetLayout = () => commit((next) => {
-    Object.assign(next.print, {
-      positionX: 0, positionY: 0, positionZ: 0,
-      rotationX: 0, rotationY: 0, rotationZ: 0,
-      scale: 1, copies: 1, copySpacing: 10,
-      orientationAxis: [0, 0, 1], orientationAngle: 0,
-    });
-  });
-  return (
-    <aside className={`print-panel print-inspector ${collapsed ? 'collapsed' : ''}`}>
-      <header>
-        <div><strong>DRUK 3D</strong>{!collapsed && <span>Ułożenie na stole, kontrola drukowalności i przekazanie do slicera.</span>}</div>
-        <div className="dock-panel-actions">
-          <button type="button" data-panel-action="collapse" onClick={onToggleCollapsed} title={collapsed ? 'Rozwiń panel druku 3D' : 'Zwiń panel druku 3D'} aria-label={collapsed ? 'Rozwiń panel druku 3D' : 'Zwiń panel druku 3D'} aria-expanded={!collapsed}>{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
-          {!collapsed && <button type="button" onClick={onClose} title="Zamknij panel druku 3D" aria-label="Zamknij panel druku 3D"><X size={16} /></button>}
-        </div>
-      </header>
-      {!collapsed && <>
-      <div className="print-section">
-        <h3>Objętość robocza</h3>
-        <label className="command-field"><span>Profil drukarki</span><select value={document.print.profileId || 'custom'} onChange={(event) => selectProfile(event.target.value)} disabled={readOnly}>{PRINTER_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}<option value="custom">Własny</option></select></label>
-        <Field type="number" label="Szerokość X" value={document.print.bedWidth} suffix="mm" onChange={(value) => updateBed('bedWidth', value)} disabled={readOnly} />
-        <Field type="number" label="Głębokość Y" value={document.print.bedDepth} suffix="mm" onChange={(value) => updateBed('bedDepth', value)} disabled={readOnly} />
-        <Field type="number" label="Wysokość Z" value={document.print.bedHeight} suffix="mm" onChange={(value) => updateBed('bedHeight', value)} disabled={readOnly} />
-      </div>
-      <div className="print-section">
-        <h3>Układ części</h3>
-        <div className="print-field-grid">
-          <Field type="number" label="Pozycja X" value={document.print.positionX ?? 0} suffix="mm" onChange={(value) => updateLayout('positionX', value)} disabled={readOnly} />
-          <Field type="number" label="Pozycja Y" value={document.print.positionY ?? 0} suffix="mm" onChange={(value) => updateLayout('positionY', value)} disabled={readOnly} />
-          <Field type="number" label="Pozycja Z" value={document.print.positionZ ?? 0} suffix="mm" onChange={(value) => updateLayout('positionZ', value)} disabled={readOnly} />
-          <Field type="number" label="Obrót X" value={document.print.rotationX ?? 0} suffix="°" onChange={(value) => updateLayout('rotationX', value)} disabled={readOnly} />
-          <Field type="number" label="Obrót Y" value={document.print.rotationY ?? 0} suffix="°" onChange={(value) => updateLayout('rotationY', value)} disabled={readOnly} />
-          <Field type="number" label="Obrót Z" value={document.print.rotationZ ?? 0} suffix="°" onChange={(value) => updateLayout('rotationZ', value)} disabled={readOnly} />
-          <Field type="number" label="Skala" value={document.print.scale ?? 1} suffix="×" onChange={(value) => updateLayout('scale', value)} disabled={readOnly} />
-          <Field type="number" label="Kopie" value={document.print.copies ?? 1} suffix="szt." onChange={(value) => updateLayout('copies', value)} disabled={readOnly} />
-          <Field type="number" label="Odstęp" value={document.print.copySpacing ?? 10} suffix="mm" onChange={(value) => updateLayout('copySpacing', value)} disabled={readOnly} />
-        </div>
-        <div className="print-layout-actions">
-          <button id="autoOrientPrintBtn" type="button" disabled={readOnly || !bodies.length} onClick={orientAutomatically}>Ułóż automatycznie</button>
-          <button type="button" disabled={readOnly || !selectedFace} onClick={orientToSelectedFace}>Połóż ścianą na stole</button>
-          <button type="button" disabled={readOnly} onClick={resetLayout}>Resetuj układ</button>
-        </div>
-        {automaticOrientation && <small className="print-orientation-result check-ok">Automatyczny układ: podstawa {automaticOrientation.baseArea.toFixed(1)} mm² · nawisy {automaticOrientation.overhangArea.toFixed(1)} mm² · wysokość {automaticOrientation.height.toFixed(1)} mm.</small>}
-        <small>{selectedFace ? 'Zaznaczona płaska ściana jest gotowa do orientacji.' : 'Zaznacz płaską ścianę modelu, aby oprzeć ją na stole.'}</small>
-      </div>
-      <div className="print-section print-summary">
-        <h3>Kontrola modelu</h3>
-        <dl><div><dt>Bryły</dt><dd>{bodies.length}</dd></div><div><dt>Kopie</dt><dd>{layoutResult.layout.copies}</dd></div><div><dt>Rozmiar układu</dt><dd>{bounds.map((value) => value.toFixed(1)).join(' × ')} mm</dd></div></dl>
-        <p className={fits ? 'check-ok' : 'check-warning'}>{!bodies.length ? 'Najpierw utwórz bryłę.' : fits ? 'Model mieści się na stole drukarki.' : 'Model przekracza obszar drukarki.'}</p>
-      </div>
-      <div className="print-section print-analysis-section">
-        <div className="print-section-heading"><h3>Analiza drukowalności</h3><button id="printRiskMapBtn" type="button" className={document.print.showRiskMap ? 'active' : ''} aria-pressed={Boolean(document.print.showRiskMap)} disabled={readOnly || !bodies.length} onClick={() => commit((next) => { next.print.showRiskMap = !next.print.showRiskMap; })}>{document.print.showRiskMap ? 'Ukryj mapę' : 'Pokaż mapę'}</button></div>
-        <label className="command-field"><span>Profil analizy materiału</span><select id="printMaterialProfile" value={document.print.materialProfileId || 'custom'} onChange={(event) => selectMaterialProfile(event.target.value)} disabled={readOnly}><optgroup label="Ogólne">{generalMaterialProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</optgroup>{Object.entries(manufacturerMaterialProfiles).map(([manufacturer, profiles]) => <optgroup key={manufacturer} label={manufacturer}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</optgroup>)}<option value="custom">Własne progi</option></select></label>
-        {materialProfile && <div className="print-material-guidance"><strong>{materialProfile.manufacturer ? `${materialProfile.manufacturer} · ` : ''}{materialProfile.material}</strong><span>Dysza {materialProfile.nozzleTemperature} · stół {materialProfile.bedTemperature} · chłodzenie {materialProfile.cooling}{materialProfile.maxSpeed ? ` · ${materialProfile.maxSpeed}` : ''}</span><span>Komora: {materialProfile.enclosure}{materialProfile.drying ? ` · suszenie: ${materialProfile.drying}` : ''}</span><span>{materialProfile.guidance}</span>{materialProfile.sourceName && <small>Źródło parametrów: {materialProfile.sourceName} · zweryfikowano 09.09.2026</small>}</div>}
-        <div className="print-field-grid">
-          <Field type="number" label="Dysza" value={document.print.nozzleDiameter ?? 0.4} suffix="mm" onChange={(value) => updateAnalysis('nozzleDiameter', value)} disabled={readOnly} />
-          <Field type="number" label="Min. ścianka" value={document.print.minimumWallThickness ?? 0.8} suffix="mm" onChange={(value) => updateAnalysis('minimumWallThickness', value)} disabled={readOnly} />
-          <Field type="number" label="Min. otwór" value={document.print.minimumHoleDiameter ?? 2} suffix="mm" onChange={(value) => updateAnalysis('minimumHoleDiameter', value)} disabled={readOnly} />
-          <Field type="number" label="Próg nawisu" value={document.print.overhangAngle ?? 45} suffix="°" onChange={(value) => updateAnalysis('overhangAngle', value)} disabled={readOnly} />
-        </div>
-        <div className="print-analysis-summary"><strong>{printAnalysis.errorCount} błędów · {printAnalysis.warningCount} ostrzeżeń</strong><span>Wynik opisuje ryzyko technologiczne, nie gwarantuje udanego wydruku.</span></div>
-        {document.print.showRiskMap && <div className="print-risk-legend" aria-label="Legenda mapy druku"><span><i className="safe" /> Bezpieczne</span><span><i className="overhang" /> Nawis</span><span><i className="invalid" /> Błąd siatki</span></div>}
-        <div className="print-issues">
-          {printAnalysis.issues.map((issue, index) => <button type="button" className={issue.severity} key={`${issue.code}-${issue.bodyId || 'layout'}-${index}`} onClick={() => onSelectIssue(issue.selection)}><AlertTriangle size={13} /><span><strong>{issue.message}</strong><small>{issue.risk}</small></span></button>)}
-          {bodies.length > 0 && !printAnalysis.issues.length && <p className="check-ok">Nie wykryto problemów przy bieżących progach analizy.</p>}
-        </div>
-      </div>
-      <div className="print-actions">
-        <button type="button" onClick={() => onExport('stl')} disabled={!bodies.length || engine.status !== 'ready'}><HardDriveDownload size={16} /> Eksportuj STL</button>
-        <button className="secondary" type="button" onClick={() => onExport('step')} disabled={!bodies.length || engine.status !== 'ready'}>Eksportuj STEP</button>
-        <button className="secondary" type="button" onClick={() => onExport('3mf')} disabled={!bodies.length || engine.status !== 'ready'}>Eksportuj 3MF</button>
-        <label className="command-field slicer-field"><span>Program tnący</span><select value={document.print.slicer || 'bambu'} onChange={(event) => commit((next) => { next.print.slicer = event.target.value; })} disabled={readOnly}><option value="bambu">Bambu Studio</option><option value="prusa">PrusaSlicer</option><option value="cura">UltiMaker Cura</option></select></label>
-        <button className="send-slicer" type="button" onClick={() => onSendToSlicer(document.print.slicer || 'bambu')} disabled={!bodies.length || engine.status !== 'ready'}><Printer size={16} /> Otwórz STL w slicerze</button>
-      </div>
-      </>}
-    </aside>
-  );
-}
 
 function featureIcon(type, size = 16) {
   if (type === 'revolve' || type === 'surfaceRevolve') return <Rotate3d size={size} />;
@@ -635,23 +494,11 @@ export default function ModelingWorkspace() {
   const [blocksOpen, setBlocksOpen] = useState(false);
   const [componentsOpen, setComponentsOpen] = useState(false);
   const [explodeAmount, setExplodeAmount] = useState(0);
-  const [activeStoryboardId, setActiveStoryboardId] = useState('');
-  const [animationPlaying, setAnimationPlaying] = useState(false);
-  const [storyboardExporting, setStoryboardExporting] = useState('');
-  const [animationTime, setAnimationTime] = useState(0);
-  const [animationInstanceOffsets, setAnimationInstanceOffsets] = useState({});
-  const [animationInstanceRotations, setAnimationInstanceRotations] = useState({});
-  const [animationJointValues, setAnimationJointValues] = useState({});
-  const [animationNote, setAnimationNote] = useState('');
-  const animationTimeRef = useRef(0);
-  animationTimeRef.current = animationTime;
   const [namedViewsOpen, setNamedViewsOpen] = useState(false);
-  const [renderSceneOpen, setRenderSceneOpen] = useState(false);
   const [cameraRequest, setCameraRequest] = useState(null);
   const [linkedProjectStatuses, setLinkedProjectStatuses] = useState({});
   const [commandCustomizationOpen, setCommandCustomizationOpen] = useState(false);
   const [commandCustomization, setCommandCustomization] = useState(() => loadCommandCustomization(window.localStorage));
-  const [printPanelOpen, setPrintPanelOpen] = useState(false);
   const [timelineRename, setTimelineRename] = useState(null);
   const [timelineGroupRename, setTimelineGroupRename] = useState(null);
   const [timelineDeleteId, setTimelineDeleteId] = useState(null);
@@ -667,7 +514,6 @@ export default function ModelingWorkspace() {
   const [projectDependenciesOpen, setProjectDependenciesOpen] = useState(false);
   const [projectSearchOpen, setProjectSearchOpen] = useState(false);
   const [projectDependencyNodeId, setProjectDependencyNodeId] = useState(() => initialOpen.document.id);
-  const [camSimulationProgress, setCamSimulationProgress] = useState(1);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
   const [recoveryInfo, setRecoveryInfo] = useState(() => initialOpen.recovered ? {
@@ -683,7 +529,6 @@ export default function ModelingWorkspace() {
   const sketchPointerRef = useRef(null);
   const sketchDynamicLengthRef = useRef('');
   const currentCameraRef = useRef(null);
-  const renderCaptureRef = useRef(null);
   const helpMenuRef = useRef(null);
   const helpButtonRef = useRef(null);
   const shortcutRegistryRef = useRef(new Map());
@@ -695,25 +540,7 @@ export default function ModelingWorkspace() {
   const [fitViewRequest, setFitViewRequest] = useState(null);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
   const [importRepairReport, setImportRepairReport] = useState(null);
-  useEffect(() => { setExplodeAmount(0); setActiveStoryboardId(''); setAnimationPlaying(false); setAnimationTime(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); setCamSimulationProgress(1); }, [document.id]);
-  useEffect(() => {
-    if (!animationPlaying) return undefined;
-    const storyboard = document.animationStoryboards?.find((item) => item.id === activeStoryboardId);
-    if (!storyboard) { setAnimationPlaying(false); return undefined; }
-    const startedAt = performance.now() - animationTimeRef.current * 1000;
-    let frameId = 0;
-    const tick = (now) => {
-      const nextTime = Math.min(storyboard.duration, (now - startedAt) / 1000);
-      setAnimationTime(nextTime);
-      const sampled = sampleAssemblyStoryboardState(storyboard, nextTime);
-      setExplodeAmount(sampled.explodeAmount); setAnimationInstanceOffsets(sampled.instanceOffsets); setAnimationInstanceRotations(sampled.instanceRotations); setAnimationJointValues(sampled.jointValues); setAnimationNote(sampled.note);
-      if (sampled.camera) setCameraRequest({ requestId: `storyboard:${storyboard.id}:${nextTime}`, camera: sampled.camera });
-      if (nextTime >= storyboard.duration) setAnimationPlaying(false);
-      else frameId = requestAnimationFrame(tick);
-    };
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [animationPlaying, activeStoryboardId, document.animationStoryboards]);
+  useEffect(() => { setExplodeAmount(0); }, [document.id]);
   useEffect(() => {
     if (command) setImportRepairReport(null);
   }, [command]);
@@ -729,8 +556,8 @@ export default function ModelingWorkspace() {
     return () => media.removeEventListener?.('change', updateCompactViewport);
   }, []);
   useEffect(() => {
-    if (compactViewport && (command || printPanelOpen)) setBrowserOpen(false);
-  }, [command, compactViewport, printPanelOpen]);
+    if (compactViewport && command) setBrowserOpen(false);
+  }, [command, compactViewport]);
   useEffect(() => {
     if (!fileMenuOpen) return undefined;
     const closeFileMenu = (event) => { if (event.key === 'Escape') setFileMenuOpen(false); };
@@ -1052,234 +879,6 @@ export default function ModelingWorkspace() {
     });
   };
 
-  const createCamSetup = () => {
-    const solidBodies = engine.bodies.filter((body) => body.bodyKind !== 'surface');
-    if (!solidBodies.length) { setNotice('Setup CAM wymaga co najmniej jednej bryły 3D.'); return; }
-    const preferredBody = solidBodies.find((body) => body.id === selection?.id) || solidBodies[0];
-    let created;
-    commit((next) => {
-      created = createManufacturingSetup({ name: `Setup ${next.manufacturing.setups.length + 1}`, bodyId: preferredBody.id });
-      next.manufacturing.setups.push(created);
-      next.manufacturing.activeSetupId = created.id;
-    });
-    if (created) setNotice(`Utworzono ${created.name}: wybierz maszynę, naddatki i zero WCS.`);
-  };
-
-  const activateCamSetup = (setupId) => commit((next) => { next.manufacturing.activeSetupId = setupId; });
-  const updateCamSetup = (setupId, patch) => commit((next) => {
-    const index = next.manufacturing.setups.findIndex((setup) => setup.id === setupId);
-    if (index < 0) return;
-    next.manufacturing.setups[index] = normalizeManufacturingSetup({ ...next.manufacturing.setups[index], ...patch }, index);
-  });
-  const deleteCamSetup = (setupId) => commit((next) => {
-    next.manufacturing.setups = next.manufacturing.setups.filter((setup) => setup.id !== setupId);
-    next.manufacturing.activeSetupId = next.manufacturing.setups[0]?.id || '';
-    setNotice('Usunięto Setup CAM. Cofnij, aby go przywrócić.');
-  });
-  const createCamTool = () => commit((next) => {
-    const tool = createCustomCamTool({ name: `Wiertło własne ${next.manufacturing.tools.length + 1}` });
-    next.manufacturing.tools.push(tool);
-    setNotice(`Dodano ${tool.name} do biblioteki projektu.`);
-  });
-  const updateCamTool = (toolId, patch) => commit((next) => {
-    const index = next.manufacturing.tools.findIndex((tool) => tool.id === toolId);
-    if (index >= 0) next.manufacturing.tools[index] = normalizeCustomCamTool({ ...next.manufacturing.tools[index], ...patch }, index);
-  });
-  const deleteCamTool = (toolId) => commit((next) => {
-    const usedBy = next.manufacturing.setups.flatMap((setup) => setup.operations).find((operation) => operation.toolId === toolId);
-    const templateUsingTool = next.manufacturing.operationTemplates.find((template) => template.operation?.toolId === toolId);
-    if (usedBy) { setNotice(`Nie można usunąć narzędzia używanego przez operację „${usedBy.name}”.`); return; }
-    if (templateUsingTool) { setNotice(`Nie można usunąć narzędzia używanego przez szablon „${templateUsingTool.name}”.`); return; }
-    next.manufacturing.tools = next.manufacturing.tools.filter((tool) => tool.id !== toolId);
-    setNotice('Usunięto narzędzie z biblioteki projektu. Cofnij, aby je przywrócić.');
-  });
-  const createCamOperation = (setupId, type = 'face') => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const sameTypeCount = setup.operations.filter((item) => item.type === type).length + 1;
-    const selectedBoundaryFaceId = selection?.kind === 'face' && selection.bodyId === setup.bodyId ? selection.id : '';
-    const boundarySelection = selectedProfileMatch && !activeSketchId
-      ? { boundarySketchId: selectedProfileMatch.sketch.id, boundaryProfileId: selectedProfileMatch.profile.id }
-      : { boundaryFaceId: selectedBoundaryFaceId };
-    const setupBody = engine.bodies.find((body) => body.id === setup.bodyId);
-    const setupBounds = setupBody?.bounds || setupBody?.metrics?.bounds;
-    const firstHoleDiameter = Number(setupBody?.manufacturingHoles?.[0]?.diameter);
-    const firstHoleFeatureId = setupBody?.manufacturingHoles?.[0]?.featureId;
-    const drillingToolId = [...Object.values(CAM_TOOL_PRESETS), ...next.manufacturing.tools]
-      .filter((tool) => tool.type === 'twist-drill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter <= firstHoleDiameter + 0.05))
-      .sort((first, second) => Number.isFinite(firstHoleDiameter) ? Math.abs(first.diameter - firstHoleDiameter) - Math.abs(second.diameter - firstHoleDiameter) : first.diameter - second.diameter)[0]?.id;
-    const tappingToolId = next.manufacturing.tools
-      .filter((tool) => tool.type === 'tap')
-      .sort((first, second) => Number.isFinite(firstHoleDiameter) ? Math.abs(first.diameter - first.pitch - firstHoleDiameter) - Math.abs(second.diameter - second.pitch - firstHoleDiameter) : first.diameter - second.diameter)[0]?.id;
-    const spotTool = next.manufacturing.tools
-      .filter((tool) => tool.type === 'spot-drill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter > firstHoleDiameter + 0.05))
-      .sort((first, second) => first.diameter - second.diameter)[0];
-    const counterboreToolId = Object.values(CAM_TOOL_PRESETS)
-      .filter((tool) => tool.type === 'flat-end-mill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter <= firstHoleDiameter + 0.05))
-      .sort((first, second) => second.diameter - first.diameter)[0]?.id;
-    const turningDefaults = setupBounds ? {
-      stockDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]) + setup.stock.sideOffset * 2,
-      targetDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]),
-      axialLength: setupBounds[1][0] - setupBounds[0][0],
-    } : {};
-    const operation = type === 'contour'
-      ? createContourOperation({ name: `Kontur 2D ${sameTypeCount}`, ...boundarySelection })
-      : type === 'pocket'
-        ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}`, ...boundarySelection })
-        : type === 'adaptive'
-          ? createAdaptiveOperation({ name: `Adaptacyjne 2D ${sameTypeCount}`, ...boundarySelection })
-          : type === 'drill'
-            ? createDrillingOperation({ name: `Wiercenie ${sameTypeCount}`, toolId: drillingToolId, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
-          : type === 'spot'
-            ? createSpotDrillingOperation({ name: `Nawiertanie ${sameTypeCount}`, toolId: spotTool?.id, targetDiameter: Number.isFinite(firstHoleDiameter) && spotTool ? Math.min(spotTool.diameter, firstHoleDiameter + 2) : spotTool?.diameter, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
-          : type === 'counterbore'
-            ? createCounterboreOperation({ name: `Pogłębianie walcowe ${sameTypeCount}`, toolId: counterboreToolId, targetDiameter: Number.isFinite(firstHoleDiameter) ? firstHoleDiameter + 6 : 12, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
-          : type === 'tap'
-            ? createTappingOperation({ name: `Gwintowanie ${sameTypeCount}`, toolId: tappingToolId, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
-          : type === 'cut2d'
-            ? createCut2dOperation({ name: `Cięcie konturu ${sameTypeCount}`, postProcessorId: setup.machineId === 'plasma-1250' ? 'linuxcnc-plasma' : 'grbl-laser', ...boundarySelection })
-            : type === 'turn-face' || type === 'turn-profile'
-              ? createTurningOperation(type, { name: type === 'turn-face' ? `Planowanie czoła ${sameTypeCount}` : `Toczenie zewnętrzne ${sameTypeCount}`, ...turningDefaults })
-        : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
-    setup.operations.push(operation);
-    const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : type === 'drill' ? 'Wiercenie' : type === 'spot' ? 'Nawiertanie' : type === 'counterbore' ? 'Pogłębianie walcowe' : type === 'tap' ? 'Gwintowanie' : type === 'cut2d' ? 'Cięcie konturu' : type === 'turn-face' ? 'Planowanie czoła' : type === 'turn-profile' ? 'Toczenie zewnętrzne' : 'Kontur 2D';
-    const boundaryLabel = selectedProfileMatch && !activeSketchId ? ' dla zaznaczonego profilu szkicu' : selectedBoundaryFaceId ? ' dla zaznaczonej ściany' : ' dla górnej powierzchni bryły';
-    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : type === 'drill' ? 'Utworzono wiercenie rozpoznanych otworów. Ustaw wiertło, głębokość skoku i wycofanie.' : type === 'spot' ? 'Utworzono nawiertanie. Głębokość jest wyliczana ze średnicy otworu, średnicy docelowej i kąta ostrza.' : type === 'counterbore' ? 'Utworzono pogłębianie walcowe. Ustaw średnicę, głębokość, warstwę i frez mieszczący się w otworze pilotowym.' : type === 'tap' ? 'Utworzono gwintowanie. Posuw jest wyliczany ze skoku gwintownika i obrotów.' : type === 'cut2d' ? `Utworzono ${operationLabel}${boundaryLabel}. Ustaw szczelinę, wejście, moc, przejścia i posuw.` : type === 'turn-face' || type === 'turn-profile' ? `Utworzono ${operationLabel}. Sprawdź średnice, długość, głębokość przejścia, posuw i obroty.` : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
-  });
-  const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    const index = setup?.operations.findIndex((item) => item.id === operationId) ?? -1;
-    if (index >= 0) setup.operations[index] = normalizeManufacturingOperation({ ...setup.operations[index], ...patch }, index);
-  });
-  const optimizeCamOperationOrder = (setupId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const body = engine.bodies.find((item) => item.id === setup.bodyId);
-    const result = optimizeManufacturingOperationOrder(setup, body);
-    setup.operations = result.operations;
-    setNotice(result.warnings[0] || (result.changed ? `Uporządkowano operacje. Zmiany narzędzia: ${result.toolChangesBefore} → ${result.toolChangesAfter}.` : `Kolejność jest już optymalna. Zmiany narzędzia: ${result.toolChangesAfter}.`));
-  });
-  const deleteCamOperation = (setupId, operationId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (setup) setup.operations = setup.operations.filter((item) => item.id !== operationId);
-    setNotice('Usunięto operację CAM. Cofnij, aby ją przywrócić.');
-  });
-  const duplicateCamOperation = (setupId, operationId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const result = duplicateManufacturingOperation(setup, operationId);
-    if (!result.operation) { setNotice('Nie znaleziono operacji CAM do zduplikowania.'); return; }
-    setup.operations = result.operations;
-    setNotice(`Utworzono „${result.operation.name}”. Kopia zachowuje narzędzie, geometrię i parametry źródła.`);
-  });
-  const moveCamOperation = (setupId, operationId, direction) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const body = engine.bodies.find((item) => item.id === setup.bodyId);
-    const result = moveManufacturingOperation(setup, operationId, direction, body);
-    if (!result.changed) { setNotice(result.warnings[0] || 'Operacja jest już na skraju listy.'); return; }
-    setup.operations = result.operations;
-    setNotice('Zmieniono kolejność operacji CAM. Zależności technologiczne pozostały zachowane.');
-  });
-  const createCamOperationGroup = (setupId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const group = createManufacturingOperationGroup({ name: `Folder ${setup.operationGroups.length + 1}` });
-    setup.operationGroups.push(group);
-    setNotice(`Utworzono „${group.name}”. Przypisz operacje z pola Folder.`);
-  });
-  const updateCamOperationGroup = (setupId, groupId, patch) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    const index = setup?.operationGroups.findIndex((group) => group.id === groupId) ?? -1;
-    if (index < 0) return;
-    setup.operationGroups[index] = {
-      ...setup.operationGroups[index],
-      ...patch,
-      name: String(patch.name ?? setup.operationGroups[index].name).trim().slice(0, 80) || setup.operationGroups[index].name,
-    };
-  });
-  const deleteCamOperationGroup = (setupId, groupId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const result = deleteManufacturingOperationGroup(setup, groupId);
-    if (!result.changed) return;
-    setup.operationGroups = result.operationGroups;
-    setup.operations = result.operations;
-    setNotice('Usunięto folder. Operacje zachowano na liście głównej.');
-  });
-  const saveCamOperationTemplate = (setupId, operationId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    const operation = setup?.operations.find((item) => item.id === operationId);
-    if (!operation) return;
-    const template = createManufacturingOperationTemplate(operation);
-    next.manufacturing.operationTemplates.push(template);
-    setNotice(`Zapisano „${template.name}”. Geometria modelu nie jest częścią szablonu.`);
-  });
-  const updateCamOperationTemplate = (templateId, patch) => commit((next) => {
-    const index = next.manufacturing.operationTemplates.findIndex((template) => template.id === templateId);
-    if (index < 0) return;
-    next.manufacturing.operationTemplates[index] = normalizeManufacturingOperationTemplate({ ...next.manufacturing.operationTemplates[index], ...patch }, index);
-  });
-  const deleteCamOperationTemplate = (templateId) => commit((next) => {
-    next.manufacturing.operationTemplates = next.manufacturing.operationTemplates.filter((template) => template.id !== templateId);
-    setNotice('Usunięto szablon operacji CAM.');
-  });
-  const applyCamOperationTemplate = (setupId, templateId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    const template = next.manufacturing.operationTemplates.find((item) => item.id === templateId);
-    if (!setup || !template) return;
-    try {
-      const operation = instantiateManufacturingOperationTemplate(template, setup);
-      setup.operations.push(operation);
-      setNotice(`Dodano „${operation.name}” z szablonu. Wskaż geometrię operacji, jeśli jest wymagana.`);
-    } catch (error) {
-      setNotice(error.message);
-    }
-  });
-  const exportCamOperation = (setupId, operationId) => {
-    try {
-      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
-      const operation = setup?.operations.find((item) => item.id === operationId);
-      if (!setup || !operation) throw new Error('Nie znaleziono operacji CAM.');
-      const output = createMachineGcode(setup, operation, engine.bodies, { projectName: document.name, document });
-      downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(operation.name)}.${output.extension}`);
-      setNotice(`Zapisano G-code ${output.postProcessor}: ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
-    } catch (error) {
-      setNotice(`Eksport G-code nie powiódł się: ${error.message}`);
-    }
-  };
-  const exportCamProgram = (setupId) => {
-    try {
-      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
-      if (!setup) throw new Error('Nie znaleziono Setupu CAM.');
-      const output = createManufacturingProgramGcode(setup, engine.bodies, { projectName: document.name, document });
-      downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(setup.name)}-program.${output.extension}`);
-      setNotice(`Zapisano cały program ${output.postProcessor}: ${output.operationCount} operacji, ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
-    } catch (error) {
-      setNotice(`Eksport programu CAM nie powiódł się: ${error.message}`);
-    }
-  };
-  const exportCamSetupSheet = (setupId) => {
-    try {
-      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
-      if (!setup) throw new Error('Nie znaleziono Setupu CAM.');
-      const sheet = createManufacturingSetupSheet(setup, engine.bodies, { projectName: document.name, document });
-      downloadBlob(new Blob([sheet.html], { type: 'text/html;charset=utf-8' }), `${safeName(document.name)}-${safeName(setup.name)}-arkusz-ustawczy.html`);
-      setNotice(`Zapisano arkusz ustawczy: ${sheet.operationCount} operacji i ${sheet.toolCount} narzędzi.`);
-    } catch (error) {
-      setNotice(`Eksport arkusza ustawczego nie powiódł się: ${error.message}`);
-    }
-  };
-  const exportCamSequenceSheet = () => {
-    try {
-      const sheet = createManufacturingSequenceSheet(document.manufacturing, engine.bodies, { projectName: document.name, document });
-      downloadBlob(new Blob([sheet.html], { type: 'text/html;charset=utf-8' }), `${safeName(document.name)}-raport-mocowan.html`);
-      setNotice(`Zapisano raport ${sheet.setupCount} mocowań CAM. Potwierdź zera WCS i przejazdy na obrabiarce.`);
-    } catch (error) {
-      setNotice(`Eksport raportu mocowań nie powiódł się: ${error.message}`);
-    }
-  };
-
   const saveNamedView = (name) => {
     try {
       if (!currentCameraRef.current) throw new Error('Kamera modelu nie jest jeszcze gotowa.');
@@ -1291,166 +890,6 @@ export default function ModelingWorkspace() {
     }
   };
 
-  const updateRenderScene = (renderScene) => {
-    commit((next) => { next.renderScene = renderScene; });
-  };
-
-  const createStoryboard = (name) => {
-    try {
-      const storyboardId = createId('storyboard');
-      const storyboardName = String(name || `Storyboard ${(document.animationStoryboards?.length || 0) + 1}`).trim();
-      commit((next) => { createAssemblyStoryboard(next, { id: storyboardId, name: storyboardName, duration: 5, keyframes: [{ time: 0, explodeAmount: 0, jointValues: Object.fromEntries(next.joints.map((joint) => [joint.id, joint.value])) }] }); });
-      setActiveStoryboardId(storyboardId); setAnimationTime(0); setNotice(`Utworzono storyboard „${storyboardName}”.`);
-    } catch (error) { setNotice(error.message); }
-  };
-  const addStoryboardFrame = (storyboardId, time, amount, instanceOffsets, instanceRotations, jointValues, note) => {
-    try { commit((next) => { addStoryboardKeyframe(next, storyboardId, { time, explodeAmount: amount, instanceOffsets, instanceRotations, jointValues, camera: currentCameraRef.current, note }); }); }
-    catch (error) { setNotice(error.message); }
-  };
-  const deleteStoryboardFrame = (storyboardId, frameId) => {
-    try { commit((next) => { deleteStoryboardKeyframe(next, storyboardId, frameId); }); }
-    catch (error) { setNotice(error.message); }
-  };
-  const changeStoryboard = (storyboardId, patch) => {
-    try { commit((next) => { updateAssemblyStoryboard(next, storyboardId, patch); }); }
-    catch (error) { setNotice(error.message); }
-  };
-  const removeStoryboard = (storyboardId) => {
-    try { commit((next) => { deleteAssemblyStoryboard(next, storyboardId); }); setAnimationPlaying(false); setActiveStoryboardId(''); setAnimationTime(0); setExplodeAmount(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); }
-    catch (error) { setNotice(error.message); }
-  };
-  const seekStoryboard = (storyboard, time) => {
-    const sampled = sampleAssemblyStoryboardState(storyboard, time);
-    setAnimationPlaying(false); setActiveStoryboardId(storyboard.id); setAnimationTime(time); setExplodeAmount(sampled.explodeAmount); setAnimationInstanceOffsets(sampled.instanceOffsets); setAnimationInstanceRotations(sampled.instanceRotations); setAnimationJointValues(sampled.jointValues); setAnimationNote(sampled.note);
-    if (sampled.camera) setCameraRequest({ requestId: `storyboard-seek:${storyboard.id}:${time}:${Date.now()}`, camera: sampled.camera });
-  };
-
-  const exportStoryboardInstructions = async (storyboard) => {
-    if (storyboardExporting) return;
-    const previous = { time: animationTime, explodeAmount, instanceOffsets: animationInstanceOffsets, instanceRotations: animationInstanceRotations, jointValues: animationJointValues, note: animationNote, camera: currentCameraRef.current };
-    try {
-      setAnimationPlaying(false);
-      setStoryboardExporting('instructions');
-      const frameImages = [];
-      for (const frame of [...storyboard.keyframes].sort((first, second) => first.time - second.time)) {
-        const sampled = sampleAssemblyStoryboardState(storyboard, frame.time);
-        setAnimationTime(frame.time); setExplodeAmount(sampled.explodeAmount); setAnimationInstanceOffsets(sampled.instanceOffsets); setAnimationInstanceRotations(sampled.instanceRotations); setAnimationJointValues(sampled.jointValues); setAnimationNote(sampled.note);
-        if (sampled.camera) setCameraRequest({ requestId: `storyboard-instruction:${storyboard.id}:${frame.id}:${Date.now()}`, camera: sampled.camera });
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        const image = renderCaptureRef.current?.();
-        if (!image) throw new Error(`Nie udało się wyrenderować klatki ${frame.time.toFixed(1)} s.`);
-        frameImages.push(image);
-      }
-      const html = assemblyInstructionHtml(document, storyboard, { frameImages });
-      downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `${safeName(document.name)}-${safeName(storyboard.name)}-instrukcja.html`);
-      setNotice(`Zapisano instrukcję HTML z ${frameImages.length} widokami klatek.`);
-    } catch (error) {
-      setNotice(`Nie zapisano instrukcji: ${error.message}`);
-    } finally {
-      setAnimationTime(previous.time); setExplodeAmount(previous.explodeAmount); setAnimationInstanceOffsets(previous.instanceOffsets); setAnimationInstanceRotations(previous.instanceRotations); setAnimationJointValues(previous.jointValues); setAnimationNote(previous.note);
-      if (previous.camera) setCameraRequest({ requestId: `storyboard-instruction-restore:${storyboard.id}:${Date.now()}`, camera: previous.camera });
-      setStoryboardExporting('');
-    }
-  };
-
-  const exportStoryboardVideo = async (storyboard) => {
-    if (storyboardExporting) return;
-    let stream;
-    let recorder;
-    try {
-      if (!window.MediaRecorder) throw new Error('Ten system nie obsługuje eksportu WebM.');
-      const sourceCanvas = window.document.querySelector('.model-viewport canvas');
-      if (!sourceCanvas?.captureStream) throw new Error('Widok 3D nie jest jeszcze gotowy.');
-      setAnimationPlaying(false);
-      setStoryboardExporting('video');
-      const scale = Math.min(1, 1920 / sourceCanvas.width, 1080 / sourceCanvas.height);
-      const exportCanvas = window.document.createElement('canvas');
-      exportCanvas.width = Math.max(2, Math.round(sourceCanvas.width * scale));
-      exportCanvas.height = Math.max(2, Math.round(sourceCanvas.height * scale));
-      const context = exportCanvas.getContext('2d', { alpha: false });
-      if (!context) throw new Error('Nie udało się przygotować klatki filmu.');
-      stream = exportCanvas.captureStream(24);
-      const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((type) => window.MediaRecorder.isTypeSupported(type));
-      if (!mimeType) throw new Error('Brak dostępnego kodera WebM.');
-      const chunks = [];
-      recorder = new window.MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
-      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
-      const stopped = new Promise((resolve, reject) => {
-        recorder.onstop = resolve;
-        recorder.onerror = () => reject(recorder.error || new Error('Koder przerwał nagrywanie.'));
-      });
-      const first = sampleAssemblyStoryboardState(storyboard, 0);
-      animationTimeRef.current = 0;
-      setActiveStoryboardId(storyboard.id); setAnimationTime(0); setExplodeAmount(first.explodeAmount); setAnimationInstanceOffsets(first.instanceOffsets); setAnimationInstanceRotations(first.instanceRotations); setAnimationJointValues(first.jointValues); setAnimationNote(first.note);
-      if (first.camera) setCameraRequest({ requestId: `storyboard-export:${storyboard.id}:0:${Date.now()}`, camera: first.camera });
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      recorder.start(250);
-      setAnimationPlaying(true);
-      const startedAt = performance.now();
-      do {
-        const currentCanvas = window.document.querySelector('.model-viewport canvas');
-        if (currentCanvas) context.drawImage(currentCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-      } while (performance.now() - startedAt < storyboard.duration * 1000 + 250);
-      recorder.stop();
-      await stopped;
-      const blob = new Blob(chunks, { type: mimeType });
-      if (blob.size < 1024) throw new Error('Koder nie zwrócił poprawnego filmu.');
-      downloadBlob(blob, `${safeName(document.name)}-${safeName(storyboard.name)}.webm`);
-      setNotice(`Zapisano film WebM ${exportCanvas.width}×${exportCanvas.height}.`);
-    } catch (error) {
-      if (recorder?.state === 'recording') recorder.stop();
-      setNotice(`Nie zapisano filmu: ${error.message}`);
-    } finally {
-      setAnimationPlaying(false);
-      stream?.getTracks().forEach((track) => track.stop());
-      setStoryboardExporting('');
-    }
-  };
-
-  const addRenderDecal = async (file, face) => {
-    try {
-      if (!face?.bodyId || !face?.id) throw new Error('Wybierz jedną ścianę modelu.');
-      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('Wybierz obraz PNG, JPEG albo WebP.');
-      if (file.size > MAX_RENDER_DECAL_BYTES) throw new Error('Obraz naklejki może mieć maksymalnie 2 MB.');
-      const imageData = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(reader.error || new Error('Nie udało się odczytać obrazu.'));
-        reader.readAsDataURL(file);
-      });
-      let decal;
-      commit((next) => { decal = createRenderDecal(next, { name: file.name.replace(/\.[^.]+$/, ''), bodyId: face.bodyId, faceId: face.id, imageData }); });
-      setNotice(`Dodano naklejkę „${decal.name}” do wybranej ściany.`);
-    } catch (error) {
-      setNotice(`Nie dodano naklejki: ${error.message}`);
-    }
-  };
-
-  const changeRenderDecal = (decalId, patch) => {
-    try { commit((next) => { updateRenderDecal(next, decalId, patch); }); }
-    catch (error) { setNotice(`Nie zmieniono naklejki: ${error.message}`); }
-  };
-
-  const removeRenderDecal = (decalId) => {
-    try { commit((next) => { deleteRenderDecal(next, decalId); }); setNotice('Usunięto naklejkę. Cofnij przywraca ją na ścianę.'); }
-    catch (error) { setNotice(`Nie usunięto naklejki: ${error.message}`); }
-  };
-
-  const saveLocalRender = async () => {
-    try {
-      const dataUrl = renderCaptureRef.current?.();
-      if (!dataUrl) throw new Error('Widok 3D nie jest jeszcze gotowy.');
-      const encoded = dataUrl.split(',')[1];
-      if (!encoded) throw new Error('Widok 3D zwrócił nieprawidłowy obraz.');
-      const binary = window.atob(encoded);
-      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-      downloadBlob(new Blob([bytes], { type: 'image/png' }), `${safeName(document.name)}-render.png`);
-      setNotice('Zapisano bieżący widok jako PNG.');
-    } catch (error) {
-      setNotice(`Nie udało się zapisać renderu: ${error.message}`);
-    }
-  };
   const activateNamedView = (view) => {
     setCameraRequest({ requestId: `${view.id}:${Date.now()}`, camera: structuredClone(view.camera) });
     setNotice(`Przywrócono widok „${view.name}”.`);
@@ -1715,14 +1154,8 @@ export default function ModelingWorkspace() {
   const selectedJoint = selection?.kind === 'joint'
     ? document.joints.find((joint) => joint.id === selection.id) || null
     : null;
-  const selectedMotionLink = selection?.kind === 'motionLink'
-    ? document.motionLinks.find((link) => link.id === selection.id) || null
-    : null;
   const selectedAssemblyConfiguration = selection?.kind === 'assemblyConfiguration'
     ? document.assemblyConfigurations.find((configuration) => configuration.id === selection.id) || null
-    : null;
-  const selectedContactSet = selection?.kind === 'contactSet'
-    ? document.contactSets.find((contactSet) => contactSet.id === selection.id) || null
     : null;
   const selectedInstance = selection?.kind === 'componentInstance'
     ? document.componentInstances.find((instance) => instance.id === selection.id) || null
@@ -2057,37 +1490,6 @@ export default function ModelingWorkspace() {
       setNotice(`Nie usunięto jointa: ${error.message}`);
     }
   };
-  const createDocumentMotionLink = (options) => {
-    try {
-      const checked = cloneDocument(document);
-      const link = createMotionLink(checked, options);
-      commit((next) => Object.assign(next, checked));
-      setSelection({ kind: 'motionLink', id: link.id });
-      setNotice(`Utworzono Motion Link „${link.name}”. Ruch jointa docelowego jest teraz powiązany ze źródłem.`);
-    } catch (error) {
-      setNotice(`Nie utworzono Motion Link: ${error.message}`);
-    }
-  };
-  const updateDocumentMotionLink = (linkId, patch) => {
-    try {
-      const checked = cloneDocument(document);
-      updateMotionLink(checked, linkId, patch);
-      commit((next) => Object.assign(next, checked));
-    } catch (error) {
-      setNotice(`Nie zmieniono Motion Link: ${error.message}`);
-    }
-  };
-  const removeDocumentMotionLink = (linkId) => {
-    try {
-      const checked = cloneDocument(document);
-      const link = deleteMotionLink(checked, linkId);
-      commit((next) => Object.assign(next, checked));
-      setSelection({ kind: 'document', id: checked.id });
-      setNotice(`Usunięto Motion Link „${link.name}”.`);
-    } catch (error) {
-      setNotice(`Nie usunięto Motion Link: ${error.message}`);
-    }
-  };
   const createDocumentAssemblyConfiguration = (options) => {
     try {
       const checked = cloneDocument(document);
@@ -2131,37 +1533,6 @@ export default function ModelingWorkspace() {
       setNotice(`Nie usunięto konfiguracji: ${error.message}`);
     }
   };
-  const createDocumentContactSet = (options) => {
-    try {
-      const checked = cloneDocument(document);
-      const contactSet = createContactSet(checked, options);
-      commit((next) => Object.assign(next, checked));
-      setSelection({ kind: 'contactSet', id: contactSet.id });
-      setNotice(`Utworzono Contact Set „${contactSet.name}”. Para jest stale monitorowana podczas ruchu.`);
-    } catch (error) {
-      setNotice(`Nie utworzono Contact Set: ${error.message}`);
-    }
-  };
-  const updateDocumentContactSet = (contactSetId, patch) => {
-    try {
-      const checked = cloneDocument(document);
-      updateContactSet(checked, contactSetId, patch);
-      commit((next) => Object.assign(next, checked));
-    } catch (error) {
-      setNotice(`Nie zmieniono Contact Set: ${error.message}`);
-    }
-  };
-  const removeDocumentContactSet = (contactSetId) => {
-    try {
-      const checked = cloneDocument(document);
-      const contactSet = deleteContactSet(checked, contactSetId);
-      commit((next) => Object.assign(next, checked));
-      setSelection({ kind: 'document', id: checked.id });
-      setNotice(`Usunięto Contact Set „${contactSet.name}”.`);
-    } catch (error) {
-      setNotice(`Nie usunięto Contact Set: ${error.message}`);
-    }
-  };
   const selectedBodyRepresentations = selectedBodies.map((body) => body.representation);
   const canBooleanSelectedBodies = selectedBodyIds.length === 2
     && selectedBodyRepresentations.length === 2
@@ -2195,54 +1566,6 @@ export default function ModelingWorkspace() {
       return { result: null, error: error.message };
     }
   }, [command?.type, command?.density, massBodies]);
-  const staticScreening = useMemo(() => {
-    if (command?.type !== 'staticScreening') return null;
-    try {
-      const body = engine.bodies.find((item) => item.id === command.bodyId);
-      return { result: calculateCantileverScreening(body, command), error: '' };
-    } catch (error) {
-      return { result: null, error: error.message };
-    }
-  }, [command, engine.bodies]);
-  const beamFea = useMemo(() => {
-    if (command?.type !== 'beamFea') return null;
-    try {
-      const body = engine.bodies.find((item) => item.id === command.bodyId);
-      return { result: calculateCantileverBeamFea(body, command), error: '' };
-    } catch (error) {
-      return { result: null, error: error.message };
-    }
-  }, [command, engine.bodies]);
-  const solidFea = useMemo(() => {
-    if (command?.type !== 'solidFea') return null;
-    try {
-      const body = engine.bodies.find((item) => item.id === command.bodyId);
-      return { result: calculateSolidFea(body, command), error: '' };
-    } catch (error) {
-      return { result: null, error: error.message };
-    }
-  }, [command, engine.bodies]);
-  const exportBeamFeaReport = async () => {
-    if (!beamFea?.result) return;
-    const text = `\uFEFF${createBeamFeaReportCsv(beamFea.result, document.name)}`;
-    const defaultName = `${safeName(document.name)}-mes-belki.csv`;
-    if (window.desktopApp?.saveTextFile) {
-      const saved = await window.desktopApp.saveTextFile({ defaultName, text, filters: [{ name: 'Raport CSV', extensions: ['csv'] }], atomic: true, createBackup: false });
-      setNotice(saved?.ok ? `Zapisano raport MES: ${saved.filePath}` : saved?.canceled ? 'Anulowano zapis raportu MES.' : `Nie udało się zapisać raportu MES: ${saved?.error || 'nieznany błąd'}`);
-      return;
-    }
-    downloadBlob(new Blob([text], { type: 'text/csv;charset=utf-8' }), defaultName);
-    setNotice('Pobrano raport MES CSV.');
-  };
-  const thermalScreening = useMemo(() => {
-    if (command?.type !== 'thermalScreening') return null;
-    try {
-      const body = engine.bodies.find((item) => item.id === command.bodyId);
-      return { result: calculateThermalScreening(body, command), error: '' };
-    } catch (error) {
-      return { result: null, error: error.message };
-    }
-  }, [command, engine.bodies]);
   const draftAnalysis = useMemo(() => command?.type === 'geometryInspection'
     ? analyzeDraftAngles(engine.bodies, {
       direction: DRAFT_DIRECTIONS[command.draftDirection] || DRAFT_DIRECTIONS['z-positive'],
@@ -2259,27 +1582,38 @@ export default function ModelingWorkspace() {
   const activeGeometryFaceAnalysis = command?.type === 'geometryInspection' && command.inspectionMode === 'thickness' ? thicknessAnalysis : draftAnalysis;
   const surfaceContinuity = useMemo(() => analyzeSurfaceContinuity(engine.bodies), [engine.bodies]);
   const surfaceCurvature = useMemo(() => summarizeMeshCurvature(engine.bodies), [engine.bodies]);
-  const selectedPrintFace = useMemo(() => {
-    if (selectedFaceItems.length !== 1) return null;
-    const selected = selectedFaceItems[0];
-    const descriptor = engine.bodies.find((body) => body.id === selected.bodyId)?.topology?.faces?.find((face) => face.id === selected.id)?.descriptor;
-    return descriptor?.geometry === 'PLANE' && Array.isArray(descriptor.normal) ? descriptor : null;
-  }, [engine.bodies, selectedFaceItems]);
   const constructionAxes = useMemo(() => resolveConstructionAxes(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const constructionPoints = useMemo(() => resolveConstructionPoints(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'sheetBase' || feature.type === 'primitive' || feature.type === 'formBody' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   // Stable identities matter: the viewport rebuilds its whole scene (and orbit controls)
   // whenever these change, which used to interrupt a drag on any unrelated re-render.
+  // 2D sheets use the kernel's hidden-line removal (visible + dashed hidden edges). Until the
+  // projection for the current model revision arrives, views fall back to all tessellation edges.
+  const [drawingProjections, setDrawingProjections] = useState({ revision: -1, groupsKey: '', data: {} });
+  const projectionGroups = useMemo(() => drawingProjectionGroups(document.drawings, engine.bodies), [document.drawings, engine.bodies]);
+  const projectionGroupsKey = JSON.stringify(projectionGroups);
+  const projectDrawingViews = engine.projectDrawingViews;
+  useEffect(() => {
+    if (workspace !== 'drawing' || engine.status !== 'ready' || !engine.bodies.length || (drawingProjections.revision === engine.revision && drawingProjections.groupsKey === projectionGroupsKey)) return undefined;
+    let active = true;
+    const revision = engine.revision;
+    projectDrawingViews(['front', 'top', 'right', 'isometric'], projectionGroups, document.drawings.flatMap((sheet) => sheet.views.filter((view) => view.type === 'section')), drawingProjectionTolerance(document.drawings))
+      .then((data) => {
+        if (!active) return;
+        setDrawingProjections({ revision, groupsKey: projectionGroupsKey, data });
+        if (new URLSearchParams(window.location.search).has('verify')) window.__madcadDrawingProjectionState = { revision, bodies: Object.keys(data).length };
+      })
+      .catch((error) => { if (active) setNotice(`Nie udało się obliczyć dokładnego rzutu: ${error.message}. Podgląd jest uproszczony; eksport wymaga poprawnego rzutu.`); });
+    return () => { active = false; };
+  }, [workspace, engine.status, engine.revision, engine.bodies.length, drawingProjections.revision, drawingProjections.groupsKey, projectDrawingViews, projectionGroups, projectionGroupsKey, document.drawings]);
+  const withDrawingProjections = useCallback((bodies) => (drawingProjections.revision === engine.revision
+    ? attachDrawingProjections(bodies, drawingProjections.data)
+    : bodies), [drawingProjections, engine.revision]);
   const visibleViewportBodies = useMemo(
     () => engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false),
     [engine.bodies, document.features],
   );
-  const printRiskAnalysis = useMemo(() => {
-    if (!printPanelOpen || !document.print.showRiskMap) return null;
-    const visibleBodies = engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false);
-    return analyzePrintability(visibleBodies, document.print);
-  }, [document.features, document.print, engine.bodies, printPanelOpen]);
   useEffect(() => {
     if (!pendingModelImport) return;
     const rollbackFailedImport = (message) => {
@@ -2572,13 +1906,20 @@ export default function ModelingWorkspace() {
     return () => { delete window.__madcadVerifyEngineState; delete window.__madcadVerifyProjectPointsToSurface; };
   }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance, engine.canceledRevisions, engine.evaluatedDocument, engine.projectPointsToSurface]);
 
+  // Number features per kind like Fusion ("Zaokrąglenie 1" after "Wyciągnięcie 1"), using the first free number.
+  const nextFeatureName = (prefix) => {
+    const used = new Set(document.features.map((feature) => feature.name));
+    let index = 1;
+    while (used.has(`${prefix} ${index}`)) index += 1;
+    return `${prefix} ${index}`;
+  };
   const updateCommand = (patch) => {
     if (Object.hasOwn(patch, 'dynamicLength')) sketchDynamicLengthRef.current = patch.dynamicLength;
     setCommand((current) => {
       const next = { ...current, ...patch };
       if (next.type === 'surfacePatch') {
         next.previewFeature = createFeature('surfacePatch', {
-          name: current.previewFeature?.name || `Patch ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Patch'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
         });
@@ -2586,7 +1927,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceExtrude') {
         next.previewFeature = createFeature('surfaceExtrude', {
-          name: current.previewFeature?.name || `Powierzchnia wyciągnięta ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Powierzchnia wyciągnięta'),
           sketchId: current.previewFeature?.sketchId || next.sourceSketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (next.openChain ? [] : (selectedProfile ? [selectedProfile.id] : [])),
           openEntityIds: current.previewFeature?.openEntityIds || (next.openChain ? next.openEntityIds : undefined),
@@ -2596,7 +1937,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceRevolve') {
         next.previewFeature = createFeature('surfaceRevolve', {
-          name: current.previewFeature?.name || `Powierzchnia obrotowa ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Powierzchnia obrotowa'),
           sketchId: current.previewFeature?.sketchId || next.sourceSketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (next.openChain ? [] : (selectedProfile ? [selectedProfile.id] : [])),
           openEntityIds: current.previewFeature?.openEntityIds || (next.openChain ? next.openEntityIds : undefined),
@@ -2607,7 +1948,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceSweep') {
         next.previewFeature = createFeature('surfaceSweep', {
-          name: current.previewFeature?.name || `Powierzchnia po ścieżce ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Powierzchnia po ścieżce'),
           sketchId: current.previewFeature?.sketchId || next.sourceSketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (next.openChain ? [] : (selectedProfile ? [selectedProfile.id] : [])),
           openEntityIds: current.previewFeature?.openEntityIds || (next.openChain ? next.openEntityIds : undefined),
@@ -2620,7 +1961,7 @@ export default function ModelingWorkspace() {
         const sourceSketchId = current.previewFeature?.sketchIds?.[0] || selectedProfileMatch?.sketch.id;
         const sourceProfileId = current.previewFeature?.profileIds?.[0] || selectedProfile?.id;
         next.previewFeature = createFeature('surfaceLoft', {
-          name: current.previewFeature?.name || `Powierzchnia przejściowa ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Powierzchnia przejściowa'),
           sketchId: sourceSketchId,
           sketchIds: [sourceSketchId, next.endSketchId],
           profileIds: [sourceProfileId, next.endProfileId],
@@ -2630,7 +1971,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceOffset') {
         next.previewFeature = createFeature('surfaceOffset', {
-          name: current.previewFeature?.name || `Odsunięcie powierzchni ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Odsunięcie powierzchni'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           distance: next.distance,
         });
@@ -2638,7 +1979,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceStitch') {
         next.previewFeature = createFeature('surfaceStitch', {
-          name: current.previewFeature?.name || `Zszycie powierzchni ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Zszycie powierzchni'),
           targetBodyIds: current.previewFeature?.targetBodyIds || next.targetBodyIds,
           tolerance: next.tolerance,
         });
@@ -2646,7 +1987,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceTrim') {
         next.previewFeature = createFeature('surfaceTrim', {
-          name: current.previewFeature?.name || `Przycięcie powierzchni ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Przycięcie powierzchni'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           toolBodyId: current.previewFeature?.toolBodyId || next.toolBodyId,
           keepTool: next.keepTool !== false,
@@ -2655,7 +1996,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceExtend') {
         next.previewFeature = createFeature('surfaceExtend', {
-          name: current.previewFeature?.name || `Przedłużenie powierzchni ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Przedłużenie powierzchni'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           distance: next.distance,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
@@ -2664,7 +2005,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'thickenSurface') {
         next.previewFeature = createFeature('thickenSurface', {
-          name: current.previewFeature?.name || `Pogrubienie ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Pogrubienie'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           thickness: next.thickness,
           side: next.side,
@@ -2674,7 +2015,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sheetBase') {
         next.previewFeature = createFeature('sheetBase', {
-          name: current.previewFeature?.name || `Baza blachowa ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Baza blachowa'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
           thickness: next.thickness,
@@ -2687,7 +2028,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sheetFlange') {
         next.previewFeature = createFeature('sheetFlange', {
-          name: current.previewFeature?.name || `Kołnierz blachy ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Kołnierz blachy'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           length: next.length,
@@ -2699,7 +2040,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sheetHem') {
         next.previewFeature = createFeature('sheetHem', {
-          name: current.previewFeature?.name || `Zawinięcie blachy ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Zawinięcie blachy'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           length: next.length,
@@ -2710,7 +2051,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sheetRip') {
         next.previewFeature = createFeature('sheetRip', {
-          name: current.previewFeature?.name || `Szczelina blachy ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Szczelina blachy'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           gap: next.gap,
@@ -2719,7 +2060,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'plasticBoss') {
         next.previewFeature = createFeature('plasticBoss', {
-          name: current.previewFeature?.name || `Boss ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Boss'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           outerDiameter: next.outerDiameter,
@@ -2734,7 +2075,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'plasticSnapFit') {
         next.previewFeature = createFeature('plasticSnapFit', {
-          name: current.previewFeature?.name || `Snap-fit ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Snap-fit'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           length: next.length,
@@ -2751,7 +2092,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'plasticGrille') {
         next.previewFeature = createFeature('plasticGrille', {
-          name: current.previewFeature?.name || `Grille ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Grille'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           ribCount: next.ribCount,
@@ -2765,13 +2106,38 @@ export default function ModelingWorkspace() {
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
+      if (next.type === 'rectangle' && next.definition === 'corner') {
+        // Typed width/height keep the rectangle centred on the origin until a corner is clicked
+        // or typed; the opposite corner always follows the signed width and height.
+        if (Object.hasOwn(patch, 'x1') || Object.hasOwn(patch, 'y1')) next.cornerManual = true;
+        const width = Number(String(next.width ?? '').replace(',', '.'));
+        const height = Number(String(next.height ?? '').replace(',', '.'));
+        if (Number.isFinite(width) && Number.isFinite(height)) {
+          if (!next.cornerManual) Object.assign(next, { x1: String(-width / 2), y1: String(-height / 2) });
+          const x1 = Number(next.x1);
+          const y1 = Number(next.y1);
+          if (Number.isFinite(x1) && Number.isFinite(y1) && !Object.hasOwn(patch, 'gesturePoints')) Object.assign(next, { x2: String(x1 + width), y2: String(y1 + height) });
+        }
+      }
       if (next.type === 'extrude') {
         if (next.extent === 'through-all' && !['cut', 'intersect'].includes(next.operation)) next.extent = 'one-side';
+        // Like Fusion: pulling a face sketch into the body switches Join to Cut until the user picks an operation.
+        if (Object.hasOwn(patch, 'operation')) next.operationAuto = false;
+        const extrudeSketchId = current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id;
+        const onFace = document.sketches.find((sketch) => sketch.id === extrudeSketchId)?.support?.kind === 'face';
+        let signedDistance = NaN;
+        try { signedDistance = evaluateExpression(String(next.distance ?? '').replace(',', '.'), resolveParameters(document.parameters).values); } catch { /* Incomplete input remains editable; preview validation reports it. */ }
+        // Only a one-sided extrude has a direction sign; other extents keep the length.
+        if (next.extent !== 'one-side' && Number.isFinite(signedDistance) && signedDistance < 0) next.distance = Number.isFinite(Number(String(next.distance).replace(',', '.'))) ? String(-signedDistance) : `-(${next.distance})`;
+        if (onFace && next.extent === 'one-side' && next.operationAuto !== false && Number.isFinite(signedDistance)) {
+          if (signedDistance < 0 && next.operation === 'join') { next.operation = 'cut'; next.operationAuto = true; }
+          else if (signedDistance > 0 && next.operation === 'cut' && next.operationAuto === true) next.operation = 'join';
+        }
         if (next.extent === 'to-object' && !next.targetReferenceId) next.targetReferenceId = next.targetOptions[0]?.id;
         const targetOption = next.targetOptions.find((option) => option.id === next.targetReferenceId);
         next.topologyReferences = next.extent === 'to-object' && targetOption?.reference ? [targetOption.reference] : [];
         next.previewFeature = createFeature('extrude', {
-          name: current.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Wyciągnięcie'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
           openEntityIds: current.previewFeature?.openEntityIds,
@@ -2791,7 +2157,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'revolve') {
         next.previewFeature = createFeature('revolve', {
-          name: current.previewFeature?.name || `Revolve ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Revolve'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
           axisId: next.axisId,
@@ -2803,7 +2169,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sweep') {
         next.previewFeature = createFeature('sweep', {
-          name: current.previewFeature?.name || `Sweep ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Sweep'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
           pathSketchId: next.pathSketchId,
@@ -2817,7 +2183,7 @@ export default function ModelingWorkspace() {
         const sourceSketchId = current.previewFeature?.sketchIds?.[0] || selectedProfileMatch?.sketch.id;
         const sourceProfileId = current.previewFeature?.profileIds?.[0] || selectedProfile?.id;
         next.previewFeature = createFeature('loft', {
-          name: current.previewFeature?.name || `Loft ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Loft'),
           sketchId: sourceSketchId,
           sketchIds: [sourceSketchId, next.endSketchId],
           profileIds: [sourceProfileId, next.endProfileId],
@@ -2829,7 +2195,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'rib') {
         next.previewFeature = createFeature('rib', {
-          name: current.previewFeature?.name || `Rib/Web ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Rib/Web'),
           sketchId: current.previewFeature?.sketchId || next.sourceSketchId,
           openEntityIds: current.previewFeature?.openEntityIds || next.openEntityIds,
           targetBodyId: current.previewFeature?.targetBodyId || targetBodyId,
@@ -2843,7 +2209,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'coil') {
         next.previewFeature = createFeature('coil', {
-          name: current.previewFeature?.name || `Coil ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Coil'),
           axisId: next.axisId,
           coilDiameter: next.coilDiameter,
           wireDiameter: next.wireDiameter,
@@ -2857,7 +2223,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'pipe') {
         next.previewFeature = createFeature('pipe', {
-          name: current.previewFeature?.name || `Pipe ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Pipe'),
           pathSketchId: current.previewFeature?.pathSketchId || next.pathSketchId,
           pathEntityIds: current.previewFeature?.pathEntityIds || next.pathEntityIds,
           outsideDiameter: next.outsideDiameter,
@@ -2868,13 +2234,13 @@ export default function ModelingWorkspace() {
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
       if (next.type === 'pattern') {
-        next.previewFeature = createFeature('pattern', { name: current.previewFeature?.name || `Pattern ${document.features.length + 1}`, targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId, patternType: next.patternType, countX: next.countX, countY: next.countY, spacingX: next.spacingX, spacingY: next.spacingY, axisId: next.axisId, occurrences: next.occurrences, totalAngle: next.totalAngle, pathSketchId: next.pathSketchId, pathEntityIds: next.pathEntityIds });
+        next.previewFeature = createFeature('pattern', { name: current.previewFeature?.name || nextFeatureName('Pattern'), targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId, patternType: next.patternType, countX: next.countX, countY: next.countY, spacingX: next.spacingX, spacingY: next.spacingY, axisId: next.axisId, occurrences: next.occurrences, totalAngle: next.totalAngle, pathSketchId: next.pathSketchId, pathEntityIds: next.pathEntityIds });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
       if (next.type === 'hole') {
         next.previewFeature = next.placement === 'face-edges'
           ? createFeature('hole', {
-            name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
+            name: current.previewFeature?.name || nextFeatureName('Otwór'),
             placement: 'face-edges',
             targetBodyId: next.targetBodyId,
             referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
@@ -2889,7 +2255,7 @@ export default function ModelingWorkspace() {
             clearanceProfile: next.clearanceProfile, clearance: next.clearance,
           })
           : createFeature('hole', {
-            name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
+            name: current.previewFeature?.name || nextFeatureName('Otwór'),
             targetBodyId,
             sketchId: selectedSketchPointMatch?.sketch.id || selectedProfileMatch?.sketch.id,
             ...(selectedSketchPointMatch ? { pointId: selectedSketchPointMatch.point.id } : { profileId: selectedProfile.id }),
@@ -2905,7 +2271,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'boolean') {
         next.previewFeature = createFeature('boolean', {
-          name: current.previewFeature?.name || `Boolean ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Boolean'),
           targetBodyId: next.targetBodyId,
           toolBodyId: next.toolBodyId,
           operation: next.operation,
@@ -2950,7 +2316,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'textSolid') {
         next.previewFeature = createFeature('textSolid', {
-          name: current.previewFeature?.name || `Tekst 3D ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Tekst 3D'),
           text: next.text,
           fontSize: next.fontSize,
           depth: next.depth,
@@ -2964,7 +2330,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'transform') {
         next.previewFeature = createFeature('transform', {
-          name: current.previewFeature?.name || `${next.mode === 'rotate' ? 'Obrót' : 'Przesunięcie'} ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName(next.mode === 'rotate' ? 'Obrót' : 'Przesunięcie'),
           targetBodyId: next.targetBodyId || targetBodyId,
           mode: next.mode,
           x: next.x, y: next.y, z: next.z,
@@ -2975,7 +2341,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'offsetFace') {
         next.previewFeature = createFeature('offsetFace', {
-          name: current.previewFeature?.name || `Offset Face ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Offset Face'),
           targetBodyId: next.targetBodyId || targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           distance: next.distance,
@@ -2984,7 +2350,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'fillet' || next.type === 'chamfer') {
         next.previewFeature = createFeature(next.type, {
-          name: current.previewFeature?.name || `${next.type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName(next.type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'),
           targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           ...(next.type === 'fillet' ? { radius: next.size } : { distance: next.size }),
@@ -2993,7 +2359,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'shell') {
         next.previewFeature = createFeature('shell', {
-          name: current.previewFeature?.name || `Shell ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Shell'),
           targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           thickness: next.thickness,
@@ -3002,7 +2368,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'draft') {
         next.previewFeature = createFeature('draft', {
-          name: current.previewFeature?.name || `Draft ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Draft'),
           targetBodyId: next.targetBodyId || targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           neutralPlaneId: next.neutralPlaneId,
@@ -3012,7 +2378,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'splitBody') {
         next.previewFeature = createFeature('splitBody', {
-          name: current.previewFeature?.name || `Split Body ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Split Body'),
           targetBodyId: next.targetBodyId || targetBodyId,
           planeId: next.planeId,
         });
@@ -3020,7 +2386,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'splitFace') {
         next.previewFeature = createFeature('splitFace', {
-          name: current.previewFeature?.name || `Split Face ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Split Face'),
           targetBodyId: next.targetBodyId,
           sketchId: next.sketchId,
           profileId: next.profileId,
@@ -3030,7 +2396,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'deleteFace') {
         next.previewFeature = createFeature('deleteFace', {
-          name: current.previewFeature?.name || `Delete Face + Heal ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Delete Face + Heal'),
           targetBodyId: next.targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
         });
@@ -3038,7 +2404,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'replaceFace') {
         next.previewFeature = createFeature('replaceFace', {
-          name: current.previewFeature?.name || `Replace Face ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Replace Face'),
           targetBodyId: next.targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
         });
@@ -3483,7 +2849,7 @@ export default function ModelingWorkspace() {
       return;
     }
     if (type === 'rectangle') {
-      setCommand({ type, definition: 'center', gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', rotation: '0', x1: '-20', y1: '-15', x2: '20', y2: '15', x3: '20', y3: '15' });
+      setCommand({ type, definition: profile ? 'center' : 'corner', cornerManual: false, gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', rotation: '0', x1: '-20', y1: '-15', x2: '20', y2: '15', x3: '20', y3: '15' });
     } else {
       setCommand({ type, definition: 'centerRadius', gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Okrąg ${document.sketches.flatMap((item) => item.profiles).length + 1}`, diameter: profile?.geometry.diameter || '10', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', x1: '-5', y1: '0', x2: '5', y2: '0', x3: '0', y3: '5' });
     }
@@ -3780,8 +3146,17 @@ export default function ModelingWorkspace() {
       if (!items.length) return { kind: 'document', id: document.id };
       return { ...items.at(-1), items };
     });
-    const label = topology.kind === 'face' ? 'Ściana' : topology.kind === 'edge' ? 'Krawędź' : topology.kind === 'vertex' ? 'Wierzchołek' : 'Bryła';
-    setNotice(`${label} zaznaczona przez trwałe ID: ${topology.id}.${mode === 'replace' ? '' : ` ${multipleSelectionLabel(DESKTOP_PLATFORM)} utrzymuje wybór wielokrotny.`}`);
+    // Describe what was picked in user terms (size), not by its internal topology ID.
+    const body = engine.bodies.find((candidate) => candidate.id === topology.bodyId);
+    const descriptor = topology.kind === 'face'
+      ? body?.topology?.faces?.find((face) => face.id === topology.id)?.descriptor
+      : topology.kind === 'edge' ? body?.topology?.edges?.find((edge) => edge.id === topology.id)?.descriptor : null;
+    const formatMm = (value) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: 2 });
+    const size = topology.kind === 'edge' && Number(descriptor?.length) > 0
+      ? ` · długość ${formatMm(descriptor.length)} mm`
+      : topology.kind === 'face' && Number(descriptor?.area) > 0 ? ` · pole ${formatMm(descriptor.area)} mm²` : '';
+    const label = { face: 'Zaznaczono ścianę', edge: 'Zaznaczono krawędź', vertex: 'Zaznaczono wierzchołek' }[topology.kind] || 'Zaznaczono bryłę';
+    setNotice(`${label}${size}.${mode === 'replace' ? '' : ` ${multipleSelectionLabel(DESKTOP_PLATFORM)} utrzymuje wybór wielokrotny.`}`);
   };
 
   const repairTopologyReference = (referenceId, topology, descriptor = null) => {
@@ -4747,8 +4122,6 @@ export default function ModelingWorkspace() {
       projectSnapshots: projectSnapshots.map((snapshot) => ({ ...snapshot })),
       linkedProjects: document.linkedProjects.map((link) => ({ ...link, proxyFeatureIds: [...link.proxyFeatureIds] })),
       namedViews: (document.namedViews || []).map((view) => ({ ...view, camera: structuredClone(view.camera) })),
-      renderScene: structuredClone(document.renderScene),
-      animationStoryboards: structuredClone(document.animationStoryboards || []),
       linkedProjectStatuses: structuredClone(linkedProjectStatuses),
       projectHealth: structuredClone(projectHealthReport),
       projectDependencies: structuredClone(projectDependencyInspection),
@@ -4763,8 +4136,6 @@ export default function ModelingWorkspace() {
       componentInstances: document.componentInstances.map((instance) => ({ ...instance, transform: { ...instance.transform } })),
       rigidGroups: document.rigidGroups.map((group) => ({ ...group, instanceIds: [...group.instanceIds] })),
       joints: document.joints.map((joint) => ({ ...joint, anchor: { ...joint.anchor }, limits: { ...joint.limits }, restTransform: { ...joint.restTransform } })),
-      motionLinks: document.motionLinks.map((link) => ({ ...link })),
-      contactSets: document.contactSets.map((contactSet) => ({ ...contactSet })),
       assemblyConfigurations: document.assemblyConfigurations.map((configuration) => ({ ...configuration, instanceStates: configuration.instanceStates.map((state) => ({ ...state, transform: { ...state.transform } })), jointStates: configuration.jointStates.map((state) => ({ ...state })) })),
       activeAssemblyConfigurationId: document.activeAssemblyConfigurationId,
       assemblyCollisions: assemblyCollisionResult.collisions.map((collision) => ({ ...collision, overlap: [...collision.overlap] })),
@@ -4809,10 +4180,6 @@ export default function ModelingWorkspace() {
         measurement: command.type === 'measure' ? measurement : null,
         sectionAnalysis: command.type === 'sectionAnalysis' ? sectionAnalysis : null,
         massProperties: command.type === 'massProperties' ? massProperties : null,
-        staticScreening: command.type === 'staticScreening' ? staticScreening : null,
-        beamFea: command.type === 'beamFea' ? beamFea : null,
-        solidFea: command.type === 'solidFea' ? solidFea : null,
-        thermalScreening: command.type === 'thermalScreening' ? thermalScreening : null,
         inspectionMode: command.type === 'geometryInspection' ? command.inspectionMode : null,
         geometryInspection: command.type === 'geometryInspection' ? geometryInspection : null,
         surfaceAnalysis: command.type === 'surfaceAnalysis' ? { ...surfaceAnalysis, continuity: surfaceContinuity, curvature: surfaceCurvature } : null,
@@ -4856,7 +4223,7 @@ export default function ModelingWorkspace() {
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, surfaceAnalysis, surfaceContinuity, surfaceCurvature, massProperties, staticScreening, beamFea, solidFea, thermalScreening, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection, projectSearchIndex, sketchOptions]);
+  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, surfaceAnalysis, surfaceContinuity, surfaceCurvature, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection, projectSearchIndex, sketchOptions]);
 
   const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
@@ -4880,7 +4247,7 @@ export default function ModelingWorkspace() {
     let shape;
     try {
       if (sourceCommand.type === 'rectangle') {
-        if (sourceCommand.definition === 'twoPoints') shape = rectangleTwoPoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2));
+        if (sourceCommand.definition === 'twoPoints' || sourceCommand.definition === 'corner') shape = rectangleTwoPoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2));
         else if (sourceCommand.definition === 'threePoints') shape = rectangleThreePoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), coordinate(sourceCommand.x3, sourceCommand.y3));
         else shape = rectangleFromCenter(coordinate(sourceCommand.x, sourceCommand.y), sourceCommand.width, sourceCommand.height, sourceCommand.rotation);
       } else if (sourceCommand.type === 'circle') {
@@ -4922,7 +4289,7 @@ export default function ModelingWorkspace() {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
       sketch.entities.push(...shape.entities);
       if (sourceCommand.type === 'rectangle' && sketchOptions.autoConstraints
-        && (sourceCommand.definition === 'twoPoints' || (sourceCommand.definition === 'center' && Number(sourceCommand.rotation || 0) === 0))) {
+        && (['twoPoints', 'corner'].includes(sourceCommand.definition) || (sourceCommand.definition === 'center' && Number(sourceCommand.rotation || 0) === 0))) {
         sketch.constraints.push(...shape.curves.map((line, index) => createSketchConstraint(index % 2 ? 'vertical' : 'horizontal', [line.id], { automatic: true })));
       }
       const result = refreshDetectedSketchProfiles(sketch, next.parameters);
@@ -4977,6 +4344,10 @@ export default function ModelingWorkspace() {
         if (first) Object.assign(patch, { x1: String(first[0]), y1: String(first[1]) });
         if (second) Object.assign(patch, { x2: String(second[0]), y2: String(second[1]) });
         if (third) Object.assign(patch, { x3: String(third[0]), y3: String(third[1]) });
+        if (sourceCommand.definition === 'corner' && first) {
+          patch.cornerManual = true;
+          if (second) Object.assign(patch, { width: String(second[0] - first[0]), height: String(second[1] - first[1]) });
+        }
       }
     } else if (sourceCommand.type === 'circle') {
       if (sourceCommand.definition === 'centerRadius') {
@@ -5081,7 +4452,7 @@ export default function ModelingWorkspace() {
       const operation = engine.bodies.length ? 'join' : 'new';
       const targetOptions = createExtrudeTargetOptions();
       const previewFeature = createFeature('extrude', {
-        name: `Wyciągnięcie ${document.features.length + 1}`,
+        name: nextFeatureName('Wyciągnięcie'),
         sketchId: activeSketchId,
         profileIds: [],
         openEntityIds: [...selectedSketchEntityIds],
@@ -5241,7 +4612,7 @@ export default function ModelingWorkspace() {
     if (type === 'sheetUnfold' && !canUnfoldSheet) return setNotice(activeSheetBody.sheetMetal.unfolded ? 'Blacha jest już rozwinięta.' : 'Rozwinięcie wymaga co najmniej jednego gięcia albo zawinięcia.');
     if (type === 'sheetRefold' && !canRefoldSheet) return setNotice('Ponowne zagięcie wymaga wcześniej rozwiniętej blachy.');
     const feature = createFeature(type, {
-      name: `${type === 'sheetUnfold' ? 'Rozwinięcie blachy' : 'Ponowne zagięcie blachy'} ${document.features.length + 1}`,
+      name: nextFeatureName(type === 'sheetUnfold' ? 'Rozwinięcie blachy' : 'Ponowne zagięcie blachy'),
       targetBodyId: activeSheetBody.id,
     });
     commit((next) => insertTimelineFeature(next, feature));
@@ -5377,7 +4748,7 @@ export default function ModelingWorkspace() {
     const operation = engine.bodies.length ? 'join' : 'new';
     const targetOptions = createExtrudeTargetOptions();
     const previewFeature = createFeature('extrude', {
-      name: `Wyciągnięcie ${document.features.length + 1}`,
+      name: nextFeatureName('Wyciągnięcie'),
       sketchId,
       profileIds: [],
       openEntityIds: [...entityIds],
@@ -5598,7 +4969,7 @@ export default function ModelingWorkspace() {
         targetReferenceId: editing?.targetReferenceId || targetOptions[0]?.id,
       };
       next.previewFeature = createFeature('extrude', {
-        name: editing?.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
+        name: editing?.previewFeature?.name || nextFeatureName('Wyciągnięcie'),
         sketchId: profileMatch.sketch.id,
         profileIds: [profile.id],
         distance: next.distance,
@@ -5692,158 +5063,7 @@ export default function ModelingWorkspace() {
     }
     setImportRepairReport(null);
     setMeshToolsOpen(true);
-    setNotice('Diagnostyka siatki jest gotowa. Naprawa nie wypełnia otworów ani nie zgaduje brakującej geometrii.');
-  };
-
-  const safelyRepairSelectedMesh = () => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = repairMesh(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)));
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshRepair = {
-          repairedAt: new Date().toISOString(),
-          removedTriangles: result.before.triangleCount - result.after.triangleCount,
-          weldedVertices: result.before.duplicateVertices,
-        };
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'repair', timestamp: new Date().toISOString(), beforeTriangles: result.before.triangleCount, afterTriangles: result.after.triangleCount }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Naprawiono siatkę: scalono ${result.before.duplicateVertices} duplikatów wierzchołków i usunięto ${result.before.triangleCount - result.after.triangleCount} niebezpiecznych trójkątów. Cofnij przywraca oryginał.`);
-    } catch (error) {
-      setNotice(`Nie udało się naprawić siatki: ${error.message}`);
-    }
-  };
-
-  const orientSelectedMeshFaces = () => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = orientMeshFaces(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)));
-      if (!result.flippedTriangles) {
-        setNotice('Kierunek ścian jest już spójny; nie zmieniono siatki.');
-        return;
-      }
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'orient', timestamp: new Date().toISOString(), flippedTriangles: result.flippedTriangles, componentCount: result.componentCount, outwardComponents: result.outwardComponents }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Uporządkowano kierunek ${result.flippedTriangles.toLocaleString('pl-PL')} trójkątów w ${result.componentCount.toLocaleString('pl-PL')} komponentach. Cofnij przywraca poprzednią orientację.`);
-    } catch (error) {
-      setNotice(`Nie udało się uporządkować kierunku ścian: ${error.message}`);
-    }
-  };
-
-  const fillSelectedMeshHoles = (maximumDiameter) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = fillMeshHoles(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), { maximumDiameter, maximumEdges: 64 });
-      if (!result.filledHoles) {
-        setNotice(result.holeCount
-          ? `Nie wypełniono otworów: wszystkie przekraczają limit ${result.maximumDiameter.toLocaleString('pl-PL')} mm albo nie tworzą prostej pętli.`
-          : 'Siatka nie ma otwartych pętli wymagających wypełnienia.');
-        return;
-      }
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'fillHoles', timestamp: new Date().toISOString(), maximumDiameter: result.maximumDiameter, maximumEdges: result.maximumEdges, filledHoles: result.filledHoles, skippedHoles: result.skippedHoles, insertedTriangles: result.insertedTriangles, orientedTriangles: result.orientedTriangles }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Wypełniono ${result.filledHoles} ${result.filledHoles === 1 ? 'mały otwór' : 'małe otwory'} (${result.insertedTriangles} nowych trójkątów); pominięto ${result.skippedHoles}. Cofnij przywraca otwartą siatkę.`);
-    } catch (error) {
-      setNotice(`Nie udało się wypełnić otworów: ${error.message}`);
-    }
-  };
-
-  const reduceSelectedMesh = (ratio) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = reduceMesh(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), ratio);
-      if (result.after.triangleCount >= result.before.triangleCount) {
-        setNotice('Ta siatka jest już zbyt mała lub regularna, aby bezpiecznie uzyskać wybraną redukcję.');
-        return;
-      }
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'reduce', timestamp: new Date().toISOString(), ratio: result.ratio, beforeTriangles: result.before.triangleCount, afterTriangles: result.after.triangleCount }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Zredukowano siatkę z ${result.before.triangleCount.toLocaleString('pl-PL')} do ${result.after.triangleCount.toLocaleString('pl-PL')} trójkątów. Cofnij przywraca geometrię sprzed redukcji.`);
-    } catch (error) {
-      setNotice(`Nie udało się zredukować siatki: ${error.message}`);
-    }
-  };
-
-  const smoothSelectedMesh = (options) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = smoothMesh(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), options);
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'smooth', timestamp: new Date().toISOString(), iterations: result.iterations, strength: result.strength, preservedBoundaryVertices: result.preservedBoundaryVertices }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Wygładzono siatkę w ${result.iterations} krokach; ochroniono ${result.preservedBoundaryVertices} wierzchołków otwartych brzegów. Cofnij przywraca poprzedni kształt.`);
-    } catch (error) {
-      setNotice(`Nie udało się wygładzić siatki: ${error.message}`);
-    }
-  };
-
-  const remeshSelectedMesh = (targetEdgeLength) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = remeshUniform(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), targetEdgeLength);
-      if (!result.collapsedEdges && !result.insertedVertices) {
-        setNotice(`Siatka już mieści się w zakresie docelowej krawędzi ${result.targetEdgeLength.toLocaleString('pl-PL')} mm.`);
-        return;
-      }
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'remesh', timestamp: new Date().toISOString(), targetEdgeLength: result.targetEdgeLength, beforeTriangles: result.before.triangleCount, afterTriangles: result.after.triangleCount, collapsedEdges: result.collapsedEdges, insertedVertices: result.insertedVertices }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Przebudowano siatkę do krawędzi około ${result.targetEdgeLength.toLocaleString('pl-PL')} mm: ${result.before.triangleCount.toLocaleString('pl-PL')} → ${result.after.triangleCount.toLocaleString('pl-PL')} trójkątów. Cofnij przywraca poprzednią siatkę.`);
-    } catch (error) {
-      setNotice(`Nie udało się wykonać remesh: ${error.message}`);
-    }
-  };
-
-  const groupSelectedMeshFaces = (featureAngle) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = groupMeshFaces(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), featureAngle);
-      const buffer = meshToBinaryStl(result.mesh);
-      const groups = result.groups.map((group) => ({ id: group.id, triangleCount: group.triangleCount, triangleIndices: [...group.triangleIndices], area: group.area }));
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.mesh.triangles.length / 3;
-        feature.meshGroups = groups;
-        feature.meshGroupAngle = result.featureAngle;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'group', timestamp: new Date().toISOString(), featureAngle: result.featureAngle, groupCount: groups.length }];
-      });
-      setNotice(`Wyznaczono ${groups.length} ${groups.length === 1 ? 'grupę' : 'grup'} ścian przy kącie ${result.featureAngle}°. Grupy zapisano w projekcie.`);
-    } catch (error) {
-      setNotice(`Nie udało się pogrupować ścian siatki: ${error.message}`);
-    }
+    setNotice('Diagnostyka siatki jest gotowa. Zamkniętą siatkę można zamienić na bryłę B-Rep.');
   };
 
   const convertSelectedMeshToBrep = () => {
@@ -5876,65 +5096,6 @@ export default function ModelingWorkspace() {
     setNotice('Właściwości masowe liczą zaznaczone bryły albo cały model, gdy nic nie jest wskazane.');
   };
 
-  const openStaticScreening = () => {
-    const body = selectedBodies.find((item) => item.bodyKind !== 'surface') || engine.bodies.find((item) => item.bodyKind !== 'surface');
-    if (!body) return setNotice('Szybka analiza statyczna wymaga co najmniej jednej bryły.');
-    const bounds = body.metrics?.bounds;
-    if (!Array.isArray(bounds) || bounds.length !== 2 || bounds.some((point) => !Array.isArray(point) || point.length < 3)) {
-      return setNotice('Wybrana bryła nie ma poprawnych granic do analizy.');
-    }
-    const dimensions = bounds[1].map((value, axis) => value - bounds[0][axis]);
-    const spanIndex = dimensions.indexOf(Math.max(...dimensions));
-    const loadIndex = [0, 1, 2].filter((axis) => axis !== spanIndex).sort((first, second) => dimensions[second] - dimensions[first])[0];
-    setCommand({ type: 'staticScreening', bodyId: body.id, materialId: 's235', spanAxis: ['x', 'y', 'z'][spanIndex], loadAxis: ['x', 'y', 'z'][loadIndex], fixedEnd: 'min', force: '1000' });
-    setNotice('Uruchomiono wstępny szacunek belki wspornikowej. Wynik nie zastępuje walidowanego MES ani obliczeń konstruktora.');
-  };
-
-  const openThermalScreening = () => {
-    const body = selectedBodies.find((item) => item.bodyKind !== 'surface') || engine.bodies.find((item) => item.bodyKind !== 'surface');
-    if (!body) return setNotice('Szybka analiza cieplna wymaga co najmniej jednej bryły.');
-    const bounds = body.metrics?.bounds;
-    if (!Array.isArray(bounds) || bounds.length !== 2 || bounds.some((point) => !Array.isArray(point) || point.length < 3)) return setNotice('Wybrana bryła nie ma poprawnych granic do analizy.');
-    const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
-    const axisIndex = dimensions.indexOf(Math.min(...dimensions));
-    setCommand({ type: 'thermalScreening', bodyId: body.id, materialId: 's235', axis: ['x', 'y', 'z'][axisIndex], hotTemperature: '100', coldTemperature: '20' });
-    setNotice('Uruchomiono wstępny model przewodzenia ciepła. Wynik nie zastępuje walidowanej analizy termicznej MES.');
-  };
-
-  const openBeamFea = () => {
-    const body = selectedBodies.find((item) => item.bodyKind !== 'surface') || engine.bodies.find((item) => item.bodyKind !== 'surface');
-    if (!body) return setNotice('MES belki wymaga co najmniej jednej bryły.');
-    const bounds = body.metrics?.bounds;
-    if (!Array.isArray(bounds) || bounds.length !== 2 || bounds.some((point) => !Array.isArray(point) || point.length < 3)) return setNotice('Wybrana bryła nie ma poprawnych granic do analizy.');
-    const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
-    const spanIndex = dimensions.indexOf(Math.max(...dimensions));
-    const loadIndex = [0, 1, 2].filter((index) => index !== spanIndex).sort((first, second) => dimensions[second] - dimensions[first])[0];
-    setCommand({ type: 'beamFea', bodyId: body.id, materialId: 's235', spanAxis: ['x', 'y', 'z'][spanIndex], loadAxis: ['x', 'y', 'z'][loadIndex], loadType: 'tip', loadPositionPercent: '100', force: '1000', distributedForce: '10', elementCount: '8', requiredSafetyFactor: '2', loadCases: [{ id: 'base', name: 'Bazowy', factor: '1' }, { id: 'working', name: 'Roboczy', factor: '1.25' }, { id: 'overload', name: 'Przeciążenie', factor: '1.5' }] });
-    setNotice('MES belki składa macierz sztywności i waliduje ugięcie rozwiązaniem analitycznym. Zakres nie obejmuje dowolnej bryły 3D.');
-  };
-
-  const openSolidFea = () => {
-    const firstSelectedFace = selectedFaceItems[0];
-    const body = (firstSelectedFace ? engine.bodies.find((item) => item.id === firstSelectedFace.bodyId) : selectedBodies.find((item) => item.bodyKind !== 'surface')) || engine.bodies.find((item) => item.bodyKind !== 'surface');
-    if (!body) return setNotice('MES bryły 3D wymaga co najmniej jednej zamkniętej bryły.');
-    const bounds = body.metrics?.bounds;
-    if (!Array.isArray(bounds) || bounds.length !== 2) return setNotice('Wybrana bryła nie ma poprawnych granic do analizy.');
-    const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
-    const planarFaces = selectedFaceItems.filter((item) => item.bodyId === body.id).map((item) => ({ selection: item, face: body.topology?.faces?.find((face) => face.id === item.id) })).filter((item) => item.face?.descriptor?.geometry === 'PLANE');
-    const supportFace = planarFaces[0] || null;
-    const loadFace = planarFaces[1] || null;
-    const supportNormal = supportFace?.face.descriptor.normal || null;
-    const supportIndex = supportNormal ? supportNormal.map(Math.abs).indexOf(Math.max(...supportNormal.map(Math.abs))) : dimensions.indexOf(Math.max(...dimensions));
-    const supportCenter = supportFace?.face.descriptor.center?.[supportIndex];
-    const supportSide = Number.isFinite(supportCenter) && supportCenter > (bounds[0][supportIndex] + bounds[1][supportIndex]) / 2 ? 'max' : 'min';
-    const loadNormal = loadFace?.face.descriptor.normal || null;
-    const loadIndex = loadNormal ? loadNormal.map(Math.abs).indexOf(Math.max(...loadNormal.map(Math.abs))) : [0, 1, 2].find((index) => index !== supportIndex);
-    const loadCenter = loadFace?.face.descriptor.center?.[supportIndex];
-    const loadSide = Number.isFinite(loadCenter) && loadCenter < (bounds[0][supportIndex] + bounds[1][supportIndex]) / 2 ? 'min' : 'max';
-    setCommand({ type: 'solidFea', bodyId: body.id, materialId: 's235', supportAxis: ['x', 'y', 'z'][supportIndex], supportSide, supportFaceId: supportFace?.selection.id || null, supportFaceLabel: supportFace ? 'Wskazana ściana 1' : '', loadAxis: ['x', 'y', 'z'][loadIndex], loadSide, loadFaceId: loadFace?.selection.id || null, loadFaceLabel: loadFace ? 'Wskazana ściana 2' : '', force: '1000', meshDensity: '6' });
-    setNotice(planarFaces.length >= 2 ? 'MES 3D używa pierwszej zaznaczonej ściany jako utwierdzenia, a drugiej jako powierzchni obciążenia.' : planarFaces.length === 1 ? 'MES 3D używa zaznaczonej ściany jako utwierdzenia; siła działa na przeciwnej stronie bryły.' : 'MES bryły 3D tworzy siatkę czworościenną. Zaznacz wcześniej jedną lub dwie płaskie ściany, aby wskazać warunki brzegowe bezpośrednio.');
-  };
-
   const openGeometryInspection = async () => {
     setNotice('Analiza geometrii: szybki filtr granic i dokładne sprawdzanie możliwych kolizji…');
     try {
@@ -5960,7 +5121,7 @@ export default function ModelingWorkspace() {
     }
     const [targetBodyId, toolBodyId] = selectedBodyIds;
     const bodyName = (bodyId) => engine.bodies.find((body) => body.id === bodyId)?.name || bodyId;
-    const previewFeature = createFeature('boolean', { name: `Boolean ${document.features.length + 1}`, targetBodyId, toolBodyId, operation: 'union' });
+    const previewFeature = createFeature('boolean', { name: nextFeatureName('Boolean'), targetBodyId, toolBodyId, operation: 'union' });
     setCommand({ type: 'boolean', operation: 'union', targetBodyId, toolBodyId, targetName: bodyName(targetBodyId), toolName: bodyName(toolBodyId), previewFeature });
     setNotice('Wybierz Union, Subtract albo Intersect i zatwierdź operację Boolean.');
   };
@@ -6381,24 +5542,26 @@ export default function ModelingWorkspace() {
     setNotice('Operacja została dodana do parametrycznej osi czasu.');
   };
 
-  const editSelection = () => {
+  // Double-click passes its own target so it never acts on a selection that has not rendered yet.
+  const editSelection = (requested) => {
+    const target = requested?.kind ? requested : selection;
     if (readOnly) return readOnlyNotice();
-    if (selection?.kind === 'sketch') return editSketch(selection.id);
-    if (selection?.kind === 'profile') return openProfileCommand(selectedProfile.type, selectedProfile);
-    if (selection?.kind === 'constructionPlane') {
-      const plane = document.references.find((reference) => reference.id === selection.id && reference.kind === 'construction-plane');
+    if (target?.kind === 'sketch') return editSketch(target.id);
+    if (target?.kind === 'profile') return openProfileCommand(selectedProfile.type, selectedProfile);
+    if (target?.kind === 'constructionPlane') {
+      const plane = document.references.find((reference) => reference.id === target.id && reference.kind === 'construction-plane');
       return plane ? openConstructionPlane(plane.planeType, plane) : undefined;
     }
-    if (selection?.kind === 'constructionAxis') {
-      const axis = document.references.find((reference) => reference.id === selection.id && reference.kind === 'construction-axis');
+    if (target?.kind === 'constructionAxis') {
+      const axis = document.references.find((reference) => reference.id === target.id && reference.kind === 'construction-axis');
       return axis ? openConstructionAxis(axis.axisType, axis) : undefined;
     }
-    if (selection?.kind === 'constructionPoint') {
-      const point = document.references.find((reference) => reference.id === selection.id && reference.kind === 'construction-point');
+    if (target?.kind === 'constructionPoint') {
+      const point = document.references.find((reference) => reference.id === target.id && reference.kind === 'construction-point');
       return point ? openConstructionPoint(point.pointType, point) : undefined;
     }
-    if (selection?.kind !== 'feature') return;
-    const feature = document.features.find((item) => item.id === selection.id);
+    if (target?.kind !== 'feature') return;
+    const feature = document.features.find((item) => item.id === target.id);
     if (!feature) return;
     if (feature.type === 'sheetUnfold' || feature.type === 'sheetRefold') {
       setNotice('Ta operacja nie ma osobnych parametrów. Zmień regułę blachy, kołnierz albo zawinięcie wcześniej na osi czasu.');
@@ -7202,16 +6365,47 @@ export default function ModelingWorkspace() {
     }
   };
 
-  const exportActiveDrawingDxf = () => {
+  const prepareActiveDrawingBodies = async () => {
+    if (engine.status !== 'ready' || !engine.isCurrent) {
+      setNotice('Poczekaj na ukończenie przebudowy modelu przed eksportem rysunku.');
+      return null;
+    }
+    try {
+      validateDrawingSources(activeDrawingSheet.views, engine.bodies, document.sketches);
+      if (activeDrawingSheet.views.every((view) => view.type === 'sketch')) return engine.bodies;
+      setNotice('Obliczanie dokładnego rzutu rysunku…');
+      return await prepareDrawingExport({
+        bodies: engine.bodies,
+        revision: engine.revision,
+        getCurrentRevision: engine.getCurrentRevision,
+        project: projectDrawingViews,
+        sections: activeDrawingSheet.views.filter((view) => view.type === 'section'),
+        tolerance: drawingProjectionTolerance([activeDrawingSheet]),
+        views: activeDrawingSheet.views,
+        sketches: document.sketches,
+        groups: drawingProjectionGroups([activeDrawingSheet], engine.bodies),
+        requiredBodyIds: engine.bodies.filter((body) => activeDrawingSheet.views.some((view) => view.type !== 'sketch' && (!view.bodyIds?.length || view.bodyIds.includes(body.id)))).map((body) => body.id),
+      });
+    } catch (error) {
+      setNotice(`Nie wyeksportowano rysunku: ${error.message}`);
+      return null;
+    }
+  };
+
+  const exportActiveDrawingDxf = async () => {
     if (!activeDrawingSheet?.views.length) return;
-    const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies, { components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
+    const bodies = await prepareActiveDrawingBodies();
+    if (!bodies) return;
+    const dxf = drawingSheetDxf(activeDrawingSheet, bodies, { components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
     downloadBlob(new Blob([dxf], { type: 'application/dxf;charset=utf-8' }), `${safeName(document.name)}-${safeName(activeDrawingSheet.name)}.dxf`);
     setNotice('Wyeksportowano arkusz DXF w jednostkach mm.');
   };
 
   const exportActiveDrawingPdf = async () => {
     if (!activeDrawingSheet?.views.length) return;
-    const html = drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
+    const bodies = await prepareActiveDrawingBodies();
+    if (!bodies) return;
+    const html = drawingSheetHtml(activeDrawingSheet, bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
     setNotice(`Przygotowywanie ${activeDrawingSheet.pageSize} PDF…`);
     if (window.desktopApp?.saveDrawingPdf) {
       const result = await window.desktopApp.saveDrawingPdf({
@@ -7235,30 +6429,10 @@ export default function ModelingWorkspace() {
 
   const previewActiveDrawing = async () => {
     if (!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow) return;
-    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers }), title: `${document.name} · ${activeDrawingSheet.name}` });
+    const bodies = await prepareActiveDrawingBodies();
+    if (!bodies) return;
+    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers }), title: `${document.name} · ${activeDrawingSheet.name}` });
     setNotice(result?.ok ? 'Otworzono podgląd arkusza 1:1.' : `Podgląd nie powiódł się: ${result?.error || 'nieznany błąd'}`);
-  };
-
-  const sendToSlicer = async (slicer) => {
-    const slicerNames = { bambu: 'Bambu Studio', prusa: 'PrusaSlicer', cura: 'UltiMaker Cura' };
-    const name = slicerNames[slicer] || slicer;
-    setNotice(`Przygotowywanie STL dla ${name}…`);
-    try {
-      const buffers = await engine.exportModel('stl');
-      if (!window.desktopApp?.sendToSlicer) {
-        buffers.forEach((buffer, index) => downloadBlob(new Blob([buffer], { type: 'model/stl' }), `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.stl`));
-        setNotice(`Pobrano STL. Otwórz plik ręcznie w ${name}.`);
-        return;
-      }
-      const result = await window.desktopApp.sendToSlicer({
-        slicer,
-        files: buffers.map((buffer, index) => ({ name: `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.stl`, data: new Uint8Array(buffer) })),
-      });
-      if (!result?.ok) throw new Error(result?.error || `Nie udało się uruchomić ${name}.`);
-      setNotice(`Przekazano ${buffers.length} ${buffers.length === 1 ? 'plik' : 'pliki'} STL do ${name}.`);
-    } catch (error) {
-      setNotice(`Przekazanie do ${name} nie powiodło się: ${error.message}`);
-    }
   };
 
   const switchWorkspace = (id) => {
@@ -7267,24 +6441,11 @@ export default function ModelingWorkspace() {
     setToolHelp(null);
     setBrowserOpen(id !== 'drawing');
     setWorkspace(id);
-    setPrintPanelOpen(false);
     setNotice(id === 'drawing'
         ? 'Arkusz 2D: przygotuj rysunek techniczny do PDF albo DXF.'
       : id === 'tools'
         ? 'Zarządzaj: parametry, wersje, struktura i kondycja projektu.'
-      : id === 'manufacture'
-        ? 'Wytwarzanie: przygotuj obrabiarkę, półfabrykat i układ współrzędnych CAM.'
         : 'Projektuj: szkicuj, twórz, modyfikuj i sprawdzaj geometrię.');
-  };
-
-  const openPrintPreparation = () => {
-    setCommand(null);
-    setActiveSketchId(null);
-    setWorkspace('solid');
-    setFileMenuOpen(false);
-    if (compactViewport) setBrowserOpen(false);
-    setPrintPanelOpen(true);
-    setNotice('Druk 3D: ułóż gotowy model na stole, sprawdź go i przekaż do slicera.');
   };
 
   const handleWorkspaceTabKeyDown = (event, index, tabs, onChange) => {
@@ -7473,13 +6634,43 @@ export default function ModelingWorkspace() {
       pickPlane(nextSelection.id);
       return;
     }
-    if (nextSelection.kind === 'component' || nextSelection.kind === 'componentInstance' || nextSelection.kind === 'joint' || nextSelection.kind === 'motionLink' || nextSelection.kind === 'contactSet' || nextSelection.kind === 'assemblyConfiguration') {
+    if (nextSelection.kind === 'component' || nextSelection.kind === 'componentInstance' || nextSelection.kind === 'joint' || nextSelection.kind === 'assemblyConfiguration') {
       setComponentsOpen(true);
       setLayersOpen(false);
       setBlocksOpen(false);
       setCommandCustomizationOpen(false);
     }
     setSelection(nextSelection);
+  };
+
+  const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
+  // Start page "Quick start" keys: create a sketch on XY, then open the tool once that sketch is active.
+  const pendingStartToolRef = useRef(null);
+  const startPageToolForKey = (key) => {
+    const shortcutFor = (label, fallback) => String(commandCustomization?.commands?.[label]?.shortcut || commandCustomization?.commands?.[label]?.alias || fallback).toUpperCase();
+    const pressed = String(key || '').toUpperCase();
+    return [['Linia', 'L', 'line'], ['Prostokąt', 'R', 'rectangle'], ['Okrąg', 'C', 'circle']].find(([label, fallback]) => shortcutFor(label, fallback) === pressed)?.[2] || null;
+  };
+  useEffect(() => {
+    const tool = pendingStartToolRef.current;
+    if (!tool || !activeSketchId) return;
+    pendingStartToolRef.current = null;
+    if (tool === 'line') openSketchPath('line');
+    else openProfileCommand(tool);
+    // Runs once per newly activated sketch; the openers are render-local.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSketchId]);
+
+  // The status line must not keep announcing the operation that was just undone.
+  const undoWithNotice = () => {
+    if (!history.canUndo) return;
+    history.undo();
+    setNotice('Cofnięto ostatnią zmianę.');
+  };
+  const redoWithNotice = () => {
+    if (!history.canRedo) return;
+    history.redo();
+    setNotice('Ponowiono zmianę.');
   };
 
   const executeBasicShortcut = useCallback((rawShortcut) => {
@@ -7514,6 +6705,11 @@ export default function ModelingWorkspace() {
         setActiveSketchId(command.sourceSketchId);
         setWorkspace('sketch');
       }
+      // Editing selects the source profile for the preview. On cancellation
+      // return to the existing history operation, not an idle extrusion handle.
+      if (command.editId && document.features.some((feature) => feature.id === command.editId)) {
+        setSelection({ kind: 'feature', id: command.editId });
+      }
       setCommand(null);
       setNotice('Anulowano polecenie.');
     }
@@ -7547,6 +6743,7 @@ export default function ModelingWorkspace() {
     else if (command.type === 'cornerSketch') confirmSketchCorner();
     else if (command.type === 'transformSketch') confirmSketchTransform();
     else if (command.type === 'patternSketch') confirmSketchPattern();
+    else if (command.type === 'sketchDimension') confirmSketchDimension();
     else return false;
     return true;
   };
@@ -7605,6 +6802,15 @@ export default function ModelingWorkspace() {
         }
         return;
       }
+      if (!textEntry && startPageVisible && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const tool = startPageToolForKey(event.key);
+        if (tool) {
+          event.preventDefault();
+          pendingStartToolRef.current = tool;
+          pickPlane('XY');
+          return;
+        }
+      }
       if (!textEntry && !command && !event.ctrlKey && !event.metaKey && !event.altKey && (/^[a-z0-9]$/i.test(event.key) || /^F(?:[4-9]|1[0-2])$/.test(event.key))) {
         if (executeBasicShortcut(event.key.toUpperCase())) event.preventDefault();
         return;
@@ -7649,8 +6855,8 @@ export default function ModelingWorkspace() {
       }
       if (primaryModifierPressed(event, DESKTOP_PLATFORM) && !command && !readOnly && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
         event.preventDefault();
-        if (event.key.toLowerCase() === 'y' || event.shiftKey) history.redo();
-        else history.undo();
+        if (event.key.toLowerCase() === 'y' || event.shiftKey) redoWithNotice();
+        else undoWithNotice();
         return;
       }
       if ((event.key === 'Delete' || event.key === 'Backspace') && !textEntry && !command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId) && !readOnly) {
@@ -7672,7 +6878,7 @@ export default function ModelingWorkspace() {
     return () => window.removeEventListener('keydown', onKeyDown);
   // Command state is the stable boundary for the keyboard handler; command helpers are render-local callbacks.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, executeBasicShortcut, projectSearchOpen, sketchOptions.snap]);
+  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, executeBasicShortcut, projectSearchOpen, sketchOptions.snap, startPageVisible]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
   const selectedTimelineFeature = selection?.kind === 'feature'
@@ -7739,37 +6945,11 @@ export default function ModelingWorkspace() {
     }
     : workspace === 'tools'
       ? { title: 'ZARZĄDZAJ · projekt i jego historia', text: 'Parametry, wersje, zależności i struktura projektu są zebrane w jednym miejscu.', action: 'Wróć do projektowania', onAction: () => switchWorkspace('solid') }
-      : workspace === 'manufacture'
-        ? { title: 'WYTWARZANIE · przygotowanie CAM', text: 'Wybierz bryłę, maszynę, półfabrykat i zero WCS przed utworzeniem ścieżki.' }
       : workspace === 'solid' && lastSketch && !engine.bodies.length
             ? hasSketchProfile
               ? { title: 'KROK 2 · utwórz bryłę z zamkniętego szkicu', text: selectedProfile ? 'Profil jest zaznaczony. Kliknij Wyciągnij i podaj wysokość.' : 'Kliknij wnętrze zamkniętego profilu, a następnie wybierz Wyciągnij.', action: selectedProfile ? 'Wyciągnij profil' : `Edytuj: ${lastSketch.name}`, onAction: selectedProfile ? openExtrude : () => editSketch(lastSketch.id) }
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
-  const activeCamSetup = document.manufacturing.setups.find((setup) => setup.id === document.manufacturing.activeSetupId) || null;
-  const activeCamSetupResult = useMemo(() => workspace === 'manufacture' && activeCamSetup
-    ? calculateManufacturingSetup(activeCamSetup, engine.bodies)
-    : null, [workspace, activeCamSetup, engine.bodies]);
-  const allManufacturingToolpaths = useMemo(() => workspace === 'manufacture' && activeCamSetup
-    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies, document))
-    : [], [workspace, activeCamSetup, engine.bodies, document]);
-  const activeCamProgramReport = useMemo(() => workspace === 'manufacture' && activeCamSetup
-    ? analyzeManufacturingProgram(activeCamSetup, engine.bodies, document, allManufacturingToolpaths)
-    : null, [workspace, activeCamSetup, engine.bodies, document, allManufacturingToolpaths]);
-  const manufacturingToolpaths = useMemo(() => allManufacturingToolpaths.filter((toolpath) => toolpath.valid), [allManufacturingToolpaths]);
-  const camSimulation = useMemo(() => workspace === 'manufacture' && activeCamSetup
-    ? simulateMaterialRemoval(activeCamSetup, engine.bodies, document, camSimulationProgress, 36, { setupResult: activeCamSetupResult, toolpaths: allManufacturingToolpaths, report: activeCamProgramReport })
-    : null, [workspace, activeCamSetup, engine.bodies, document, camSimulationProgress, activeCamSetupResult, allManufacturingToolpaths, activeCamProgramReport]);
-  const manufacturingSegments = useMemo(() => manufacturingToolpaths.flatMap((toolpath) => toolpath.segments), [manufacturingToolpaths]);
-  const manufacturingVisualization = useMemo(() => activeCamSetupResult?.stockBounds ? {
-    stockBounds: activeCamSetupResult.stockBounds,
-    fixtures: activeCamSetup.fixtures.filter((fixture) => fixture.shape !== 'body' || activeCamSetupResult.fixtureMeshes?.has(fixture.id)),
-    segments: manufacturingSegments,
-    segmentCount: Math.ceil(manufacturingSegments.length * camSimulationProgress),
-    removalColumns: camSimulation?.columns || [],
-    cutter: camSimulation?.cutter || null,
-  } : null, [activeCamSetupResult, activeCamSetup, manufacturingSegments, camSimulationProgress, camSimulation]);
-  const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
   const showProjectBrowser = browserOpen && workspace !== 'drawing' && !startPageVisible;
   let adaptiveContext = null;
   if (!command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId)) {
@@ -7899,10 +7079,10 @@ export default function ModelingWorkspace() {
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
-    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : workspace === 'tools' ? 'tools-mode' : workspace === 'manufacture' ? 'manufacture-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
+    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : workspace === 'tools' ? 'tools-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu">
-          <button id="fileMenuBtn" className={fileMenuOpen ? 'active' : ''} type="button" aria-label="Menu Plik" aria-expanded={fileMenuOpen} aria-controls="file-backstage" title="Projekt, import, eksport i druk" onClick={() => setFileMenuOpen((open) => !open)}><FileText size={15} /><span>Plik</span></button>
+          <button id="fileMenuBtn" className={fileMenuOpen ? 'active' : ''} type="button" aria-label="Menu Plik" aria-expanded={fileMenuOpen} aria-controls="file-backstage" title="Projekt i wymiana plików CAD" onClick={() => setFileMenuOpen((open) => !open)}><FileText size={15} /><span>Plik</span></button>
           <span className="app-menu-separator" aria-hidden="true" />
           <button id="newProjectBtn" type="button" aria-label="Nowy projekt" title="Nowy projekt" onClick={createNew}><FilePlus2 size={15} /><span>Nowy</span></button>
           <button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={15} /><span>Otwórz</span></button>
@@ -7916,8 +7096,8 @@ export default function ModelingWorkspace() {
         <input ref={sketchImportInputRef} hidden type="file" accept=".svg,.dxf,image/svg+xml,application/dxf" onChange={chooseSketchImport} />
         <div className="document-tab" title={currentPath || (dirty ? 'Projekt zawiera niezapisane zmiany' : 'Projekt zapisany')}><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : dirty ? <span role="img" aria-label="Niezapisane zmiany">*</span> : null}</div>
         <div className="title-actions">
-          <button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button>
-          <button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button>
+          <button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={undoWithNotice} title="Cofnij"><Undo2 size={15} /></button>
+          <button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={redoWithNotice} title="Ponów"><Redo2 size={15} /></button>
           <button id="commandShortcutsBtn" className={commandCustomizationOpen ? 'active' : ''} type="button" aria-pressed={commandCustomizationOpen} title="Skróty klawiszowe · F1" onClick={() => { setLayersOpen(false); setBlocksOpen(false); setComponentsOpen(false); setCommandCustomizationOpen((open) => !open); }}><Keyboard size={15} /><span>Skróty</span></button>
           <div className={`app-help-menu ${helpMenuOpen ? 'open' : ''}`} ref={helpMenuRef}>
             <button ref={helpButtonRef} className="app-help-trigger" type="button" title="Pomoc i ustawienia" aria-label="Pomoc i ustawienia" aria-haspopup="menu" aria-expanded={helpMenuOpen} onClick={() => setHelpMenuOpen((open) => !open)}><CircleHelp size={15} /><span>Pomoc</span><ChevronDown size={12} /></button>
@@ -7934,7 +7114,7 @@ export default function ModelingWorkspace() {
       {fileMenuOpen && <div className="file-backstage-layer" id="file-backstage" role="dialog" aria-modal="true" aria-label="Plik">
         <button className="file-backstage-dismiss" type="button" aria-label="Zamknij menu Plik" onClick={() => setFileMenuOpen(false)} />
         <aside className="file-backstage">
-          <header><div><strong>PLIK</strong><span>Projekt, import, eksport i druk</span></div><button type="button" aria-label="Zamknij menu Plik" title="Zamknij" onClick={() => setFileMenuOpen(false)}><X size={18} /></button></header>
+          <header><div><strong>PLIK</strong><span>Projekt i wymiana plików CAD</span></div><button type="button" aria-label="Zamknij menu Plik" title="Zamknij" onClick={() => setFileMenuOpen(false)}><X size={18} /></button></header>
           <div className="file-backstage-content">
             <section><h2>PROJEKT</h2>
               <button type="button" onClick={() => { setFileMenuOpen(false); createNew(); }}><FilePlus2 /><span><strong>Nowy projekt</strong><small>Rozpocznij pusty dokument MadCAD.</small></span></button>
@@ -7958,9 +7138,6 @@ export default function ModelingWorkspace() {
               <button type="button" disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} onClick={() => { setFileMenuOpen(false); void previewActiveDrawing(); }}><Eye /><span><strong>Podgląd wydruku</strong><small>Arkusz 2D w skali 1:1.</small></span></button>
               <button id="fileExportPdfBtn" type="button" disabled={!activeDrawingSheet?.views.length} onClick={() => { setFileMenuOpen(false); void exportActiveDrawingPdf(); }}><FileText /><span><strong>PDF</strong><small>Zapisz aktywny arkusz techniczny.</small></span></button>
               <button id="fileExportDxfBtn" type="button" disabled={!activeDrawingSheet?.views.length} onClick={() => { setFileMenuOpen(false); exportActiveDrawingDxf(); }}><FileText /><span><strong>DXF</strong><small>Eksport geometrii arkusza w mm.</small></span></button>
-            </section>
-            <section className="file-backstage-print"><h2>DRUK 3D</h2>
-              <button id="filePrint3dBtn" type="button" onClick={openPrintPreparation}><Printer /><span><strong>Przygotuj druk 3D</strong><small>Stół, orientacja, kontrola modelu i slicer.</small></span><ArrowRight /></button>
             </section>
           </div>
         </aside>
@@ -7996,10 +7173,10 @@ export default function ModelingWorkspace() {
                 ) : (
                   <>
                 <RibbonGroup label="UTWÓRZ">
-                  <ToolButton icon={SketchLineCadIcon} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} />
-                  <ToolButton icon={SketchPolylineCadIcon} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} />
-                  <ToolButton icon={SketchRectangleCadIcon} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} />
-                  <ToolButton icon={SketchCircleCadIcon} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} />
+                  <ToolButton icon={SketchLineCadIcon} label="Linia" onClick={() => openSketchPath('line')} primary={!command} active={command?.type === 'line'} disabled={readOnly} />
+                  <ToolButton icon={SketchPolylineCadIcon} label="Polilinia" onClick={() => openSketchPath('polyline')} active={command?.type === 'polyline'} disabled={readOnly} />
+                  <ToolButton icon={SketchRectangleCadIcon} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} active={command?.type === 'rectangle'} disabled={readOnly} />
+                  <ToolButton icon={SketchCircleCadIcon} label="Okrąg" onClick={() => openProfileCommand('circle')} active={command?.type === 'circle'} disabled={readOnly} />
                   {expandedSketchRibbon && <ToolButton icon={SketchArcCadIcon} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} />}
                   <ToolMenuButton icon={SketchShapesCadIcon} label="Więcej kształtów" description="Łuki, wielokąty, elipsy i pozostałe kształty szkicu." items={[
                     ...(!expandedSketchRibbon ? [{ icon: Rotate3d, label: 'Łuk', onClick: () => openMechanicalShape('arc'), disabled: readOnly }] : []),
@@ -8011,14 +7188,6 @@ export default function ModelingWorkspace() {
                     { icon: ScanSearch, label: 'Conic', displayLabel: 'Krzywa stożkowa', onClick: () => openMechanicalShape('conic'), disabled: readOnly },
                     { icon: CircleDotDashed, label: 'Punkt', onClick: () => openMechanicalShape('point'), disabled: readOnly },
                   ]} />
-                  {Boolean(document.sketches.find((sketch) => sketch.id === activeSketchId)?.entities?.length) && <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii aktywnego szkicu." items={[
-                    { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !canExtrudeOpenChain || !sweepPathOptions(activeSketchId).length, disabledReason: 'Zaznacz profil i przygotuj osobny szkic ścieżki.' },
-                    { icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
-                    { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
-                  ]} />}
                 </RibbonGroup>
                 <RibbonGroup label="ZMIEŃ">
                   <ToolButton icon={SketchTrimCadIcon} label="Trim" displayLabel="Przytnij" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} />
@@ -8047,7 +7216,7 @@ export default function ModelingWorkspace() {
                     { icon: Frame, label: 'Symetria', onClick: () => addSelectedSketchConstraint('symmetry'), disabled: readOnly || !canAddSymmetry, disabledReason: 'Zaznacz geometrię i oś symetrii.' },
                     { icon: CircleDotDashed, label: 'Krzywizna G2', onClick: () => addSelectedSketchConstraint('curvature'), disabled: readOnly || !canAddCurvature, disabledReason: 'Zaznacz dwie zgodne krzywe.' },
                   ]} />
-                  <ToolMenuButton icon={SketchDimensionCadIcon} label="Wymiary" description="Sterujące wymiary między punktami, współrzędne i długość łuku." items={[
+                  <ToolMenuButton icon={SketchDimensionCadIcon} label="Wymiary" description="Sterujące wymiary między punktami, współrzędne i długość łuku. Skrót D wymiaruje od razu zaznaczony odcinek albo dwa punkty." shortcutAction={() => { if (readOnly || !canAddLinearDimension) return false; openSketchDimension('aligned'); return true; }} items={[
                     { icon: Ruler, label: 'Wymiar poziomy', onClick: () => openSketchDimension('horizontal'), disabled: readOnly || !canAddLinearDimension, disabledReason: 'Zaznacz dwa punkty albo jeden odcinek szkicu.' },
                     { icon: Ruler, label: 'Wymiar pionowy', onClick: () => openSketchDimension('vertical'), disabled: readOnly || !canAddLinearDimension, disabledReason: 'Zaznacz dwa punkty albo jeden odcinek szkicu.' },
                     { icon: Ruler, label: 'Wymiar odcinka', onClick: () => openSketchDimension('aligned'), disabled: readOnly || !canAddLinearDimension, disabledReason: 'Zaznacz dwa punkty albo jeden odcinek szkicu.' },
@@ -8062,6 +7231,18 @@ export default function ModelingWorkspace() {
                     { icon: Blocks, label: 'Bloki', onClick: () => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); } },
                   ]} />
                 </RibbonGroup>
+                {Boolean(document.sketches.find((sketch) => sketch.id === activeSketchId)?.entities?.length) && (
+                  <RibbonGroup label="BRYŁA ZE SZKICU">
+                  <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii aktywnego szkicu." items={[
+                    { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !canExtrudeOpenChain || !sweepPathOptions(activeSketchId).length, disabledReason: 'Zaznacz profil i przygotuj osobny szkic ścieżki.' },
+                    { icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
+                    { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
+                  ]} />
+                  </RibbonGroup>
+                )}
                 <RibbonGroup label="ZAKOŃCZ SZKIC" end><ToolButton icon={FinishSketchCadIcon} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
                   </>
                 )}
@@ -8094,12 +7275,6 @@ export default function ModelingWorkspace() {
                   { icon: Trash2, label: 'Usuń oznaczenie', onClick: deleteSelectedDrawingAnnotation, disabled: readOnly || !selectedDrawingAnnotation },
                 ]} /></RibbonGroup>
                 <RibbonGroup label="ZESTAWIENIA"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części z modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch || !engine.bodies.length} description="Dodaj tabelę średnic z zaznaczonego widoku modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela gięć" onClick={() => addDrawingTable('bend-table')} disabled={readOnly || !activeDrawingSheet || !sheetBodies.some((body) => body.sheetMetal.flatSegments?.length)} description="Dodaj skojarzoną tabelę kątów, promieni, długości i naddatków gięcia blachy." /></RibbonGroup>
-              </>
-            ) : workspace === 'manufacture' ? (
-              <>
-                <RibbonGroup label="SETUP"><ToolButton icon={ManufacturingSetupCadIcon} label="Nowy Setup" onClick={createCamSetup} disabled={readOnly || !engine.bodies.some((body) => body.bodyKind !== 'surface')} primary description="Powiąż bryłę z obrabiarką, półfabrykatem i układem WCS." /></RibbonGroup>
-                <RibbonGroup label="WIDOK"><ToolButton icon={Crosshair} label="Dopasuj model" onClick={() => setFitViewRequest({ requestId: `cam-fit:${Date.now()}` })} disabled={!engine.bodies.length} /></RibbonGroup>
-                <RibbonGroup label="PRZYGOTOWANIE"><ToolButton icon={Ruler} label="Sprawdź Setup" onClick={() => setNotice('Panel Setup pokazuje bieżące wymiary półfabrykatu, zero WCS i zgodność z przesuwem maszyny.')} disabled={!document.manufacturing.setups.length} /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? null : startPageVisible ? (
               <>
@@ -8200,10 +7375,6 @@ export default function ModelingWorkspace() {
                   <ToolButton icon={GeometryCheckCadIcon} label="Sprawdź geometrię" onClick={openGeometryInspection} disabled={!engine.bodies.length} />
                 </RibbonGroup>
                 <RibbonGroup label="SYMULUJ"><ToolMenuButton icon={ScanSearch} label="Analizy" description="Obliczenia wstępne modelu." items={[
-                  { icon: ScanSearch, label: 'Szybka analiza statyczna', onClick: openStaticScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
-                  { icon: ScanSearch, label: 'MES bryły 3D', onClick: openSolidFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
-                  { icon: ScanSearch, label: 'MES belki 1D', onClick: openBeamFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
-                  { icon: Sun, label: 'Szybka analiza cieplna', onClick: openThermalScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
                 ]} /></RibbonGroup>
               </>
             ) : (
@@ -8299,10 +7470,6 @@ export default function ModelingWorkspace() {
                   { icon: SectionCadIcon, label: 'Przekrój', onClick: openSectionAnalysis, disabled: !engine.bodies.length },
                   { icon: ScanSearch, label: 'Analiza powierzchni', onClick: openSurfaceAnalysis, disabled: !engine.bodies.length },
                   { icon: MassCadIcon, label: 'Właściwości masy', onClick: openMassProperties, disabled: !engine.bodies.length },
-                  { icon: ScanSearch, label: 'Szybka analiza statyczna', onClick: openStaticScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
-                  { icon: ScanSearch, label: 'MES bryły 3D', onClick: openSolidFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
-                  { icon: ScanSearch, label: 'MES belki 1D', onClick: openBeamFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
-                  { icon: Sun, label: 'Szybka analiza cieplna', onClick: openThermalScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
                   { icon: GeometryCheckCadIcon, label: 'Sprawdź geometrię', onClick: openGeometryInspection, disabled: !engine.bodies.length },
                 ]} /></RibbonGroup>
               </>
@@ -8312,14 +7479,13 @@ export default function ModelingWorkspace() {
       </section>
 
       <div
-        className={`modeling-content command-dock-right ${showProjectBrowser ? '' : 'without-browser'} ${printPanelOpen ? 'with-print-panel' : ''}`}
+        className={`modeling-content command-dock-right ${showProjectBrowser ? '' : 'without-browser'}`}
         style={{
           '--browser-column': showProjectBrowser ? '252px' : '0px',
           '--command-column': '0px',
-          '--print-column': printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
         }}
       >
-        {showProjectBrowser && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onToggleSketchVisibility={toggleSketchVisibility} onToggleBodyVisibility={toggleBodyVisibility} onClose={() => setBrowserOpen(false)} />}
+        {showProjectBrowser && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onToggleSketchVisibility={toggleSketchVisibility} onToggleBodyVisibility={toggleBodyVisibility} onEditSketch={(sketchId) => (readOnly ? readOnlyNotice() : editSketch(sketchId))} onClose={() => setBrowserOpen(false)} />}
         <CommandDialog
           command={command}
           profileName={command?.type === 'pipe' ? `Otwarta ścieżka (${command.previewFeature?.pathEntityIds?.length || command.pathEntityIds?.length || 0})` : command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : commandProfileName}
@@ -8336,7 +7502,7 @@ export default function ModelingWorkspace() {
         <main className="modeling-stage">
           {workspace === 'drawing' ? <DrawingWorkspace
             document={document}
-            bodies={visibleViewportBodies}
+            bodies={withDrawingProjections(visibleViewportBodies)}
             activeSheetId={activeDrawingSheetId}
             selectedViewId={selectedDrawingViewId}
             selectedAnnotationId={selectedDrawingAnnotationId}
@@ -8380,7 +7546,6 @@ export default function ModelingWorkspace() {
             onCreatePart={() => createDocumentComponent('part')}
             onCreateAssembly={() => createDocumentComponent('assembly')}
             onOpenNamedViews={() => { setComponentsOpen(false); setNamedViewsOpen((open) => !open); switchWorkspace('solid'); }}
-            onOpenRenderScene={() => { setComponentsOpen(false); setNamedViewsOpen(false); setRenderSceneOpen(true); switchWorkspace('solid'); }}
             readOnly={readOnly}
             onBack={() => switchWorkspace('solid')}
           /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
@@ -8395,7 +7560,7 @@ export default function ModelingWorkspace() {
             onDraftChange={readOnly ? undefined : updateCommand}
             sketchTool={command?.type === 'line' || command?.type === 'polyline' || directSketchTypes.includes(command?.type) ? command.type : null}
             sketchToolPrompt={sketchToolPrompt}
-            polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : directSketchTypes.includes(command?.type) ? { lastPoint: command.gesturePoints?.at(-1) || null } : null}
+            polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : directSketchTypes.includes(command?.type) ? { lastPoint: command.gesturePoints?.at(-1) || null, shape: command?.type === 'rectangle' && ['corner', 'twoPoints'].includes(command.definition) && command.gesturePoints?.length === 1 ? 'rectangle' : undefined } : null}
             onSketchPoint={readOnly ? undefined : handleSketchCanvasPoint}
             onSketchPointerMove={(point) => { sketchPointerRef.current = point; }}
             sketchDynamicLength={command?.dynamicLength || ''}
@@ -8422,10 +7587,6 @@ export default function ModelingWorkspace() {
             sectionAnalysis={sectionAnalysis}
             draftAnalysis={activeGeometryFaceAnalysis}
             surfaceAnalysis={surfaceAnalysis}
-            beamFeaVisualization={command?.type === 'beamFea' ? beamFea?.result : null}
-            solidFeaVisualization={command?.type === 'solidFea' ? solidFea?.result : null}
-            manufacturingVisualization={manufacturingVisualization}
-            printRiskAnalysis={printRiskAnalysis}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}
@@ -8436,9 +7597,6 @@ export default function ModelingWorkspace() {
             collisionInstanceIds={collisionInstanceIds}
             exactCollisionInstanceIds={exactCollisionInstanceIds}
             explodeAmount={explodeAmount}
-            animationInstanceOffsets={animationInstanceOffsets}
-            animationInstanceRotations={animationInstanceRotations}
-            animationJointValues={animationJointValues}
             cameraRequest={cameraRequest}
             fitRequest={fitViewRequest}
             activeCommand={command}
@@ -8488,19 +7646,13 @@ export default function ModelingWorkspace() {
             directManipulator={readOnly ? null : directManipulator}
             snapEnabled={sketchOptions.snap}
             snapThresholdPx={sketchOptions.snapDistance}
-            bed={document.print}
-            showBed={printPanelOpen}
-            printLayout={document.print}
-            renderScene={document.renderScene}
-            renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
-          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} cachedSetupResult={activeCamSetupResult} cachedProgramReport={activeCamProgramReport} cachedToolpaths={allManufacturingToolpaths} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onDuplicateOperation={duplicateCamOperation} onMoveOperation={moveCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onCreateOperationGroup={createCamOperationGroup} onUpdateOperationGroup={updateCamOperationGroup} onDeleteOperationGroup={deleteCamOperationGroup} onSaveOperationTemplate={saveCamOperationTemplate} onUpdateOperationTemplate={updateCamOperationTemplate} onDeleteOperationTemplate={deleteCamOperationTemplate} onApplyOperationTemplate={applyCamOperationTemplate} onExportOperation={exportCamOperation} onExportProgram={exportCamProgram} onExportSetupSheet={exportCamSetupSheet} onExportSequenceSheet={exportCamSequenceSheet} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}
           {(workspace === 'drawing' || workspace === 'tools') && engine.status === 'computing' && <div className="engine-status computing" role="status" aria-live="polite"><span aria-hidden="true" />Przeliczanie historii…<button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button></div>}
-          {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && !meshToolsOpen && !renderSceneOpen && <AdaptiveToolShelf {...adaptiveContext} />}
+          {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && !meshToolsOpen && <AdaptiveToolShelf {...adaptiveContext} />}
           {notice && <div className={`workspace-notice ${command ? 'command-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner
             info={recoveryInfo}
@@ -8518,27 +7670,19 @@ export default function ModelingWorkspace() {
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'surfaceAnalysis' && surfaceAnalysis && <SurfaceAnalysisPanel analysis={surfaceAnalysis} continuity={surfaceContinuity} curvature={surfaceCurvature} onChange={(patch) => setSurfaceAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSurfaceAnalysis} />}
-          {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} brepBlocker={meshBrepBlocker} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onOrient={orientSelectedMeshFaces} onFillHoles={fillSelectedMeshHoles} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onRemesh={remeshSelectedMesh} onGroup={groupSelectedMeshFaces} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
+          {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} brepBlocker={meshBrepBlocker} readOnly={readOnly} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
-          {command?.type === 'staticScreening' && <StaticScreeningPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} spanAxis={command.spanAxis} loadAxis={command.loadAxis} fixedEnd={command.fixedEnd} force={command.force} result={staticScreening?.result} error={staticScreening?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
-          {command?.type === 'beamFea' && <BeamFeaPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} spanAxis={command.spanAxis} loadAxis={command.loadAxis} loadType={command.loadType} loadPositionPercent={command.loadPositionPercent} force={command.force} distributedForce={command.distributedForce} elementCount={command.elementCount} requiredSafetyFactor={command.requiredSafetyFactor} loadCases={command.loadCases} result={beamFea?.result} error={beamFea?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onExport={exportBeamFeaReport} onClose={() => setCommand(null)} />}
-          {command?.type === 'solidFea' && <SolidFeaPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} supportAxis={command.supportAxis} supportSide={command.supportSide} supportFaceId={command.supportFaceId} supportFaceLabel={command.supportFaceLabel} loadAxis={command.loadAxis} loadSide={command.loadSide} loadFaceId={command.loadFaceId} loadFaceLabel={command.loadFaceLabel} force={command.force} meshDensity={command.meshDensity} result={solidFea?.result} error={solidFea?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
-          {command?.type === 'thermalScreening' && <ThermalScreeningPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} axis={command.axis} hotTemperature={command.hotTemperature} coldTemperature={command.coldTemperature} result={thermalScreening?.result} error={thermalScreening?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} inspectionMode={command.inspectionMode} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} thicknessTarget={command.thicknessTarget} thicknessTolerance={command.thicknessTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}
-          {renderSceneOpen && <RenderScenePanel scene={document.renderScene} bodies={engine.bodies} selectedFace={selectedFaceItems.length === 1 ? selectedFaceItems[0] : null} readOnly={readOnly} onChange={updateRenderScene} onAddDecal={(file, face) => { void addRenderDecal(file, face); }} onUpdateDecal={changeRenderDecal} onDeleteDecal={removeRenderDecal} onSaveRender={() => { void saveLocalRender(); }} onClose={() => setRenderSceneOpen(false)} />}
           {componentsOpen && <ComponentPanel
             document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult}
-            selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedMotionLinkId={selectedMotionLink?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedContactSetId={selectedContactSet?.id || ''} selectedBodyIds={selectedBodyIds}
-            linkedProjectStatuses={linkedProjectStatuses} readOnly={readOnly} explodeAmount={explodeAmount} onExplodeAmountChange={(amount) => { setAnimationPlaying(false); setExplodeAmount(amount); }} activeStoryboardId={activeStoryboardId} animationPlaying={animationPlaying} storyboardExporting={storyboardExporting} animationTime={animationTime} animationInstanceOffsets={animationInstanceOffsets} animationInstanceRotations={animationInstanceRotations} animationJointValues={animationJointValues} animationNote={animationNote}
-            onPreviewStoryboardOffset={(instanceId, offset) => setAnimationInstanceOffsets((current) => ({ ...current, [instanceId]: offset }))} onPreviewStoryboardRotation={(instanceId, rotation) => setAnimationInstanceRotations((current) => ({ ...current, [instanceId]: rotation }))} onPreviewStoryboardJoint={(jointId, value) => setAnimationJointValues((current) => ({ ...current, [jointId]: value }))} onAnimationNoteChange={setAnimationNote}
-            onSelectStoryboard={(id) => { setAnimationPlaying(false); setActiveStoryboardId(id); setAnimationTime(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); }} onCreateStoryboard={createStoryboard} onUpdateStoryboard={changeStoryboard} onDeleteStoryboard={removeStoryboard} onAddStoryboardKeyframe={addStoryboardFrame} onDeleteStoryboardKeyframe={deleteStoryboardFrame} onSeekStoryboard={seekStoryboard} onPlayStoryboard={(storyboard) => { setActiveStoryboardId(storyboard.id); if (animationTime >= storyboard.duration) { const first = sampleAssemblyStoryboardState(storyboard, 0); setAnimationTime(0); setExplodeAmount(first.explodeAmount); setAnimationInstanceOffsets(first.instanceOffsets); setAnimationInstanceRotations(first.instanceRotations); setAnimationJointValues(first.jointValues); setAnimationNote(first.note); } setAnimationPlaying(true); }} onStopStoryboard={() => setAnimationPlaying(false)} onExportStoryboardVideo={(storyboard) => { void exportStoryboardVideo(storyboard); }} onExportStoryboardInstructions={(storyboard) => { void exportStoryboardInstructions(storyboard); }}
+            selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedBodyIds={selectedBodyIds}
+            linkedProjectStatuses={linkedProjectStatuses} readOnly={readOnly} explodeAmount={explodeAmount} onExplodeAmountChange={setExplodeAmount}
             onCreate={createDocumentComponent} onLinkProject={() => { void linkExternalProject(); }} onPackAndGo={() => { void packAndGoProject(); }} onRefreshLinkedProject={(linkId) => { void refreshLinkedProject(linkId); }} onRepairLinkedProject={(linkId) => { void refreshLinkedProject(linkId, true); }}
             onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance}
             onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection(jointId ? { kind: 'joint', id: jointId } : { kind: 'document', id: document.id })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint}
-            onSelectMotionLink={(linkId) => setSelection(linkId ? { kind: 'motionLink', id: linkId } : { kind: 'document', id: document.id })} onCreateMotionLink={createDocumentMotionLink} onUpdateMotionLink={updateDocumentMotionLink} onDeleteMotionLink={removeDocumentMotionLink}
             onSelectConfiguration={(configurationId) => setSelection(configurationId ? { kind: 'assemblyConfiguration', id: configurationId } : { kind: 'document', id: document.id })} onCreateConfiguration={createDocumentAssemblyConfiguration} onUpdateConfiguration={updateDocumentAssemblyConfiguration} onApplyConfiguration={applyDocumentAssemblyConfiguration} onDeleteConfiguration={removeDocumentAssemblyConfiguration}
-            onSelectContactSet={(contactSetId) => setSelection(contactSetId ? { kind: 'contactSet', id: contactSetId } : { kind: 'document', id: document.id })} onCreateContactSet={createDocumentContactSet} onUpdateContactSet={updateDocumentContactSet} onDeleteContactSet={removeDocumentContactSet} onClose={() => setComponentsOpen(false)}
+            onClose={() => setComponentsOpen(false)}
           />}
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
@@ -8565,7 +7709,6 @@ export default function ModelingWorkspace() {
             }}
           />
         </main>
-        {printPanelOpen && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} collapsed={panelLayout.printCollapsed} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => setPrintPanelOpen(false)} onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, printCollapsed: !current.printCollapsed }))} readOnly={readOnly} />}
       </div>
 
       {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && document.features.length > 0 && <footer className="modeling-footer">
@@ -8609,7 +7752,7 @@ export default function ModelingWorkspace() {
               <React.Fragment key={feature.id}>
                 {group && <button className={`timeline-group ${selection?.kind === 'featureGroup' && selection.id === group.id ? 'selected' : ''} ${group.collapsed ? 'collapsed' : ''}`} type="button" aria-label={`Grupa historii ${group.name}, ${group.featureIds.length} operacji`} title={group.name} onClick={() => { setSelection({ kind: 'featureGroup', id: group.id }); setTimelineRename(null); setTimelineDeleteId(null); }}><FolderOpen size={14} /><span>{group.name}</span><small>{group.featureIds.length}</small></button>}
                 {group?.collapsed && group.featureIds.includes(document.timelineRollbackFeatureId) && <span className="timeline-rollback-marker" role="separator" aria-label="Marker rollback" title="Nowe operacje zostaną wstawione po grupie"><History size={12} /></span>}
-                {!group?.collapsed && <button id={`timeline-${feature.id}`} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${feature.suppressed ? 'suppressed' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" aria-pressed={selection?.kind === 'feature' && selection.id === feature.id} aria-label={`${index + 1}. ${feature.name}${feature.suppressed ? ', operacja wyłączona' : ''}`} onClick={() => selectTimelineFeature(feature, index)} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${feature.suppressed ? ' — wyłączona' : result?.status === 'rolled-back' ? ' — poza markerem rollback' : lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
+                {!group?.collapsed && <button id={`timeline-${feature.id}`} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${feature.suppressed ? 'suppressed' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" aria-pressed={selection?.kind === 'feature' && selection.id === feature.id} aria-label={`${index + 1}. ${feature.name}${feature.suppressed ? ', operacja wyłączona' : ''}`} onClick={() => selectTimelineFeature(feature, index)} onDoubleClick={() => editSelection({ kind: 'feature', id: feature.id })} title={`${index + 1}. ${feature.name}${feature.suppressed ? ' — wyłączona' : result?.status === 'rolled-back' ? ' — poza markerem rollback' : lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
                   {featureIcon(feature.type, 18)}<span aria-hidden="true">{index + 1}</span>
                 </button>}
                 {document.timelineRollbackFeatureId === feature.id && <span className="timeline-rollback-marker" role="separator" aria-label="Marker rollback" title="Nowe operacje zostaną wstawione tutaj"><History size={12} /></span>}

@@ -1,6 +1,8 @@
 import { createId } from './ids.js';
 import { componentBomEntries } from './components.js';
 import { sketchDrawingSegments } from './sketch-topology.js';
+import { drawingProjectionGroupKey, drawingSectionKey } from './drawing-projections.js';
+import { dxfLineTypeTable } from './sketch-dxf-export.js';
 
 export const DRAWING_PAGE_SIZES = Object.freeze({
   A4: Object.freeze({ width: 297, height: 210 }),
@@ -307,13 +309,14 @@ export function ensureDocumentDrawings(document) {
   return document;
 }
 
-function viewCoordinates(point, orientation) {
+export function viewCoordinates(point, orientation) {
   const [x, y, z] = point;
   if (orientation === 'top') return [x, -y, z];
   if (orientation === 'right') return [y, -z, x];
   if (orientation === 'isometric') {
+    // Viewed from the front-right-top corner (+X right, -Y front, +Z up), true isometric scale.
     const cosine = Math.sqrt(3) / 2;
-    return [(x - y) * cosine, -(z - (x + y) * 0.5), (x + y + z) / Math.sqrt(3)];
+    return [(x + y) * cosine, -(z + (y - x) * 0.5), (y - x - z) / Math.sqrt(3)];
   }
   return [x, -z, y];
 }
@@ -448,11 +451,109 @@ function clipSegmentToCircle(segment, center, radius) {
   return [[first[0] + dx * start, first[1] + dy * start], [first[0] + dx * end, first[1] + dy * end]];
 }
 
+// Camera of each drawing orientation for kernel hidden-line removal: direction is where the
+// viewer looks. The 2D result matches viewCoordinates(): u along xAxis, v = (direction × xAxis) · p,
+// both multiplied by scale.
+export const DRAWING_PROJECTION_CAMERAS = Object.freeze({
+  front: Object.freeze({ direction: [0, 1, 0], xAxis: [1, 0, 0], scale: 1 }),
+  top: Object.freeze({ direction: [0, 0, -1], xAxis: [1, 0, 0], scale: 1 }),
+  right: Object.freeze({ direction: [-1, 0, 0], xAxis: [0, 1, 0], scale: 1 }),
+  isometric: Object.freeze({ direction: [-1 / Math.sqrt(3), 1 / Math.sqrt(3), -1 / Math.sqrt(3)], xAxis: [1 / Math.SQRT2, 1 / Math.SQRT2, 0], scale: Math.sqrt(1.5) }),
+});
+
+function pointOnSegment(point, [first, second], tolerance) {
+  const dx = second[0] - first[0];
+  const dy = second[1] - first[1];
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared <= tolerance * tolerance) return Math.hypot(point[0] - first[0], point[1] - first[1]) <= tolerance;
+  const t = ((point[0] - first[0]) * dx + (point[1] - first[1]) * dy) / lengthSquared;
+  if (t < -1e-6 || t > 1 + 1e-6) return false;
+  return Math.hypot(point[0] - (first[0] + dx * t), point[1] - (first[1] + dy * t)) <= tolerance;
+}
+
+// A hidden edge lying under a visible one (e.g. the back edge of a box) must not be drawn dashed.
+// The covering visible edge may be split into several pieces, so sample along the hidden edge.
+// Visible segments are bucketed on a grid so each sample only checks nearby candidates.
+export function removeHiddenOverlaps(visible = [], hidden = [], tolerance = 1e-4) {
+  if (!visible.length || !hidden.length) return hidden;
+  const xs = visible.flatMap(([first, second]) => [first[0], second[0]]);
+  const ys = visible.flatMap(([first, second]) => [first[1], second[1]]);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const cell = Math.max(Math.max(...xs) - minX, Math.max(...ys) - minY, tolerance) / 64 || 1;
+  const key = (cx, cy) => `${cx}:${cy}`;
+  const grid = new Map();
+  visible.forEach((segment, index) => {
+    const [first, second] = segment;
+    const x0 = Math.floor((Math.min(first[0], second[0]) - tolerance - minX) / cell);
+    const x1 = Math.floor((Math.max(first[0], second[0]) + tolerance - minX) / cell);
+    const y0 = Math.floor((Math.min(first[1], second[1]) - tolerance - minY) / cell);
+    const y1 = Math.floor((Math.max(first[1], second[1]) + tolerance - minY) / cell);
+    for (let cx = x0; cx <= x1; cx += 1) {
+      for (let cy = y0; cy <= y1; cy += 1) {
+        const bucket = grid.get(key(cx, cy));
+        if (bucket) bucket.push(index); else grid.set(key(cx, cy), [index]);
+      }
+    }
+  });
+  return hidden.flatMap(([first, second]) => {
+    const dx = second[0] - first[0];
+    const dy = second[1] - first[1];
+    const length = Math.hypot(dx, dy);
+    if (length <= tolerance) return visible.some((segment) => pointOnSegment(first, segment, tolerance)) ? [] : [[first, second]];
+    const candidates = new Set();
+    const x0 = Math.max(-1, Math.floor((Math.min(first[0], second[0]) - minX) / cell));
+    const x1 = Math.min(65, Math.floor((Math.max(first[0], second[0]) - minX) / cell));
+    const y0 = Math.max(-1, Math.floor((Math.min(first[1], second[1]) - minY) / cell));
+    const y1 = Math.min(65, Math.floor((Math.max(first[1], second[1]) - minY) / cell));
+    for (let cx = x0; cx <= x1; cx += 1) {
+      for (let cy = y0; cy <= y1; cy += 1) {
+        for (const index of grid.get(key(cx, cy)) || []) candidates.add(index);
+      }
+    }
+    const intervals = [];
+    for (const index of candidates) {
+      const [a, b] = visible[index];
+      const distance = (point) => Math.abs(dx * (point[1] - first[1]) - dy * (point[0] - first[0])) / length;
+      if (distance(a) > tolerance || distance(b) > tolerance) continue;
+      const along = (point) => ((point[0] - first[0]) * dx + (point[1] - first[1]) * dy) / (length * length);
+      const start = Math.max(0, Math.min(along(a), along(b)));
+      const end = Math.min(1, Math.max(along(a), along(b)));
+      if (end > start) intervals.push([start, end]);
+    }
+    intervals.sort((a, b) => a[0] - b[0]);
+    const result = [];
+    const at = (t) => [first[0] + dx * t, first[1] + dy * t];
+    let cursor = 0;
+    for (const [start, end] of intervals) {
+      if ((start - cursor) * length > tolerance) result.push([at(cursor), at(start)]);
+      cursor = Math.max(cursor, end);
+    }
+    if ((1 - cursor) * length > tolerance) result.push([at(cursor), second]);
+    return result;
+  });
+}
+
 export function projectDrawingView(view, bodies = []) {
   const sourceBodies = sourceBodiesForView(view, bodies);
+  const orientation = view?.orientation || 'front';
+  const group = sourceBodies[0]?.drawingGroupProjections?.[drawingProjectionGroupKey(sourceBodies.map((body) => body.id))]?.[orientation];
   const projected = [];
+  const hiddenProjected = [];
   const seen = new Set();
+  if (group) {
+    projected.push(...group.visible);
+    hiddenProjected.push(...group.hidden);
+  }
   for (const body of sourceBodies) {
+    if (group) break;
+    // Kernel hidden-line removal when available; otherwise every tessellation edge is drawn.
+    const exact = body?.drawingProjections?.[orientation];
+    if (exact) {
+      projected.push(...exact.visible);
+      hiddenProjected.push(...exact.hidden);
+      continue;
+    }
     for (const segment of bodyLineSegments(body)) {
       const candidate = segment.map((point) => projectPoint(point, view?.orientation || 'front'));
       const key = segmentKey(candidate);
@@ -461,11 +562,14 @@ export function projectDrawingView(view, bodies = []) {
       projected.push(candidate);
     }
   }
-  if (!projected.length) return { segments: [], bounds: [[0, 0], [0, 0]], width: 0, height: 0 };
-  const points = projected.flat();
+  if (!projected.length) return { segments: [], hiddenSegments: [], bounds: [[0, 0], [0, 0]], width: 0, height: 0 };
+  // Kernel projections arrive already filtered (removeHiddenOverlaps runs in the worker).
+  const hiddenSegments = hiddenProjected;
+  const points = [...projected, ...hiddenSegments].flat();
   const minimum = [Math.min(...points.map((point) => point[0])), Math.min(...points.map((point) => point[1]))];
   const maximum = [Math.max(...points.map((point) => point[0])), Math.max(...points.map((point) => point[1]))];
   return {
+    hiddenSegments,
     segments: projected,
     bounds: [minimum, maximum],
     width: maximum[0] - minimum[0],
@@ -489,6 +593,8 @@ function projectionBounds(segments) {
 function projectionForView(view, bodies, { sketches = [], parameters = [], layers = [] } = {}) {
   if (view.type === 'sketch') return projectSketchDrawingView(view, sketches, parameters, layers);
   if (view.type === 'section') {
+    const exact = bodies.find((body) => body.drawingSectionProjections)?.drawingSectionProjections?.[drawingSectionKey(view)];
+    if (exact) return projectionBounds(exact.segments);
     const section = sectionSegments(view, bodies);
     if (section.length) return projectionBounds(section);
   }
@@ -500,7 +606,8 @@ function projectionForView(view, bodies, { sketches = [], parameters = [], layer
     minimum[1] + projection.height * Math.max(0, Math.min(1, Number(view.detailCenter?.[1]) || 0.5)),
   ];
   const radius = Math.max(projection.width, projection.height) * Math.max(0.05, Math.min(0.5, Number(view.detailRadius) || 0.25));
-  return { ...projectionBounds(projection.segments.map((segment) => clipSegmentToCircle(segment, center, radius)).filter(Boolean)), detailCenter: center, detailRadiusModel: radius };
+  const clip = (segments) => (segments || []).map((segment) => clipSegmentToCircle(segment, center, radius)).filter(Boolean);
+  return { ...projectionBounds(clip(projection.segments)), hiddenSegments: clip(projection.hiddenSegments), detailCenter: center, detailRadiusModel: radius };
 }
 
 function sectionHatchSegments(projection, spacing = 4) {
@@ -869,6 +976,7 @@ export function drawingSheetScene(sheet, bodies = [], { components = [], compone
     const rendered = {
       ...view,
       segments: projection.segments.map(transformSegment),
+      hiddenSegments: (projection.hiddenSegments || []).map(transformSegment),
       hatchSegments: view.type === 'section' ? sectionHatchSegments(projection, Number(view.hatchSpacing) || 4).map(transformSegment) : [],
       modelWidth: projection.width,
       modelHeight: projection.height,
@@ -918,7 +1026,7 @@ function escapeHtml(value) {
 export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt', author = '', revision = 'A', components = [], componentInstances = [], sketches = [], parameters = [], layers = [] } = {}) {
   const scene = drawingSheetScene(sheet, bodies, { components, componentInstances, sketches, parameters, layers });
   const line = ([first, second], className = '') => `<line${className ? ` class="${className}"` : ''} x1="${first[0]}" y1="${first[1]}" x2="${second[0]}" y2="${second[1]}" />`;
-  const lineMarkup = scene.views.map((view) => `<g class="geometry ${escapeHtml(view.type)}">${view.segments.map((segment) => line(segment)).join('')}${view.hatchSegments.map((segment) => line(segment, 'hatch')).join('')}${view.type === 'detail' ? `<circle class="detail-border" cx="${view.x}" cy="${view.y}" r="${Math.max(5, view.detailRadiusSheet)}" />` : ''}</g>`).join('');
+  const lineMarkup = scene.views.map((view) => `<g class="geometry ${escapeHtml(view.type)}">${view.segments.map((segment) => line(segment)).join('')}${view.hiddenSegments.map((segment) => line(segment, 'hidden')).join('')}${view.hatchSegments.map((segment) => line(segment, 'hatch')).join('')}${view.type === 'detail' ? `<circle class="detail-border" cx="${view.x}" cy="${view.y}" r="${Math.max(5, view.detailRadiusSheet)}" />` : ''}</g>`).join('');
   const annotationMarkup = scene.annotations.map((annotation) => {
     if (annotation.type === 'section-line') return `<g class="annotation section-callout"><line x1="${annotation.x1}" y1="${annotation.y1}" x2="${annotation.x2}" y2="${annotation.y2}"/><text x="${annotation.x1}" y="${annotation.y1 - 2}">${escapeHtml(annotation.label)}</text><text x="${annotation.x2}" y="${annotation.y2 - 2}">${escapeHtml(annotation.label)}</text></g>`;
     if (annotation.type === 'detail-callout') return `<g class="annotation detail-callout"><circle cx="${annotation.x}" cy="${annotation.y}" r="${annotation.radius}"/><text x="${annotation.x + annotation.radius + 2}" y="${annotation.y}">${escapeHtml(annotation.label)}</text></g>`;
@@ -944,7 +1052,7 @@ export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt',
   const latestRevision = sheet?.revisions?.at(-1);
   const revisionValue = latestRevision?.code || block.revision || revision;
   const revisionRows = (sheet?.revisions || []).slice(-3).map((item, index) => `<text x="${scene.width - 191}" y="${titleTop + 4 + index * 4}">${escapeHtml(item.code)} · ${escapeHtml(item.date)}</text>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(sheet?.name || 'Arkusz')}</title><style>@page{size:${scene.width}mm ${scene.height}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:white;font-family:Arial,sans-serif}svg{display:block;width:${scene.width}mm;height:${scene.height}mm}.border,.title,.annotation rect,.drawing-table rect{fill:none;stroke:#111;stroke-width:.35}.geometry{fill:none;stroke:#111;stroke-width:.28;stroke-linecap:round;stroke-linejoin:round}.geometry.section{stroke-width:.5}.geometry .hatch{stroke-width:.16}.detail-border,.annotation circle{fill:none;stroke:#111;stroke-width:.25}.annotation line,.drawing-table line{stroke:#111;stroke-width:.25}.section-callout line,.detail-callout line,.drawing-centerline line,.drawing-center-mark line{stroke-dasharray:3 1}.drawing-linear-dimension line,.drawing-hole-note line{stroke-width:.2}.annotation text{font-weight:700}text{fill:#111;font-size:3px}.project{font-size:5px;font-weight:700}.drawing-table text{font-size:2.3px}.drawing-table .table-title{font-weight:700}</style></head><body><svg viewBox="0 0 ${scene.width} ${scene.height}" xmlns="http://www.w3.org/2000/svg"><rect class="border" x="${scene.margin}" y="${scene.margin}" width="${scene.width - scene.margin * 2}" height="${scene.height - scene.margin * 2}"/>${lineMarkup}${annotationMarkup}${tableMarkup}${viewLabels}<g class="title"><rect x="${scene.width - 192}" y="${titleTop}" width="60" height="14"/><rect x="${scene.width - 132}" y="${titleTop}" width="122" height="14"/><line x1="${scene.width - 55}" y1="${titleTop}" x2="${scene.width - 55}" y2="${scene.height - 10}"/><line x1="${scene.width - 28}" y1="${titleTop}" x2="${scene.width - 28}" y2="${scene.height - 10}"/></g>${revisionRows}<text class="project" x="${scene.width - 129}" y="${titleTop + 5}">${escapeHtml(block.title || documentName)}</text><text x="${scene.width - 129}" y="${titleTop + 9}">${escapeHtml(block.partNumber || sheet?.name || 'Arkusz')} · ${escapeHtml(block.material || '—')}</text><text x="${scene.width - 129}" y="${titleTop + 12.5}">${escapeHtml(block.company || '')}</text><text x="${scene.width - 53}" y="${titleTop + 5}">Autor</text><text x="${scene.width - 53}" y="${titleTop + 11}">${escapeHtml(block.author || author || '—')}</text><text x="${scene.width - 26}" y="${titleTop + 5}">Rew.</text><text x="${scene.width - 26}" y="${titleTop + 11}">${escapeHtml(revisionValue)}</text></svg></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(sheet?.name || 'Arkusz')}</title><style>@page{size:${scene.width}mm ${scene.height}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:white;font-family:Arial,sans-serif}svg{display:block;width:${scene.width}mm;height:${scene.height}mm}.border,.title,.annotation rect,.drawing-table rect{fill:none;stroke:#111;stroke-width:.35}.geometry{fill:none;stroke:#111;stroke-width:.28;stroke-linecap:round;stroke-linejoin:round}.geometry.section{stroke-width:.5}.geometry .hatch{stroke-width:.16}.geometry .hidden{stroke-width:.18;stroke-dasharray:1.6 .8}.detail-border,.annotation circle{fill:none;stroke:#111;stroke-width:.25}.annotation line,.drawing-table line{stroke:#111;stroke-width:.25}.section-callout line,.detail-callout line,.drawing-centerline line,.drawing-center-mark line{stroke-dasharray:3 1}.drawing-linear-dimension line,.drawing-hole-note line{stroke-width:.2}.annotation text{font-weight:700}text{fill:#111;font-size:3px}.project{font-size:5px;font-weight:700}.drawing-table text{font-size:2.3px}.drawing-table .table-title{font-weight:700}</style></head><body><svg viewBox="0 0 ${scene.width} ${scene.height}" xmlns="http://www.w3.org/2000/svg"><rect class="border" x="${scene.margin}" y="${scene.margin}" width="${scene.width - scene.margin * 2}" height="${scene.height - scene.margin * 2}"/>${lineMarkup}${annotationMarkup}${tableMarkup}${viewLabels}<g class="title"><rect x="${scene.width - 192}" y="${titleTop}" width="60" height="14"/><rect x="${scene.width - 132}" y="${titleTop}" width="122" height="14"/><line x1="${scene.width - 55}" y1="${titleTop}" x2="${scene.width - 55}" y2="${scene.height - 10}"/><line x1="${scene.width - 28}" y1="${titleTop}" x2="${scene.width - 28}" y2="${scene.height - 10}"/></g>${revisionRows}<text class="project" x="${scene.width - 129}" y="${titleTop + 5}">${escapeHtml(block.title || documentName)}</text><text x="${scene.width - 129}" y="${titleTop + 9}">${escapeHtml(block.partNumber || sheet?.name || 'Arkusz')} · ${escapeHtml(block.material || '—')}</text><text x="${scene.width - 129}" y="${titleTop + 12.5}">${escapeHtml(block.company || '')}</text><text x="${scene.width - 53}" y="${titleTop + 5}">Autor</text><text x="${scene.width - 53}" y="${titleTop + 11}">${escapeHtml(block.author || author || '—')}</text><text x="${scene.width - 26}" y="${titleTop + 5}">Rew.</text><text x="${scene.width - 26}" y="${titleTop + 11}">${escapeHtml(revisionValue)}</text></svg></body></html>`;
 }
 
 function dxfNumber(value) {
@@ -963,6 +1071,7 @@ export function drawingSheetDxf(sheet, bodies = [], { components = [], component
   const addText = (value, x, y, height = 3, layer = 'TEXT') => entities.push(`0\nTEXT\n8\n${layer}\n10\n${dxfNumber(x)}\n20\n${dxfNumber(scene.height - y)}\n30\n0\n40\n${height}\n1\n${dxfText(value)}`);
   scene.views.forEach((view) => {
     view.segments.forEach((segment) => addLine(segment));
+    view.hiddenSegments.forEach((segment) => addLine(segment, 'HIDDEN'));
     view.hatchSegments.forEach((segment) => addLine(segment, 'HATCH'));
     if (view.type === 'detail') addCircle(view.x, view.y, view.detailRadiusSheet, 'GEOMETRY');
     addText(`${view.name} ${formatDrawingScale(view.scale)}`, view.x, view.y + view.modelHeight * view.scale / 2 + 6);
@@ -992,7 +1101,12 @@ export function drawingSheetDxf(sheet, bodies = [], { components = [], component
     table.columns.forEach((column, index) => addText(column.label, starts[index] + 1, table.y + 8.5, 2.2, 'TABLE'));
     table.rows.forEach((row, rowIndex) => row.forEach((cell, columnIndex) => addText(cell, starts[columnIndex] + 1, table.y + 13.5 + rowIndex * table.rowHeight, 2.2, 'TABLE')));
   });
-  return `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1027\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('\n')}\n0\nENDSEC\n0\nEOF\n`;
+  const layerNames = ['0', 'GEOMETRY', 'HIDDEN', 'HATCH', 'ANNOTATION', 'TEXT', 'BALLOON', 'GD&T', 'TABLE'];
+  const layerRecords = layerNames.map((name) => `0\nLAYER\n2\n${name}\n70\n0\n62\n7\n6\n${name === 'HIDDEN' ? 'DASHED' : 'CONTINUOUS'}`).join('\n');
+  const tables = `${dxfLineTypeTable(new Set(['continuous', 'dashed']))}\n0\nTABLE\n2\nLAYER\n70\n${layerNames.length}\n${layerRecords}\n0\nENDTAB`;
+  // LINE/CIRCLE/TEXT and these symbol tables use the R12 dialect, like sketchDxf.
+  // Do not label legacy records as AC1027 without modern handles/subclass markers.
+  return `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n${tables}\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('\n')}\n0\nENDSEC\n0\nEOF\n`;
 }
 
 export function drawingPageDimensions(sheet) {

@@ -39,84 +39,13 @@ function normalizedConfiguration(configuration, index = 0) {
   };
 }
 
-function normalizedContactSet(contactSet, index = 0) {
-  return {
-    ...contactSet,
-    id: typeof contactSet?.id === 'string' && contactSet.id ? contactSet.id : createId('contact-set'),
-    name: String(contactSet?.name || `Contact Set ${index + 1}`).trim().slice(0, 80) || `Contact Set ${index + 1}`,
-    firstInstanceId: typeof contactSet?.firstInstanceId === 'string' ? contactSet.firstInstanceId : '',
-    secondInstanceId: typeof contactSet?.secondInstanceId === 'string' ? contactSet.secondInstanceId : '',
-    enabled: contactSet?.enabled !== false,
-  };
-}
-
 export function ensureDocumentAssemblyMotion(document) {
   ensureDocumentComponents(document);
-  if (!Array.isArray(document.contactSets)) document.contactSets = [];
-  document.contactSets = document.contactSets.map(normalizedContactSet);
   if (!Array.isArray(document.assemblyConfigurations)) document.assemblyConfigurations = [];
   document.assemblyConfigurations = document.assemblyConfigurations.map(normalizedConfiguration);
   if (typeof document.activeAssemblyConfigurationId !== 'string') document.activeAssemblyConfigurationId = '';
   if (document.activeAssemblyConfigurationId && !document.assemblyConfigurations.some((item) => item.id === document.activeAssemblyConfigurationId)) document.activeAssemblyConfigurationId = '';
   return document;
-}
-
-function uniqueContactSetName(document, requestedName = '', excludedId = '') {
-  const base = String(requestedName || `Contact Set ${document.contactSets.length + 1}`).trim().slice(0, 80) || 'Contact Set';
-  const used = new Set(document.contactSets.filter((item) => item.id !== excludedId).map((item) => item.name.toLocaleLowerCase()));
-  if (!used.has(base.toLocaleLowerCase())) return base;
-  for (let suffix = 2; suffix < 10000; suffix += 1) {
-    const candidate = `${base} ${suffix}`.slice(0, 80);
-    if (!used.has(candidate.toLocaleLowerCase())) return candidate;
-  }
-  throw new Error('Nie można utworzyć unikalnej nazwy Contact Set.');
-}
-
-function validateContactPair(document, firstInstanceId, secondInstanceId, excludedId = '') {
-  if (!document.componentInstances.some((instance) => instance.id === firstInstanceId)) throw new Error('Nie znaleziono pierwszego wystąpienia Contact Set.');
-  if (!document.componentInstances.some((instance) => instance.id === secondInstanceId)) throw new Error('Nie znaleziono drugiego wystąpienia Contact Set.');
-  if (firstInstanceId === secondInstanceId) throw new Error('Contact Set wymaga dwóch różnych wystąpień.');
-  const duplicate = document.contactSets.some((contactSet) => contactSet.id !== excludedId
-    && ((contactSet.firstInstanceId === firstInstanceId && contactSet.secondInstanceId === secondInstanceId)
-      || (contactSet.firstInstanceId === secondInstanceId && contactSet.secondInstanceId === firstInstanceId)));
-  if (duplicate) throw new Error('Ta para wystąpień ma już Contact Set.');
-}
-
-export function createContactSet(document, { name = '', firstInstanceId = '', secondInstanceId = '', enabled = true } = {}) {
-  ensureDocumentAssemblyMotion(document);
-  validateContactPair(document, firstInstanceId, secondInstanceId);
-  const contactSet = normalizedContactSet({
-    id: createId('contact-set'),
-    name: uniqueContactSetName(document, name),
-    firstInstanceId,
-    secondInstanceId,
-    enabled,
-  }, document.contactSets.length);
-  document.contactSets.push(contactSet);
-  return contactSet;
-}
-
-export function updateContactSet(document, contactSetId, patch = {}) {
-  ensureDocumentAssemblyMotion(document);
-  const index = document.contactSets.findIndex((item) => item.id === contactSetId);
-  if (index < 0) throw new Error('Nie znaleziono Contact Set.');
-  const current = document.contactSets[index];
-  const next = normalizedContactSet({
-    ...current,
-    ...patch,
-    id: current.id,
-    name: patch.name === undefined ? current.name : uniqueContactSetName(document, patch.name, current.id),
-  }, index);
-  validateContactPair(document, next.firstInstanceId, next.secondInstanceId, current.id);
-  document.contactSets[index] = next;
-  return next;
-}
-
-export function deleteContactSet(document, contactSetId) {
-  ensureDocumentAssemblyMotion(document);
-  const index = document.contactSets.findIndex((item) => item.id === contactSetId);
-  if (index < 0) throw new Error('Nie znaleziono Contact Set.');
-  return document.contactSets.splice(index, 1)[0];
 }
 
 function captureConfigurationState(document) {
@@ -190,8 +119,7 @@ export function applyAssemblyConfiguration(document, configurationId) {
     const joint = jointById.get(state.jointId);
     if (joint) joint.enabled = state.enabled;
   }
-  const linkedTargets = new Set((document.motionLinks || []).filter((link) => link.enabled).map((link) => link.targetJointId));
-  for (const state of configuration.jointStates.filter((item) => !linkedTargets.has(item.jointId))) {
+  for (const state of configuration.jointStates) {
     if (jointById.has(state.jointId)) setJointValue(document, state.jointId, state.value, { clamp: true });
   }
   document.activeAssemblyConfigurationId = configuration.id;
@@ -426,9 +354,6 @@ export function detectAssemblyCollisions(document, bodies = [], { tolerance = 1e
       const exact = exactMeshCollision(triangleMeshes.get(first.instanceId), triangleMeshes.get(second.instanceId), tolerance, maxExactTriangleTests);
       if (exact === false) continue;
       if (exact === true) exactPairs += 1;
-      const contactSet = document.contactSets.find((item) => item.enabled
-        && ((item.firstInstanceId === first.instanceId && item.secondInstanceId === second.instanceId)
-          || (item.firstInstanceId === second.instanceId && item.secondInstanceId === first.instanceId)));
       collisions.push({
         firstInstanceId: first.instanceId,
         secondInstanceId: second.instanceId,
@@ -437,17 +362,8 @@ export function detectAssemblyCollisions(document, bodies = [], { tolerance = 1e
         overlap,
         overlapVolume: overlap[0] * overlap[1] * overlap[2],
         status: exact === true ? 'exact' : 'broad-phase',
-        contactSetId: contactSet?.id || '',
       });
     }
   }
-  const contactSets = document.contactSets.map((contactSet) => {
-    const collision = collisions.find((item) => item.contactSetId === contactSet.id);
-    return {
-      ...contactSet,
-      status: !contactSet.enabled ? 'disabled' : collision?.status || 'clear',
-      overlapVolume: collision?.overlapVolume || 0,
-    };
-  });
-  return { status: collisions.some((collision) => collision.status === 'broad-phase') ? 'partial' : 'complete', occurrences: occurrences.length, selectedInstanceIds: requestedInstanceIds, checkedPairs: occurrences.length * (occurrences.length - 1) / 2, broadPhasePairs, exactPairs, activeContactPairs: contactSets.filter((item) => item.status === 'exact' || item.status === 'broad-phase').length, contactSets, collisions };
+  return { status: collisions.some((collision) => collision.status === 'broad-phase') ? 'partial' : 'complete', occurrences: occurrences.length, selectedInstanceIds: requestedInstanceIds, checkedPairs: occurrences.length * (occurrences.length - 1) / 2, broadPhasePairs, exactPairs, collisions };
 }

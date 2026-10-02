@@ -395,10 +395,19 @@ function geometryCache(loop) {
   };
 }
 
+const ENTITY_LABELS = Object.freeze({ line: 'Linia', arc: 'Łuk', ellipticalArc: 'Łuk eliptyczny', spline: 'Splajn', conic: 'Krzywa stożkowa', circle: 'Okrąg', ellipse: 'Elipsa', point: 'Punkt' });
+
 export function detectSketchProfiles(sketch, parameters = [], options = {}) {
   const tolerance = options.tolerance || GEOMETRY_POLICY.profileJoinTolerance;
   const values = resolvedValues(parameters);
   const entities = (sketch?.entities || []).filter((entity) => !['construction', 'centerline'].includes(entity.role));
+  // Diagnostics name geometry the way the user sees it ("Linia 3"), never by internal IDs.
+  const typeCounters = {};
+  const entityLabels = new Map((sketch?.entities || []).map((entity) => {
+    typeCounters[entity.type] = (typeCounters[entity.type] || 0) + 1;
+    return [entity.id, `${ENTITY_LABELS[entity.type] || 'Element'} ${typeCounters[entity.type]}`];
+  }));
+  const label = (id) => entityLabels.get(id) || 'Element';
   const pointEntities = entities.filter((entity) => entity.type === 'point').map((entity) => ({
     id: entity.id,
     coordinate: [numeric(entity.geometry.x, values), numeric(entity.geometry.y, values)],
@@ -418,7 +427,7 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
       const end = pointMap.get(endPointId);
       if (!start || !end) continue;
       if (samePoint(start, end, GEOMETRY_POLICY.linearTolerance)) {
-        diagnostics.push(diagnostic('ZERO_LENGTH', `Encja ${entity.id} ma zerową długość.`, [entity.id], start));
+        diagnostics.push(diagnostic('ZERO_LENGTH', `${label(entity.id)} ma zerową długość.`, [entity.id], start));
         continue;
       }
       const edge = {
@@ -433,7 +442,7 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
         edge.center = pointMap.get(entity.pointIds?.[0]);
         edge.direction = entity.geometry?.direction || 'ccw';
         if (!edge.center || distance(edge.center, start) <= GEOMETRY_POLICY.linearTolerance) {
-          diagnostics.push(diagnostic('ZERO_RADIUS', `Łuk ${entity.id} ma nieprawidłowy promień.`, [entity.id], edge.center || start));
+          diagnostics.push(diagnostic('ZERO_RADIUS', `${label(entity.id)} ma nieprawidłowy promień.`, [entity.id], edge.center || start));
           continue;
         }
       } else if (entity.type === 'ellipticalArc') {
@@ -445,14 +454,14 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
         edge.startAngle = numeric(entity.geometry?.startAngle, values);
         edge.endAngle = numeric(entity.geometry?.endAngle, values);
         if (!edge.center || !(edge.majorRadius > GEOMETRY_POLICY.linearTolerance) || !(edge.minorRadius > GEOMETRY_POLICY.linearTolerance)) {
-          diagnostics.push(diagnostic('ZERO_RADIUS', `Łuk eliptyczny ${entity.id} ma nieprawidłowe promienie.`, [entity.id], edge.center || start));
+          diagnostics.push(diagnostic('ZERO_RADIUS', `${label(entity.id)} ma nieprawidłowe promienie.`, [entity.id], edge.center || start));
           continue;
         }
       } else if (entity.type === 'spline') {
         edge.mode = entity.geometry?.mode === 'control' ? 'control' : 'fit';
         edge.controlPoints = (entity.pointIds || []).map((pointId) => pointMap.get(pointId)).filter(Boolean);
         if (edge.controlPoints.length < (edge.mode === 'control' ? 3 : 2)) {
-          diagnostics.push(diagnostic('ZERO_LENGTH', `Spline ${entity.id} ma za mało punktów.`, [entity.id], start));
+          diagnostics.push(diagnostic('ZERO_LENGTH', `${label(entity.id)} ma za mało punktów.`, [entity.id], start));
           continue;
         }
       } else if (entity.type === 'conic') {
@@ -460,7 +469,7 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
         edge.rho = numeric(entity.geometry?.rho || '1', values);
         edge.continuity = entity.geometry?.continuity || 'free';
         if (edge.controlPoints.length !== 3 || !(edge.rho > 0)) {
-          diagnostics.push(diagnostic('INVALID_CONIC', `Krzywa conic ${entity.id} wymaga trzech punktów i dodatniego rho.`, [entity.id], start));
+          diagnostics.push(diagnostic('INVALID_CONIC', `${label(entity.id)} wymaga trzech punktów i dodatniego rho.`, [entity.id], start));
           continue;
         }
       }
@@ -470,7 +479,7 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
       if (entity.type === 'circle') {
         const radius = numeric(entity.geometry?.radius, values);
         if (!center || !(radius > GEOMETRY_POLICY.linearTolerance)) {
-          diagnostics.push(diagnostic('ZERO_RADIUS', `Okrąg ${entity.id} ma nieprawidłowy promień.`, [entity.id], center));
+          diagnostics.push(diagnostic('ZERO_RADIUS', `${label(entity.id)} ma nieprawidłowy promień.`, [entity.id], center));
           continue;
         }
         circleEdges.push({ id: entity.id, type: 'circle', center, radius });
@@ -479,7 +488,7 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
         const minorRadius = numeric(entity.geometry?.minorRadius, values);
         const rotation = numeric(entity.geometry?.rotation, values);
         if (!center || !(majorRadius > GEOMETRY_POLICY.linearTolerance) || !(minorRadius > GEOMETRY_POLICY.linearTolerance)) {
-          diagnostics.push(diagnostic('ZERO_RADIUS', `Elipsa ${entity.id} ma nieprawidłowe promienie.`, [entity.id], center));
+          diagnostics.push(diagnostic('ZERO_RADIUS', `${label(entity.id)} ma nieprawidłowe promienie.`, [entity.id], center));
           continue;
         }
         circleEdges.push({ id: entity.id, type: 'ellipse', center, majorRadius, minorRadius, rotation });
@@ -490,8 +499,8 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
   const allEdges = [...edges, ...circleEdges];
   const curveAnalyses = allEdges.filter((edge) => ['arc', 'ellipticalArc', 'ellipse', 'circle', 'spline', 'conic'].includes(edge.type)).map((edge) => analyzeCurvedEdge(edge, tolerance));
   for (const analysis of curveAnalyses) {
-    if (analysis.singular) diagnostics.push(diagnostic('CURVATURE_SINGULARITY', `Krzywa ${analysis.entityId} ma osobliwość krzywizny.`, [analysis.entityId]));
-    analysis.selfIntersections.forEach((point) => diagnostics.push(diagnostic('SELF_INTERSECTION', `Krzywa ${analysis.entityId} przecina samą siebie.`, [analysis.entityId], point)));
+    if (analysis.singular) diagnostics.push(diagnostic('CURVATURE_SINGULARITY', `${label(analysis.entityId)} ma osobliwość krzywizny.`, [analysis.entityId]));
+    analysis.selfIntersections.forEach((point) => diagnostics.push(diagnostic('SELF_INTERSECTION', `${label(analysis.entityId)} przecina samą siebie.`, [analysis.entityId], point)));
   }
   for (let firstIndex = 0; firstIndex < allEdges.length; firstIndex += 1) {
     for (let secondIndex = firstIndex + 1; secondIndex < allEdges.length; secondIndex += 1) {
@@ -499,12 +508,12 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
       const second = allEdges[secondIndex];
       for (const intersection of edgeIntersections(first, second, tolerance)) {
         if (intersection.kind === 'overlap') {
-          diagnostics.push(diagnostic('OVERLAP', `Encje ${first.id} i ${second.id} nakładają się.`, [first.id, second.id]));
+          diagnostics.push(diagnostic('OVERLAP', `${label(first.id)} i ${label(second.id)} nakładają się.`, [first.id, second.id]));
           break;
         }
         const sharedEndpoint = intersection.firstEndpoint && intersection.secondEndpoint
           && [first.startVertex, first.endVertex].some((vertex) => vertex && [second.startVertex, second.endVertex].includes(vertex));
-        if (!sharedEndpoint) diagnostics.push(diagnostic('SELF_INTERSECTION', `Encje ${first.id} i ${second.id} przecinają się bez wspólnego wierzchołka.`, [first.id, second.id], intersection.point));
+        if (!sharedEndpoint) diagnostics.push(diagnostic('SELF_INTERSECTION', `${label(first.id)} i ${label(second.id)} przecinają się bez wspólnego wierzchołka.`, [first.id, second.id], intersection.point));
       }
     }
   }

@@ -1,6 +1,6 @@
 {
   "name": "madcad-desktop",
-  "version": "6.5.28",
+  "version": "6.5.29",
   "description": "Desktopowy CAD 2D/3D: klasyczne szkicowanie, parametryczna historia i modelowanie bryłowe.",
   "desktopName": "MadCAD",
   "repository": {
@@ -18,7 +18,6 @@
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
     "verify:large-projects": "npm run build:ui && electron scripts/verify-large-projects.cjs",
     "verify:large-project-corpus": "npm run build:ui && electron scripts/verify-large-project-corpus.cjs",
-    "verify:cam-sequence": "npm run build:ui && electron scripts/verify-cam-sequence.cjs",
     "verify:surface-modeling": "npm run build:ui && electron scripts/verify-surface-modeling.cjs",
     "verify:sheet-metal-base": "npm run build:ui && electron scripts/verify-sheet-metal-base.cjs",
     "verify:plastic-boss": "npm run build:ui && electron scripts/verify-plastic-boss.cjs",
@@ -28,9 +27,6 @@
     "verify:extrude-after-sketch": "npm run build:ui && electron scripts/verify-extrude-after-sketch.cjs",
     "verify:ucs-sketch": "npm run build:ui && electron scripts/verify-ucs-sketch.cjs",
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
-    "verify:mesh-repair": "npm run build:ui && electron scripts/verify-mesh-repair.cjs",
-    "verify:mesh-scan-repair": "npm run build:ui && electron scripts/verify-mesh-scan-repair.cjs",
-    "verify:mesh-operations": "npm run build:ui && electron scripts/verify-mesh-operations.cjs",
     "verify:mesh-to-brep": "npm run build:ui && electron scripts/verify-mesh-to-brep.cjs",
     "verify:viewport-navigation": "npm run build:ui && electron scripts/verify-viewport-navigation.cjs",
     "verify:external-compatibility": "npm run build:ui && electron scripts/verify-external-compatibility.cjs",
@@ -57,15 +53,6 @@
     "verify:draft-analysis": "npm run build:ui && electron scripts/verify-draft-analysis.cjs",
     "verify:surface-analysis": "npm run build:ui && electron scripts/verify-surface-analysis.cjs",
     "verify:named-views": "npm run build:ui && electron scripts/verify-named-views.cjs",
-    "verify:render-scene": "npm run build:ui && electron scripts/verify-render-scene.cjs",
-    "verify:static-screening": "npm run build:ui && electron scripts/verify-static-screening.cjs",
-    "verify:beam-fea": "npm run build:ui && electron scripts/verify-beam-fea.cjs",
-    "verify:solid-fea": "npm run build:ui && electron scripts/verify-solid-fea.cjs",
-    "verify:solid-fea-benchmarks": "node scripts/verify-solid-fea-benchmarks.mjs",
-    "verify:thermal-screening": "npm run build:ui && electron scripts/verify-thermal-screening.cjs",
-    "verify:manufacturing": "npm run build:ui && electron scripts/verify-manufacturing.cjs",
-    "verify:cutting": "npm run build:ui && electron scripts/verify-cutting.cjs",
-    "verify:turning": "npm run build:ui && electron scripts/verify-turning.cjs",
     "verify:import-report": "npm run build:ui && electron scripts/verify-import-report.cjs",
     "verify:drawing-workspace": "npm run build:ui && electron scripts/verify-drawing-workspace.cjs",
     "verify:sketch-drawing": "npm run build:ui && electron scripts/verify-sketch-drawing.cjs",
@@ -115,6 +102,13 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "17.11.0",
     "jsdom": "^30.0.1",
+    "lucide-react": "^0.468.0",
+    "manifold-3d": "3.5.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "replicad": "^0.23.1",
+    "replicad-opencascadejs": "^0.23.0",
+    "three": "^0.185.1",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
   },
@@ -186,14 +180,5 @@
       "deleteAppDataOnUninstall": false
     },
     "afterSign": "scripts/notarize.js"
-  },
-  "dependencies": {
-    "lucide-react": "^0.468.0",
-    "manifold-3d": "3.5.3",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "replicad": "^0.23.1",
-    "replicad-opencascadejs": "^0.23.0",
-    "three": "^0.185.1"
   }
 }

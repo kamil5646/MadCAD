@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { builtinModules } = require('node:module');
 
 const appRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(appRoot, '..');
@@ -66,6 +67,11 @@ expectText(appDialogs, new RegExp(`Wydanie ${versionPattern} nie ma podpisu prod
 
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
+rejectText(appUi, /ManufacturingPanel|createCamSetup|PrintPanel|sendToSlicer|filePrint3dBtn/, 'wycofane narzędzia CAM i druku 3D w CAD');
+rejectText(preload + main, /sendToSlicer|send-to-slicer|slicer-launch|printWorkspaceBtn/, 'wycofane integracje slicerów w desktopie');
+const cadWorker = read('madcad-2d/src/cad-core/cad-worker.js');
+rejectText(cadWorker, /preparePrintBodies|calculatePrintLayout|document\.print/, 'transformacje drukowania w eksporcie geometrii CAD');
+rejectText(site, /slicer|druk 3D|3D printing|3D-print tools/i, 'wycofany zakres na stronie');
 const licenseClient = read('madcad-2d/electron/license-client.cjs');
 const licenseApi = read('madcad-2d/server/seohost/madcad-license-api/index.php');
 const licenseAdmin = read('madcad-2d/server/seohost/madcad-license-api/admin.js');
@@ -92,8 +98,24 @@ expectText(main, /verifyBufferChecksum[\s\S]*?moveVerifiedUpdateToDownloads[\s\S
 expectText(main, /handoff:\s*true[\s\S]*?downloadedPath:\s*packagePath/, 'wynik przekazania paczki do instalatora systemu');
 
 const notices = read('madcad-2d/THIRD_PARTY_NOTICES.md');
-for (const dependency of Object.keys(packageJson.dependencies || {})) {
+// These libraries are included in Vite's JS/WASM output, not loaded by Node
+// in the installed app. Keep their license notices even as build dependencies.
+const bundledRendererDependencies = ['lucide-react', 'manifold-3d', 'react', 'react-dom', 'replicad', 'replicad-opencascadejs', 'three'];
+for (const dependency of bundledRendererDependencies) {
+  if (!packageJson.devDependencies?.[dependency] || packageJson.dependencies?.[dependency]) throw new Error(`Biblioteka bundlowana ${dependency} musi być zależnością builda, nie paczki desktopowej.`);
+}
+for (const dependency of new Set([...Object.keys(packageJson.dependencies || {}), ...bundledRendererDependencies])) {
   if (!notices.includes(`\`${dependency}\``)) throw new Error(`Brak informacji o zależności ${dependency}.`);
+}
+const nativeModules = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`), 'electron']);
+for (const file of fs.readdirSync(path.join(appRoot, 'electron'))) {
+  if (!/\.(cjs|js)$/.test(file) || file.includes('.test.')) continue;
+  const source = fs.readFileSync(path.join(appRoot, 'electron', file), 'utf8');
+  for (const [, moduleName] of source.matchAll(/require\(['"]([^'"]+)['"]\)/g)) {
+    if (moduleName.startsWith('.') || nativeModules.has(moduleName)) continue;
+    const dependency = moduleName.startsWith('@') ? moduleName.split('/').slice(0, 2).join('/') : moduleName.split('/')[0];
+    if (!packageJson.dependencies?.[dependency]) throw new Error(`Moduł desktopowy ${file} wymaga niezapakowanej zależności ${dependency}.`);
+  }
 }
 
 const releaseWorkflow = read('.github/workflows/release.yml');

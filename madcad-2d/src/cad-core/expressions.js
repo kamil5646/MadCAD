@@ -1,6 +1,6 @@
 const NUMBER = /^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/i;
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*/;
-const PRECEDENCE = { '+': 1, '-': 1, '*': 2, '/': 2 };
+const PRECEDENCE = { '+': 1, '-': 1, '*': 2, '/': 2, 'u+': 3, 'u-': 3 };
 
 function tokenize(source) {
   const tokens = [];
@@ -43,30 +43,39 @@ function toRpn(tokens) {
   const output = [];
   const operators = [];
   let previous = null;
+  let expectsOperand = true;
 
   for (const token of tokens) {
     if (token.type === 'number' || token.type === 'identifier') {
+      if (!expectsOperand) throw new Error('Brak operatora między wartościami.');
       output.push(token);
+      expectsOperand = false;
     } else if (token.type in PRECEDENCE) {
-      const unary = token.type === '-' && (!previous || previous.type in PRECEDENCE || previous.type === '(');
-      if (unary) output.push({ type: 'number', value: 0 });
+      const unary = (token.type === '-' || token.type === '+') && (!previous || previous.type in PRECEDENCE || previous.type === '(');
+      const operator = unary ? { type: `u${token.type}` } : token;
+      if (expectsOperand && !unary) throw new Error('Niepełne wyrażenie.');
       while (
         operators.length
         && operators.at(-1).type in PRECEDENCE
-        && PRECEDENCE[operators.at(-1).type] >= PRECEDENCE[token.type]
+        && (PRECEDENCE[operators.at(-1).type] > PRECEDENCE[operator.type]
+          || (!unary && PRECEDENCE[operators.at(-1).type] === PRECEDENCE[operator.type]))
       ) {
         output.push(operators.pop());
       }
-      operators.push(token);
+      operators.push(operator);
+      expectsOperand = true;
     } else if (token.type === '(') {
+      if (!expectsOperand) throw new Error('Brak operatora przed nawiasem.');
       operators.push(token);
     } else if (token.type === ')') {
+      if (expectsOperand) throw new Error('Niepełne wyrażenie.');
       while (operators.length && operators.at(-1).type !== '(') output.push(operators.pop());
       if (!operators.length) throw new Error('Brakujący nawias otwierający.');
       operators.pop();
     }
     previous = token;
   }
+  if (expectsOperand) throw new Error('Niepełne wyrażenie.');
 
   while (operators.length) {
     const operator = operators.pop();
@@ -88,6 +97,11 @@ export function evaluateExpression(expression, parameters = {}) {
       if (!(token.value in parameters)) throw new Error(`Nieznany parametr: ${token.value}`);
       stack.push(Number(parameters[token.value]));
     } else {
+      if (token.type === 'u-' || token.type === 'u+') {
+        if (!stack.length) throw new Error('Niepełne wyrażenie.');
+        stack.push((token.type === 'u-' ? -1 : 1) * stack.pop());
+        continue;
+      }
       if (stack.length < 2) throw new Error('Niepełne wyrażenie.');
       const right = stack.pop();
       const left = stack.pop();

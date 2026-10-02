@@ -9,7 +9,6 @@ import { createLargeProjectCorpus, LARGE_FEATURE_COUNT } from './large-project-f
 import largeProjectBudget from '../scripts/large-project-budget.cjs';
 import atomicFile from '../electron/atomic-file.cjs';
 import projectFileHandlers from '../electron/project-file-handlers.cjs';
-import slicerLaunch from '../electron/slicer-launch.cjs';
 import securityPolicy from '../electron/security-policy.cjs';
 import ipcPolicy from '../electron/ipc-policy.cjs';
 import recoveryFile from '../electron/recovery-file.cjs';
@@ -50,7 +49,7 @@ import {
   updateComponent,
   updateComponentInstance,
 } from '../src/cad-core/components.js';
-import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../src/cad-core/assembly-joints.js';
+import { createAssemblyJoint, deleteAssemblyJoint, setJointValue, updateAssemblyJoint } from '../src/cad-core/assembly-joints.js';
 import { createLinkedProject, linkedProjectState } from '../src/cad-core/linked-projects.js';
 import { compareProjectDocuments } from '../src/cad-core/project-diff.js';
 import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/project-health.js';
@@ -60,10 +59,7 @@ import { aciFromHex } from '../src/cad-core/aci-colors.js';
 import { createLayer as createSketchLayer } from '../src/cad-core/layers.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { analyzeManufacturingProgram, analyzeManufacturingSetupSequence, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createDrillingOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, measureCamPolygonBounds, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
-import { createManufacturingFixtureMeshIndex, fixtureMeshPotentialCollision } from '../src/cad-core/manufacturing-fixture-mesh.js';
-import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
-import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
+import { applyAssemblyConfiguration, createAssemblyConfiguration, deleteAssemblyConfiguration, detectAssemblyCollisions, updateAssemblyConfiguration } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
 import { evaluateFeatureHistory, evaluateFeatureHistoryCooperatively } from '../src/cad-core/feature-history.js';
@@ -111,17 +107,11 @@ import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js'
 import { applyHoleStandard } from '../src/cad-core/hole-standards.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
-import { calculateCantileverScreening, ENGINEERING_MATERIALS } from '../src/cad-core/static-screening.js';
-import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../src/cad-core/beam-fea.js';
-import { calculateThermalScreening, THERMAL_MATERIALS } from '../src/cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
-import { applyPrinterProfile, applyPrintMaterialProfile, PRINTER_PROFILES, PRINT_MATERIAL_PROFILES } from '../src/cad-core/printer-profiles.js';
-import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, recommendPrintOrientation, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../src/cad-core/model-import.js';
 import { inspectMesh } from '../src/cad-core/mesh-tools.js';
 import { FORM_CONTROL_EDGES, FORM_CONTROL_FACES, bridgeFormFaces, createBoxControlCage, createRoundedBoxFormMesh, fillFormHoles, formControlEdges, formControlSymmetryPairs, insertFormEdgeLoop, subdivideCatmullClark, symmetricFormFaceIndexes, translateFormControlPoints, updateFormControlOffset } from '../src/cad-core/subdivision-form.js';
-import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import {
   createBalloonDrawingAnnotation,
@@ -147,6 +137,7 @@ import {
   drawingPageDimensions,
   ensureDocumentDrawings,
   projectDrawingView,
+  removeHiddenOverlaps,
   recommendedDrawingScale,
   recommendedSketchDrawingScale,
 } from '../src/cad-core/drawing-sheets.js';
@@ -169,10 +160,9 @@ import {
   updateBlockInstanceAttributes,
 } from '../src/cad-core/blocks.js';
 import { calculateExplodedOffsets } from '../src/cad-core/exploded-view.js';
-import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboard, sampleAssemblyStoryboardState, updateAssemblyStoryboard } from '../src/cad-core/assembly-animation.js';
-import { assemblyInstructionHtml } from '../src/cad-core/assembly-instructions.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
+import { formatDimensionValue, sketchDimensionAnnotations } from '../src/cad-core/sketch-dimension-annotations.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -206,48 +196,6 @@ test('widok rozstrzelony wyznacza deterministyczne przesunięcia bez zmiany poł
   assert.ok(Math.abs(Math.hypot(...coincident.a) - 25) < 1e-9);
   assert.notDeepEqual(coincident.a, coincident.b);
   assert.deepEqual(calculateExplodedOffsets([{ id: 'a' }], 0, 25), { a: [0, 0, 0] });
-});
-
-test('storyboard zapisuje klatki rozłożenia i interpoluje je bez zmiany złożenia', () => {
-  const document = createDocument('Animacja złożenia');
-  const cameraStart = { position: [10, 10, 10], target: [0, 0, 0], up: [0, 0, 1] };
-  const cameraEnd = { position: [20, 10, 10], target: [5, 0, 0], up: [0, 0, 1] };
-  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż', duration: 4, keyframes: [{ time: 0, explodeAmount: 0, instanceOffsets: { 'occurrence-a': [0, 0, 0] }, instanceRotations: { 'occurrence-a': [0, 0, 0] }, jointValues: { 'joint-a': 10 }, camera: cameraStart, note: 'Start' }] });
-  const end = addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 1, instanceOffsets: { 'occurrence-a': [20, 0, 0] }, instanceRotations: { 'occurrence-a': [0, 0, 90] }, jointValues: { 'joint-a': 50 }, camera: cameraEnd, note: 'Zdejmij osłonę' });
-  assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 0), 0);
-  assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 2), 0.5);
-  assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 4), 1);
-  const halfway = sampleAssemblyStoryboardState(document.animationStoryboards[0], 2);
-  assert.deepEqual(halfway.instanceOffsets['occurrence-a'], [10, 0, 0]);
-  assert.deepEqual(halfway.instanceRotations['occurrence-a'], [0, 0, 45]);
-  assert.equal(halfway.jointValues['joint-a'], 30);
-  assert.deepEqual(halfway.camera.position, [15, 10, 10]);
-  assert.equal(halfway.note, 'Zdejmij osłonę');
-  const reopened = openDocument(structuredClone(document)).document;
-  assert.deepEqual(reopened.animationStoryboards[0].keyframes.map((frame) => [frame.time, frame.explodeAmount]), [[0, 0], [4, 1]]);
-  deleteStoryboardKeyframe(document, storyboard.id, end.id);
-  assert.equal(document.animationStoryboards[0].keyframes.length, 1);
-  updateAssemblyStoryboard(document, storyboard.id, { name: 'Demontaż', duration: 8 });
-  assert.equal(document.animationStoryboards[0].name, 'Demontaż');
-  deleteAssemblyStoryboard(document, storyboard.id);
-  assert.equal(document.animationStoryboards.length, 0);
-});
-
-test('storyboard tworzy bezpieczną i drukowalną instrukcję montażową HTML', () => {
-  const document = createDocument('Projekt <ramy>');
-  document.componentInstances = [{ id: 'occurrence-a', name: 'Rama & osłona' }];
-  document.joints = [{ id: 'joint-a', name: 'Zawias "lewy"' }];
-  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż <A>', duration: 4, keyframes: [{ time: 0, note: 'Start' }] });
-  addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 0.75, instanceOffsets: { 'occurrence-a': [20, 0, 5] }, instanceRotations: { 'occurrence-a': [0, 0, 90] }, jointValues: { 'joint-a': 45 }, note: 'Zdejmij <osłonę>' });
-  const html = assemblyInstructionHtml(document, document.animationStoryboards[0], { frameImages: ['data:image/png;base64,aGVsbG8=', 'javascript:alert(1)'] });
-  assert.match(html, /Projekt &lt;ramy&gt;/);
-  assert.match(html, /Zdejmij &lt;osłonę&gt;/);
-  assert.match(html, /Rama &amp; osłona: X 20\.0, Y 0\.0, Z 5\.0 mm/);
-  assert.match(html, /Zawias &quot;lewy&quot;: 45\.0 °/);
-  assert.match(html, /75%/);
-  assert.match(html, /data:image\/png;base64,aGVsbG8=/);
-  assert.doesNotMatch(html, /javascript:alert/);
-  assert.doesNotMatch(html, /<osłonę>/);
 });
 
 test('komponenty budują bezpieczną hierarchię części i złożeń z własnością brył', () => {
@@ -418,25 +366,6 @@ test('migracja v11 dodaje pustą kolekcję jointów w bieżącym schemacie', () 
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 11 && entry.to === 12));
 });
 
-test('Motion Link przekazuje ruch z przełożeniem i blokuje cykle oraz wielu sterujących', () => {
-  const document = createDocument('Motion Links');
-  const assembly = createComponent(document, { name: 'Przekładnia', type: 'assembly', partNumber: 'A-ML' });
-  const parts = ['Napęd', 'Koło', 'Wskaźnik'].map((name, index) => createComponent(document, { name, partNumber: `P-ML${index + 1}`, parentId: assembly.id }));
-  const [driveOccurrence, wheelOccurrence, indicatorOccurrence] = parts.map((part) => document.componentInstances.find((instance) => instance.componentId === part.id));
-  const drive = createAssemblyJoint(document, { name: 'Napęd wejściowy', type: 'revolute', referenceInstanceId: wheelOccurrence.id, movingInstanceId: driveOccurrence.id, limits: { enabled: true, min: -180, max: 180 } });
-  const wheel = createAssemblyJoint(document, { name: 'Koło wyjściowe', type: 'revolute', referenceInstanceId: indicatorOccurrence.id, movingInstanceId: wheelOccurrence.id, limits: { enabled: true, min: -360, max: 360 } });
-  const link = createMotionLink(document, { name: 'Przełożenie 2:1', sourceJointId: drive.id, targetJointId: wheel.id, ratio: -2, offset: 10 });
-  setJointValue(document, drive.id, 25);
-  assert.equal(document.joints.find((joint) => joint.id === wheel.id).value, -40);
-  assert.equal(document.componentInstances.find((instance) => instance.id === wheelOccurrence.id).transform.rotationZ, -40);
-  assert.throws(() => createMotionLink(document, { sourceJointId: wheel.id, targetJointId: drive.id }), /cykl/);
-  assert.throws(() => createMotionLink(document, { sourceJointId: drive.id, targetJointId: wheel.id }), /już Motion Link/);
-  updateMotionLink(document, link.id, { ratio: 0.5, offset: 5 });
-  assert.equal(document.joints.find((joint) => joint.id === wheel.id).value, 17.5);
-  assert.equal(validateDocument(document).valid, true);
-  assert.equal(deleteMotionLink(document, link.id).id, link.id);
-});
-
 test('konfiguracje złożenia zapisują widoczność, położenie i ruch bez kopiowania geometrii', () => {
   const document = createDocument('Konfiguracje');
   const assembly = createComponent(document, { name: 'Zespół', type: 'assembly', partNumber: 'A-CFG' });
@@ -475,16 +404,12 @@ test('kontrola kolizji złożenia uwzględnia transformacje wystąpień i zagnie
     vertices: [0, 0, 0, 10, 0, 0, 10, 10, 0, 0, 10, 0, 0, 0, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10],
     triangles: [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7],
   }];
-  const contactSet = createContactSet(document, { name: 'Kostki robocze', firstInstanceId: first.id, secondInstanceId: second.id });
   const collision = detectAssemblyCollisions(document, bodies);
   assert.equal(collision.occurrences, 2);
   assert.equal(collision.collisions.length, 1);
   assert.equal(collision.collisions[0].overlapVolume, 500);
   assert.equal(collision.collisions[0].status, 'exact');
   assert.equal(collision.exactPairs, 1);
-  assert.equal(collision.activeContactPairs, 1);
-  assert.equal(collision.collisions[0].contactSetId, contactSet.id);
-  assert.equal(collision.contactSets[0].status, 'exact');
   const selectedCollision = detectAssemblyCollisions(document, bodies, { instanceIds: [second.id, first.id, second.id] });
   assert.deepEqual(selectedCollision.selectedInstanceIds, [second.id, first.id]);
   assert.equal(selectedCollision.checkedPairs, 1);
@@ -495,18 +420,12 @@ test('kontrola kolizji złożenia uwzględnia transformacje wystąpień i zagnie
   const boundedCollision = detectAssemblyCollisions(document, bodies, { maxExactTriangleTests: 1 });
   assert.equal(boundedCollision.status, 'partial');
   assert.equal(boundedCollision.collisions[0].status, 'broad-phase');
-  updateContactSet(document, contactSet.id, { enabled: false, name: 'Kontakt wyłączony' });
-  assert.equal(detectAssemblyCollisions(document, bodies).contactSets[0].status, 'disabled');
-  assert.throws(() => createContactSet(document, { firstInstanceId: second.id, secondInstanceId: first.id }), /już Contact Set/);
-  updateContactSet(document, contactSet.id, { enabled: true });
   updateComponentInstance(document, second.id, { transform: { x: 20 } });
   const separated = detectAssemblyCollisions(document, bodies);
   assert.equal(separated.collisions.length, 0);
-  assert.equal(separated.contactSets[0].status, 'clear');
-  assert.equal(deleteContactSet(document, contactSet.id).id, contactSet.id);
 });
 
-test('migracja v12 dodaje Motion Links i konfiguracje w bieżącym schemacie', () => {
+test('migracja v12 dodaje konfiguracje w bieżącym schemacie', () => {
   const legacy = createDocument('Migracja ruchu złożenia');
   legacy.schemaVersion = 12;
   delete legacy.motionLinks;
@@ -515,8 +434,8 @@ test('migracja v12 dodaje Motion Links i konfiguracje w bieżącym schemacie', (
   delete legacy.activeAssemblyConfigurationId;
   const opened = openDocument(legacy, { now: '2026-08-24T16:00:00.000Z' });
   assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
-  assert.deepEqual(opened.document.motionLinks, []);
-  assert.deepEqual(opened.document.contactSets, []);
+  assert.equal(opened.document.motionLinks, undefined);
+  assert.equal(opened.document.contactSets, undefined);
   assert.deepEqual(opened.document.assemblyConfigurations, []);
   assert.equal(opened.document.activeAssemblyConfigurationId, '');
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 12 && entry.to === 13));
@@ -677,6 +596,32 @@ test('bezpiecznie oblicza wyrażenia parametryczne', () => {
   assert.equal(evaluateExpression('(8 + 2) * 4', {}), 40);
   assert.throws(() => evaluateExpression('globalThis.alert(1)', {}), /Niedozwolony znak|Nieznany parametr/);
   assert.throws(() => evaluateExpression('10 / 0', {}), /Dzielenie przez zero/);
+});
+
+test('odrzuca brakujące operatory i błędną kolejność tokenów wymiaru', () => {
+  for (const expression of ['1 2 +', '10(2)+', '1..2+', '2(3)', '(2)3', '()', '2+()', '*2', '2*/3', '2+']) {
+    assert.throws(() => evaluateExpression(expression), /Brak operatora|Niepełne wyrażenie/, expression);
+  }
+  assert.equal(evaluateExpression('2 * (-3 + +5)'), 4);
+});
+
+test('znaki jednoargumentowe zachowują pierwszeństwo w wymiarach i parametrach', () => {
+  for (const [expression, expected] of [
+    ['2*-3', -6], ['10/-2', -5], ['-2*3', -6], ['2*(-3)', -6],
+    ['2*--3', 6], ['2+-3', -1], ['2--3', 5], ['-(2+3)*4', -20],
+    ['-(-(-2))', -2], ['+2*+3', 6], ['2/-(-4)', 0.5],
+  ]) assert.equal(evaluateExpression(expression), expected, expression);
+  assert.equal(evaluateExpression('2*-offset', { offset: 3 }), -6);
+  assert.deepEqual(listExpressionIdentifiers('-offset + +width'), ['offset', 'width']);
+  const result = resolveParameters([
+    { name: 'offset', expression: 'width/-2' },
+    { name: 'width', expression: '40' },
+  ]);
+  assert.deepEqual(result, { values: { width: 40, offset: -20 }, errors: {}, valid: true });
+  for (const expression of ['-', '+', '2*-', '2/+']) {
+    assert.throws(() => evaluateExpression(expression), /Niepełne wyrażenie/);
+  }
+  assert.throws(() => evaluateExpression('10/-0'), /Dzielenie przez zero/);
 });
 
 test('wykrywa identyfikatory wyrażeń i stosuje jedną politykę tolerancji', () => {
@@ -2385,137 +2330,6 @@ test('właściwości masowe sumują bryły i ważą środek masy objętością',
   assert.throws(() => calculateMassProperties([], 0), /Gęstość/);
 });
 
-test('wstępna analiza statyczna liczy belkę wspornikową i ujawnia ograniczenia modelu', () => {
-  const body = { id: 'body-beam', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
-  const result = calculateCantileverScreening(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', fixedEnd: 'min', force: 1000 });
-  assert.equal(result.length, 100);
-  assert.equal(result.sectionWidth, 20);
-  assert.equal(result.sectionHeight, 10);
-  assert.equal(result.secondMoment, 1666.6666666666667);
-  assert.ok(Math.abs(result.maximumStress - 300) < 1e-9);
-  assert.ok(Math.abs(result.tipDeflection - (1000 * 100 ** 3 / (3 * 210000 * result.secondMoment))) < 1e-12);
-  assert.ok(Math.abs(result.safetyFactor - ENGINEERING_MATERIALS.s235.yieldStrength / 300) < 1e-12);
-  assert.equal(result.status, 'failed');
-  assert.equal(result.mass, 157);
-  assert.equal(result.limitations.length, 3);
-  assert.throws(() => calculateCantileverScreening(body, { spanAxis: 'x', loadAxis: 'x', force: 100 }), /muszą być różne/);
-  assert.throws(() => calculateCantileverScreening(body, { force: 0 }), /Siła musi być dodatnia/);
-  assert.throws(() => calculateCantileverScreening({ ...body, bodyKind: 'surface' }, { force: 100 }), /wymaga bryły/);
-});
-
-test('MES belki składa macierz sztywności i zgadza się z rozwiązaniem analitycznym', () => {
-  const body = { id: 'body-beam-fea', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
-  const result = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', force: 1000, elementCount: 8 });
-  assert.equal(result.nodeCount, 9);
-  assert.equal(result.nodalDeflections.length, 9);
-  assert.ok(Math.abs(result.tipDeflection - result.analyticalDeflection) < 1e-10);
-  assert.ok(result.convergenceError < 1e-8);
-  assert.ok(Math.abs(result.reactionForce - 1000) < 1e-7);
-  assert.ok(Math.abs(result.reactionMoment - 100000) < 1e-5);
-  assert.ok(Math.abs(result.maximumStress - 300) < 1e-7);
-  assert.equal(result.bendingMoments.length, 9);
-  assert.ok(Math.abs(Math.max(...result.bendingMoments.map((node) => node.moment)) - result.maximumMoment) < 1e-7);
-  assert.equal(result.bendingStresses.length, 9);
-  assert.ok(Math.abs(Math.max(...result.bendingStresses.map((node) => node.stress)) - result.maximumStress) < 1e-7);
-  assert.ok(Math.abs(result.utilizationPercent - 300 / 235 * 100) < 1e-7);
-  assert.ok(result.yieldExceededNodeCount > 0);
-  assert.equal(result.bendingStresses[0].exceedsYield, true);
-  assert.equal(result.bendingStresses.at(-1).exceedsYield, false);
-  assert.equal(result.shearForces.length, 16);
-  assert.ok(Math.abs(Math.max(...result.shearForces.map((node) => node.shear)) - result.reactionForce) < 1e-7);
-  assert.equal(result.status, 'failed');
-  assert.equal(result.requiredSafetyFactor, 2);
-  assert.equal(result.meetsSafetyTarget, false);
-  assert.ok(result.safetyMarginPercent < 0);
-  assert.equal(result.loadCases.length, 3);
-  assert.equal(result.criticalLoadCase.id, 'overload');
-  assert.ok(Math.abs(result.loadCases[2].maximumStress - result.maximumStress * 1.5) < 1e-7);
-  assert.ok(Math.abs(result.loadCases[2].tipDeflection - result.tipDeflection * 1.5) < 1e-10);
-  assert.ok(Math.abs(result.loadCases[2].safetyFactor - result.safetyFactor / 1.5) < 1e-12);
-  const customCases = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'tip', loadPositionPercent: 100, force: 500, elementCount: 12, requiredSafetyFactor: 2, baseLoadFactor: 0.8, workingLoadFactor: 1.1, overloadLoadFactor: 2 });
-  assert.deepEqual(customCases.loadCases.map(({ factor }) => factor), [0.8, 1.1, 2]);
-  assert.equal(customCases.criticalLoadCase.id, 'overload');
-  assert.throws(() => calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'tip', loadPositionPercent: 100, force: 500, elementCount: 12, overloadLoadFactor: 0 }), /od 0,1 do 10/);
-  const namedCases = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'tip', loadPositionPercent: 100, force: 500, elementCount: 12, loadCases: [{ id: 'service', name: 'Serwis', factor: 0.75 }, { id: 'transport', name: 'Transport', factor: 2.5 }] });
-  assert.deepEqual(namedCases.loadCases.map(({ name, factor }) => ({ name, factor })), [{ name: 'Serwis', factor: 0.75 }, { name: 'Transport', factor: 2.5 }]);
-  assert.equal(namedCases.criticalLoadCase.id, 'transport');
-  assert.throws(() => calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', force: 500, elementCount: 12, loadCases: [] }), /od 1 do 8/);
-  assert.throws(() => calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', force: 500, elementCount: 12, loadCases: [{ id: 'a', name: 'Test', factor: 1 }, { id: 'b', name: 'test', factor: 2 }] }), /unikalne/);
-  const report = createBeamFeaReportCsv(namedCases, 'Uchwyt; testowy');
-  assert.match(report, /^sep=;/);
-  assert.match(report, /Projekt;Nazwa;"Uchwyt; testowy";/);
-  assert.match(report, /Wynik;Przypadek krytyczny;Transport;/);
-  assert.match(report, /Scenariusz;Transport;2\.5;FoS /);
-  assert.throws(() => createBeamFeaReportCsv(null), /Brak poprawnego wyniku/);
-  assert.equal(result.limitations.length, 3);
-  assert.throws(() => calculateCantileverBeamFea(body, { spanAxis: 'x', loadAxis: 'x', force: 1000, elementCount: 4 }), /muszą być różne/);
-  assert.throws(() => calculateCantileverBeamFea(body, { force: 1000, elementCount: 0 }), /od 1 do 100/);
-  assert.throws(() => calculateCantileverBeamFea(body, { force: 1000, elementCount: 4, requiredSafetyFactor: 0.5 }), /od 1 do 10/);
-});
-
-test('MES belki obsługuje równomierne obciążenie rozłożone', () => {
-  const body = { id: 'body-beam-udl', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
-  const result = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'distributed', force: 10, elementCount: 8 });
-  assert.equal(result.loadType, 'distributed');
-  assert.equal(result.totalLoad, 1000);
-  assert.ok(Math.abs(result.tipDeflection - result.analyticalDeflection) < 1e-10);
-  assert.ok(result.convergenceError < 1e-8);
-  assert.ok(Math.abs(result.reactionForce - 1000) < 1e-7);
-  assert.ok(Math.abs(result.reactionMoment - 50000) < 1e-5);
-  assert.ok(Math.abs(result.maximumStress - 150) < 1e-7);
-  assert.equal(result.bendingMoments.length, 9);
-  assert.ok(Math.abs(result.bendingMoments[0].moment - 50000) < 1e-5);
-  assert.equal(result.shearForces.length, 16);
-  assert.ok(Math.abs(Math.max(...result.shearForces.map((node) => node.shear)) - result.reactionForce) < 1e-7);
-  assert.throws(() => calculateCantileverBeamFea(body, { loadType: 'distributed', force: 0, elementCount: 4 }), /Obciążenie liniowe musi być dodatnie/);
-});
-
-test('MES belki rozkłada siłę skupioną pomiędzy węzłami', () => {
-  const body = { id: 'body-beam-point', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
-  const result = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'tip', loadPositionPercent: 37, force: 1000, elementCount: 8 });
-  assert.equal(result.loadPosition, 37);
-  assert.ok(Math.abs(result.tipDeflection - result.analyticalDeflection) < 1e-10);
-  assert.ok(result.convergenceError < 1e-8);
-  assert.ok(Math.abs(result.reactionForce - 1000) < 1e-7);
-  assert.ok(Math.abs(result.reactionMoment - 37000) < 1e-5);
-  assert.ok(Math.abs(result.maximumStress - 111) < 1e-7);
-  assert.throws(() => calculateCantileverBeamFea(body, { loadPositionPercent: 0, force: 1000, elementCount: 4 }), /większe od 0%/);
-});
-
-test('MES belki superponuje siłę skupioną i obciążenie rozłożone', () => {
-  const body = { id: 'body-beam-combined', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
-  const result = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'combined', loadPositionPercent: 40, force: 500, distributedForce: 10, elementCount: 10 });
-  const pointDeflection = 500 * 40 ** 2 * (3 * 100 - 40) / (6 * 210000 * result.secondMoment);
-  const distributedDeflection = 10 * 100 ** 4 / (8 * 210000 * result.secondMoment);
-  assert.equal(result.loadType, 'combined');
-  assert.equal(result.totalLoad, 1500);
-  assert.equal(result.distributedForce, 10);
-  assert.ok(Math.abs(result.reactionForce - 1500) < 1e-6);
-  assert.ok(Math.abs(result.reactionMoment - (500 * 40 + 10 * 100 ** 2 / 2)) < 1e-5);
-  assert.ok(Math.abs(result.analyticalDeflection - pointDeflection - distributedDeflection) < 1e-12);
-  assert.ok(Math.abs(result.tipDeflection - result.analyticalDeflection) < 1e-10);
-  assert.throws(() => calculateCantileverBeamFea(body, { loadType: 'combined', force: 500, distributedForce: 0, elementCount: 4 }), /Obciążenie liniowe/);
-});
-
-test('wstępna analiza cieplna liczy przewodzenie 1D i ujawnia ograniczenia modelu', () => {
-  const body = { id: 'body-slab', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
-  const result = calculateThermalScreening(body, { materialId: 's235', axis: 'x', hotTemperature: 100, coldTemperature: 20 });
-  assert.equal(result.pathLength, 100);
-  assert.equal(result.area, 200);
-  assert.equal(result.deltaTemperature, 80);
-  assert.equal(result.thermalResistance, 10);
-  assert.equal(result.heatFlow, 8);
-  assert.equal(result.heatFlux, 40000);
-  assert.ok(Math.abs(result.freeExpansion - 0.096) < 1e-12);
-  assert.equal(result.status, 'safe');
-  assert.equal(result.material, THERMAL_MATERIALS.s235);
-  assert.equal(result.limitations.length, 3);
-  assert.equal(calculateThermalScreening(body, { materialId: 'petg', axis: 'x', hotTemperature: 90, coldTemperature: 20 }).status, 'warning');
-  assert.throws(() => calculateThermalScreening(body, { axis: 'x', hotTemperature: 20, coldTemperature: 20 }), /różne temperatury/);
-  assert.throws(() => calculateThermalScreening(body, { axis: 'q', hotTemperature: 100, coldTemperature: 20 }), /kierunek/);
-  assert.throws(() => calculateThermalScreening({ ...body, bodyKind: 'surface' }, { hotTemperature: 100, coldTemperature: 20 }), /wymaga bryły/);
-});
-
 test('analiza geometrii wybiera minimalny promień i zachowuje dokładne pary kolizji', () => {
   const result = summarizeGeometryInspection([
     { metrics: { minimumRadius: 5 } },
@@ -2559,26 +2373,6 @@ test('broad-phase kolizji odrzuca rozłączne AABB i zachowuje stykające się g
   assert.equal(boundsOverlap([[0, 0, 0], [10, 10, 10]], [[20, 0, 0], [30, 10, 10]]), false);
   assert.equal(boundsOverlap([[0, 0, 0], [10, 10, 10]], [[10, 2, 2], [12, 8, 8]]), true);
   assert.equal(boundsOverlap(null, [[10, 2, 2], [12, 8, 8]]), true);
-});
-
-test('profile Bambu, Prusa i Creality ustawiają stół, a profil własny zachowuje wymiary', () => {
-  assert.deepEqual(PRINTER_PROFILES.map((profile) => profile.id), ['bambu-x1-p1', 'prusa-mk4', 'creality-ender3']);
-  assert.deepEqual(applyPrinterProfile({ material: 'PLA' }, 'prusa-mk4'), { material: 'PLA', profileId: 'prusa-mk4', bedWidth: 250, bedDepth: 210, bedHeight: 220 });
-  assert.deepEqual(applyPrinterProfile({ material: 'PETG', bedWidth: 300, bedDepth: 300, bedHeight: 400 }, 'custom'), { material: 'PETG', profileId: 'custom', bedWidth: 300, bedDepth: 300, bedHeight: 400 });
-});
-
-test('profile materiałów ustawiają jawne progi analizy bez ingerencji w drukarkę', () => {
-  assert.deepEqual(PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'general').map((profile) => profile.id), ['pla', 'petg', 'asa', 'tpu']);
-  assert.deepEqual(PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'manufacturer').map((profile) => profile.id), ['bambu-petg-hf', 'prusament-pla', 'prusament-petg', 'prusament-asa', 'creality-hyper-pla']);
-  const source = { profileId: 'prusa-mk4', bedWidth: 250, bedDepth: 210, bedHeight: 220, copies: 2 };
-  const petg = applyPrintMaterialProfile(source, 'petg');
-  assert.deepEqual({ material: petg.material, minimumWallThickness: petg.minimumWallThickness, minimumHoleDiameter: petg.minimumHoleDiameter, overhangAngle: petg.overhangAngle }, { material: 'PETG', minimumWallThickness: 0.8, minimumHoleDiameter: 2.2, overhangAngle: 42 });
-  assert.deepEqual({ profileId: petg.profileId, bedWidth: petg.bedWidth, copies: petg.copies }, { profileId: 'prusa-mk4', bedWidth: 250, copies: 2 });
-  const bambuPetg = applyPrintMaterialProfile(source, 'bambu-petg-hf');
-  assert.deepEqual({ materialProfileId: bambuPetg.materialProfileId, material: bambuPetg.material, profileId: bambuPetg.profileId, copies: bambuPetg.copies }, { materialProfileId: 'bambu-petg-hf', material: 'PETG HF', profileId: 'prusa-mk4', copies: 2 });
-  assert.equal(PRINT_MATERIAL_PROFILES.find((profile) => profile.id === 'prusament-asa').bedTemperature, '105–115°C');
-  assert.equal(PRINT_MATERIAL_PROFILES.find((profile) => profile.id === 'creality-hyper-pla').maxSpeed, 'do 600 mm/s');
-  assert.deepEqual(applyPrintMaterialProfile({ material: 'PA-CF', overhangAngle: 35 }, 'custom'), { material: 'PA-CF', overhangAngle: 35, materialProfileId: 'custom' });
 });
 
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {
@@ -2779,15 +2573,34 @@ test('polityka odtwarzania workera ma limit prób i reset po sukcesie', () => {
   assert.deepEqual(policy.recordCrash(), { attempt: 1, shouldRestart: true, delayMs: 10 });
 });
 
-test('zmiany CAM i metadanych nie zmieniają podpisu geometrii workera', () => {
+test('archiwalne dane produkcyjne i metadane nie zmieniają podpisu geometrii workera', () => {
   const document = createStarterDocument();
   const original = cadGeometrySignature(document);
   const updatedCam = structuredClone(document);
-  updatedCam.manufacturing.setups.push(createManufacturingSetup({ bodyId: 'body-test' }));
+  updatedCam.legacyProduction = { manufacturing: { setups: [{ bodyId: 'body-test' }] } };
   updatedCam.metadata.modifiedAt = '2026-09-23T11:00:00.000Z';
   assert.equal(cadGeometrySignature(updatedCam), original);
   updatedCam.features[0].name = 'Zmieniona bryła';
   assert.notEqual(cadGeometrySignature(updatedCam), original);
+});
+
+test('v26 archiwizuje ustawienia produkcyjne i zachowuje model CAD po zapisie i otwarciu', async () => {
+  const source = JSON.parse(await readFile(new URL('./fixtures/document-v26-production.madcad', import.meta.url), 'utf8'));
+  const original = structuredClone(source);
+  const opened = openDocument(source);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
+  assert.equal(opened.migrated, true);
+  assert.equal(opened.readOnly, false);
+  assert.equal(Object.hasOwn(opened.document, 'print'), false);
+  assert.equal(Object.hasOwn(opened.document, 'manufacturing'), false);
+  assert.deepEqual(opened.document.legacyProduction, { print: source.print, manufacturing: source.manufacturing });
+  assert.deepEqual(opened.document.sketches, source.sketches);
+  assert.deepEqual(opened.document.features, source.features);
+  assert.deepEqual(source, original);
+  const reopened = openDocument(JSON.parse(JSON.stringify(opened.document))).document;
+  assert.deepEqual(reopened, opened.document);
+  assert.equal(Object.hasOwn(createDocument(), 'print'), false);
+  assert.equal(Object.hasOwn(createDocument(), 'manufacturing'), false);
 });
 
 test('migruje rzeczywisty fixture dokumentu v2 do bieżącego schematu bez utraty geometrii', async () => {
@@ -3163,42 +2976,6 @@ test('zapisane widoki zachowują dokładną kamerę, unikalne nazwy i round-trip
   assert.equal(validateDocument(document).valid, true);
 });
 
-test('scena renderu ma bezpieczne presety, walidację i migrację starszego projektu', () => {
-  const document = createDocument('Render Scene');
-  assert.deepEqual(document.renderScene, normalizeRenderScene());
-  assert.equal(validateDocument(document).valid, true);
-
-  const daylight = normalizeRenderScene({ ...document.renderScene, ...renderEnvironmentPreset('daylight'), preset: 'daylight', shadows: false });
-  assert.equal(daylight.preset, 'daylight');
-  assert.equal(daylight.shadows, false);
-  assert.equal(daylight.background, '#b9cad8');
-  document.renderScene = daylight;
-  assert.equal(openDocument(JSON.parse(JSON.stringify(document))).document.renderScene.exposure, 1.05);
-
-  const legacy = JSON.parse(JSON.stringify(document));
-  delete legacy.renderScene;
-  const migrated = openDocument(legacy).document;
-  assert.deepEqual(migrated.renderScene, DEFAULT_RENDER_SCENE);
-  assert.equal(validateDocument(migrated).valid, true);
-
-  document.renderScene.exposure = 99;
-  assert.equal(validateDocument(document).valid, false);
-});
-
-test('naklejka renderu zachowuje trwałą ścianę, parametry i Undo-ready operacje', () => {
-  const document = createDocument('Decal');
-  const imageData = 'data:image/png;base64,iVBORw0KGgo=';
-  const decal = createRenderDecal(document, { name: 'Logo', bodyId: 'body-a', faceId: 'face-a', imageData });
-  assert.equal(decal.scale, 0.55);
-  assert.equal(validateDocument(document).valid, true);
-  updateRenderDecal(document, decal.id, { scale: 0.8, opacity: 0.65, rotation: 30 });
-  assert.deepEqual(document.renderScene.decals.map(({ name, bodyId, faceId, scale, opacity, rotation }) => ({ name, bodyId, faceId, scale, opacity, rotation })), [{ name: 'Logo', bodyId: 'body-a', faceId: 'face-a', scale: 0.8, opacity: 0.65, rotation: 30 }]);
-  assert.equal(openDocument(structuredClone(document)).document.renderScene.decals[0].imageData, imageData);
-  assert.equal(deleteRenderDecal(document, decal.id).id, decal.id);
-  assert.equal(document.renderScene.decals.length, 0);
-  assert.throws(() => createRenderDecal(document, { bodyId: 'body-a', faceId: 'face-a', imageData: 'data:text/plain;base64,QQ==' }), /PNG|JPEG|WebP/);
-});
-
 test('round-trip .madcad zachowuje dokument bez utraty danych', () => {
   const source = createStarterDocument();
   const serialized = JSON.stringify(source);
@@ -3493,8 +3270,10 @@ test('samouczek PL/EN prowadzi do eksportu i jawnie wymienia znane ograniczenia'
   for (const language of ['pl', 'en']) {
     const tutorial = tutorialForLanguage(language);
     assert.equal(tutorial.steps.length, 8);
-    assert.ok(tutorial.steps.at(-1)[1].includes(language === 'en' ? 'export' : 'wyeksportuj'));
-    assert.ok(tutorial.limitations.length >= 5);
+    assert.ok(tutorial.steps.some((step) => step[1].includes(language === 'en' ? 'Save the exact solid as STEP' : 'Zapisz dokładną bryłę jako STEP')));
+    assert.ok(tutorial.steps.at(-1)[1].includes('.madcad'));
+    assert.doesNotMatch(JSON.stringify(tutorial), /slicer|druk 3D|3D print/i);
+    assert.ok(tutorial.limitations.length >= 3);
     assert.ok(tutorial.limitations.some((item) => item.includes('STEP')));
     assert.ok(!tutorial.limitations.some((item) => item.includes('Linux')));
   }
@@ -5092,64 +4871,6 @@ test('produkcyjne handlery pliku projektu zapisują, tworzą .bak i odrzucają u
   }
 });
 
-test('układ druku normalizuje wartości i rozstawia obrócone kopie bez nakładania', () => {
-  const normalized = normalizePrintLayout({ scale: 0, copies: 2.6, copySpacing: -4, orientationAxis: [0, 0, 0] });
-  assert.equal(normalized.copies, 3);
-  assert.equal(normalized.copySpacing, 0);
-  assert.ok(normalized.scale > 0);
-  assert.deepEqual(normalized.orientationAxis, [0, 0, 1]);
-
-  const result = calculatePrintLayout([{ bounds: [[-5, -10, 0], [5, 10, 2]] }], {
-    rotationZ: 90,
-    scale: 2,
-    copies: 2,
-    copySpacing: 4,
-    positionX: -3,
-    positionY: 7,
-    positionZ: 1,
-  });
-  assert.deepEqual(result.dimensions.map((value) => Math.round(value)), [84, 20, 4]);
-  assert.equal(Math.round(result.pitch), 44);
-  assert.deepEqual(result.min.map((value) => Math.round(value)), [-23, -3, 1]);
-});
-
-test('orientacja druku kieruje normalną zaznaczonej ściany do stołu', () => {
-  const orientation = orientationForBedFace([1, 0, 0]);
-  const transformed = transformPrintPoint([1, 0, 0], {
-    orientationAxis: orientation.axis,
-    orientationAngle: orientation.angle,
-  });
-  assert.ok(Math.abs(transformed[0]) < 1e-9);
-  assert.ok(Math.abs(transformed[1]) < 1e-9);
-  assert.ok(Math.abs(transformed[2] + 1) < 1e-9);
-  assert.deepEqual(orientationForBedFace([0, 0, -1]), { axis: [0, 0, 1], angle: 0 });
-  assert.deepEqual(orientationForBedFace([0, 0, 1]), { axis: [1, 0, 0], angle: 180 });
-});
-
-test('automatyczna orientacja wybiera dużą podstawę, centruje model i ogranicza wysokość', () => {
-  const box = {
-    vertices: Float32Array.from([
-      0, 0, 0, 30, 0, 0, 30, 20, 0, 0, 20, 0,
-      0, 0, 10, 30, 0, 10, 30, 20, 10, 0, 20, 10,
-    ]),
-    triangles: Uint32Array.from([
-      0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7,
-      0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5,
-      2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7,
-    ]),
-  };
-  const result = recommendPrintOrientation([box], { bedWidth: 220, bedDepth: 220, bedHeight: 250, overhangAngle: 45, copies: 1, copySpacing: 10, scale: 0.5 });
-  assert.ok(result);
-  assert.ok(result.candidateCount >= 6);
-  assert.equal(result.fitsBed, true);
-  assert.ok(result.baseArea >= 149.9);
-  assert.ok(result.height <= 5.001);
-  assert.ok(Math.abs(result.layout.positionX + 7.5) < 1e-6);
-  assert.ok(Math.abs(result.layout.positionY + 5) < 1e-6);
-  assert.ok(Math.abs(result.layout.positionZ) < 1e-6);
-  assert.deepEqual(recommendPrintOrientation([], {}), null);
-});
-
 test('eksport 3MF zapisuje milimetry, obiekty i trójkąty w poprawnym archiwum', () => {
   const archive = createThreeMfArchive([{
     name: 'Trójkąt',
@@ -5220,54 +4941,6 @@ test('dokument przechowuje import STEP/STL/3MF z jawną skalą jednostki', () =>
   const broken = structuredClone(document);
   broken.features[0].unitScale = 0;
   assert.equal(validateDocument(broken).valid, false);
-});
-
-test('analiza druku odróżnia zamkniętą siatkę od otwartej i wskazuje problem', () => {
-  const tetrahedron = {
-    id: 'body-tetra', name: 'Tetra', sourceFeatureId: 'feature-tetra',
-    vertices: Float32Array.from([0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 10]),
-    normals: new Float32Array(),
-    triangles: Uint32Array.from([0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3]),
-    bounds: [[0, 0, 0], [10, 10, 10]],
-    faceGroups: [0, 1, 2, 3].map((index) => ({ start: index * 3, count: 3, topologyId: `face-${index}` })),
-    topology: { faces: [] },
-  };
-  const print = { bedWidth: 220, bedDepth: 220, bedHeight: 250, minimumWallThickness: 0.8, minimumHoleDiameter: 2, overhangAngle: 45 };
-  const closed = analyzePrintability([tetrahedron], print);
-  assert.equal(closed.bodyResults[0].boundaryEdges, 0);
-  assert.equal(closed.bodyResults[0].nonManifoldEdges, 0);
-  assert.equal(closed.issues.some((issue) => issue.code === 'MANIFOLD'), false);
-  assert.equal(closed.issues.some((issue) => issue.code === 'OVERHANG'), true);
-
-  const open = analyzePrintability([{ ...tetrahedron, triangles: Uint32Array.from([0, 2, 1]) }], print);
-  assert.equal(open.bodyResults[0].boundaryEdges, 3);
-  assert.equal(open.issues.find((issue) => issue.code === 'MANIFOLD').selection.id, 'body-tetra');
-});
-
-test('analiza druku wykrywa trójkąt zdegenerowany, mały otwór i przekroczenie stołu', () => {
-  const body = {
-    id: 'body-risk', name: 'Ryzyko', sourceFeatureId: 'feature-risk',
-    vertices: Float32Array.from([0, 0, 0, 1, 0, 0, 2, 0, 0]), normals: new Float32Array(), triangles: Uint32Array.from([0, 1, 2]),
-    bounds: [[0, 0, 0], [300, 1, 1]], faceGroups: [{ start: 0, count: 3, topologyId: 'face-degenerate' }],
-    topology: { faces: [{ id: 'face-hole', descriptor: { geometry: 'CYLINDRE', radius: 0.4 } }] },
-  };
-  const result = analyzePrintability([body], { bedWidth: 220, bedDepth: 220, bedHeight: 250, minimumHoleDiameter: 2 });
-  assert.ok(result.issues.some((issue) => issue.code === 'DEGENERATE' && issue.selection.id === 'face-degenerate'));
-  assert.ok(result.issues.some((issue) => issue.code === 'SMALL_HOLE' && issue.selection.id === 'face-hole'));
-  assert.ok(result.issues.some((issue) => issue.code === 'BED_BOUNDS'));
-});
-
-test('przekazanie do slicera waliduje program, rozmiar i bezpieczną nazwę STL', () => {
-  const normalized = slicerLaunch.normalizeSlicerPayload({
-    slicer: 'bambu',
-    files: [{ name: '../../Uchwyt testowy.stl', data: new Uint8Array(84) }],
-  });
-  assert.equal(normalized.slicer, 'bambu');
-  assert.equal(normalized.files[0].name, 'Uchwyt-testowy.stl');
-  assert.equal(normalized.files[0].bytes.byteLength, 84);
-  assert.throws(() => slicerLaunch.normalizeSlicerPayload({ slicer: 'nieznany', files: [{ name: 'a.stl', data: new Uint8Array(84) }] }), /Nieobsługiwany/);
-  assert.throws(() => slicerLaunch.normalizeSlicerPayload({ slicer: 'cura', files: [{ name: 'a.stl', data: new Uint8Array(20) }] }), /pusty/);
-  assert.ok(slicerLaunch.windowsCandidates('prusa', { ProgramFiles: 'C:\\Program Files' }).some((candidate) => candidate.toLowerCase().includes('prusa-slicer.exe')));
 });
 
 test('polityka Electron przepuszcza tylko HTTPS i nawigację wewnątrz aplikacji', () => {
@@ -5358,7 +5031,7 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   ]);
   assert.doesNotMatch(mainSource, /sandbox:\s*false/);
   assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 3);
-  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 29);
+  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 28);
   assert.match(preloadSource, /openProjectFile/);
   assert.match(preloadSource, /packAndGoProject/);
   assert.match(preloadSource, /licenseGetStatus[\s\S]*licenseLogin[\s\S]*licenseRegister[\s\S]*licenseStartTrial[\s\S]*licenseLogout[\s\S]*licenseRequestPasswordReset[\s\S]*licenseResetPassword[\s\S]*licenseResendVerification[\s\S]*licenseVerifyEmail/);
@@ -5683,818 +5356,6 @@ test('brak miejsca podczas zapisu nie narusza ostatniej poprawnej wersji', async
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-});
-
-const camBox = {
-  id: 'body-cam-box',
-  name: 'Korpus CAM',
-  bounds: [[0, 0, 0], [40, 20, 10]],
-  vertices: new Float32Array([
-    0, 0, 0, 40, 0, 0, 40, 20, 0, 0, 20, 0,
-    0, 0, 10, 40, 0, 10, 40, 20, 10, 0, 20, 10,
-  ]),
-  triangles: new Uint32Array([
-    0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7,
-    0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5,
-    2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7,
-  ]),
-  faceGroups: [
-    { topologyId: 'bottom-face', start: 0, count: 6 },
-    { topologyId: 'top-face', start: 6, count: 6 },
-    { topologyId: 'side-face', start: 12, count: 6 },
-  ],
-};
-
-test('CAM sprawdza bryłę szczęki z siatki CAD i blokuje kolizyjny eksport', () => {
-  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
-  const setup = createManufacturingSetup({ bodyId: camBox.id, operations: [operation] });
-  const baseline = calculateContourToolpath(setup, operation, [camBox]);
-  const cut = baseline.segments.find((segment) => segment.kind === 'cut' && Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis])) > 1);
-  assert.ok(cut);
-  const center = cut.from.map((value, axis) => (value + cut.to[axis]) / 2);
-  const minimum = center.map((value) => value - 0.5);
-  const maximum = center.map((value) => value + 0.5);
-  const jaw = {
-    id: 'jaw-mesh', name: 'Szczęka z bryły', bounds: [minimum, maximum],
-    vertices: Float32Array.from(camBox.vertices, (value, index) => minimum[index % 3] + value / [40, 20, 10][index % 3]),
-    triangles: camBox.triangles,
-  };
-  const mesh = createManufacturingFixtureMeshIndex(jaw);
-  assert.ok(mesh);
-  assert.equal(createManufacturingFixtureMeshIndex(jaw), mesh);
-  setup.fixtures = [{ id: 'fixture-mesh', name: 'Szczęka z bryły', enabled: true, shape: 'body', bodyId: jaw.id, clearance: 0 }];
-  const toolpath = calculateContourToolpath(setup, operation, [camBox, jaw]);
-  assert.equal(toolpath.valid, true);
-  assert.equal(analyzeToolpathSafety(toolpath).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
-  assert.throws(() => createMachineGcode(setup, operation, [camBox, jaw]), /Szczęka z bryły/);
-  const remote = { ...jaw, vertices: Float32Array.from(jaw.vertices, (value) => value + 100), bounds: [[100, 100, 100], [101, 101, 101]] };
-  assert.deepEqual(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [camBox, remote])), []);
-  assert.equal(calculateManufacturingSetup(setup, [camBox]).valid, false);
-  assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, vertices: new Float32Array([NaN, 0, 0]) }), null);
-  assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, triangles: jaw.triangles.slice(0, -3) }), null);
-  const reversedTriangle = Uint32Array.from(jaw.triangles);
-  [reversedTriangle[0], reversedTriangle[1]] = [reversedTriangle[1], reversedTriangle[0]];
-  assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, triangles: reversedTriangle }), null,
-    'odwrócony trójkąt nie może uchodzić za spójną, zamkniętą powierzchnię szczęki');
-  const reversedJaw = { ...jaw, triangles: reversedTriangle };
-  assert.equal(calculateManufacturingSetup(setup, [camBox, reversedJaw]).valid, false);
-  assert.throws(() => createMachineGcode(setup, operation, [camBox, reversedJaw]), /zamkniętej powierzchni/);
-  jaw.vertices[0] += 0.1;
-  assert.notEqual(createManufacturingFixtureMeshIndex(jaw), mesh);
-});
-
-test('skośna bryła szczęki nie blokuje narzędzia poza rzeczywistym rzutem trójkątów', () => {
-  const jaw = {
-    vertices: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1]),
-    triangles: new Uint32Array([0, 2, 1, 3, 4, 5, 0, 1, 4, 0, 4, 3, 1, 2, 5, 1, 5, 4, 2, 0, 3, 2, 3, 5]),
-  };
-  const index = createManufacturingFixtureMeshIndex(jaw);
-  assert.ok(index);
-  const intersectsPointPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
-    const [x, y, z] = segment.from;
-    const reach = radius + clearance;
-    return x + reach >= minimum[0] && x - reach <= maximum[0]
-      && y + reach >= minimum[1] && y - reach <= maximum[1]
-      && z >= minimumZ && z <= maximumZ;
-  };
-  const at = (x, y) => ({ from: [x, y, 0.5], to: [x, y, 0.5] });
-  assert.equal(fixtureMeshPotentialCollision(index, at(0.9, 0.9), 0.05, 0, 0, 0, intersectsPointPrism), false);
-  assert.equal(fixtureMeshPotentialCollision(index, at(0.53, 0.53), 0.1, 0, 0, 0, intersectsPointPrism), true);
-  assert.equal(fixtureMeshPotentialCollision(index, at(0.4, 0.4), 0.05, 0, 0, 0, intersectsPointPrism), true);
-  assert.equal(fixtureMeshPotentialCollision(index, at(0.9, 0.9), 0.05, 0.6, 0, 0, intersectsPointPrism), true);
-  const intersectsSegmentPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
-    const reach = radius + clearance;
-    return Math.min(segment.from[0], segment.to[0]) - reach <= maximum[0]
-      && Math.max(segment.from[0], segment.to[0]) + reach >= minimum[0]
-      && Math.min(segment.from[1], segment.to[1]) - reach <= maximum[1]
-      && Math.max(segment.from[1], segment.to[1]) + reach >= minimum[1]
-      && segment.from[2] >= minimumZ && segment.from[2] <= maximumZ;
-  };
-  assert.equal(fixtureMeshPotentialCollision(index, { from: [0.7, 0.8, 0.5], to: [0.8, 0.7, 0.5] }, 0.05, 0, 0, 0, intersectsSegmentPrism), false);
-  assert.equal(fixtureMeshPotentialCollision(index, { from: [0.7, 0.4, 0.5], to: [0.4, 0.5, 0.5] }, 0.05, 0, 0, 0, intersectsSegmentPrism), true);
-  const distantIndex = createManufacturingFixtureMeshIndex({ ...jaw, vertices: Float32Array.from(jaw.vertices, (value) => value + 1_000_000) });
-  const distantAt = (x, y) => ({ from: [1_000_000 + x, 1_000_000 + y, 1_000_000.5], to: [1_000_000 + x, 1_000_000 + y, 1_000_000.5] });
-  assert.equal(fixtureMeshPotentialCollision(distantIndex, distantAt(0.9, 0.9), 0.05, 0, 0, 0, intersectsPointPrism), false);
-  assert.equal(fixtureMeshPotentialCollision(distantIndex, distantAt(0.4, 0.4), 0.05, 0, 0, 0, intersectsPointPrism), true);
-  const thinIndex = createManufacturingFixtureMeshIndex({ ...jaw, vertices: Float32Array.from(jaw.vertices, (value, coordinate) => 1_000_000 + (coordinate % 3 === 1 ? value * 0.35 : value)) });
-  assert.equal(fixtureMeshPotentialCollision(thinIndex, distantAt(0.25, 0.125), 0.01, 0, 0, 0, intersectsPointPrism), true);
-  const translated = { ...jaw, vertices: Float32Array.from(jaw.vertices, (value) => value + 100) };
-  const fixture = { id: 'slanted-jaw', name: 'Skośna szczęka', shape: 'body', enabled: true, clearance: 0 };
-  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
-  const setup = createManufacturingSetup({ bodyId: camBox.id, operations: [operation] });
-  const baseline = calculateContourToolpath(setup, operation, [camBox]);
-  const path = {
-    ...baseline,
-    setup: { ...baseline.setup, fixtures: [fixture], fixtureMeshes: new Map([[fixture.id, createManufacturingFixtureMeshIndex(translated)]]) },
-    tool: { ...baseline.tool, diameter: 0.2, stickout: 1, holderDiameter: 0 },
-    clearancePlaneZ: 100.5,
-    segments: [{ kind: 'rapid', from: [100.9, 100.9, 100.5], to: [100.9, 100.9, 100.5] }],
-  };
-  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
-  path.segments = [{ kind: 'rapid', from: [100.53, 100.53, 100.5], to: [100.53, 100.53, 100.5] }];
-  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
-});
-
-test('skośna szczęka nie blokuje narzędzia ponad lokalną powierzchnią trójkąta', () => {
-  const wedge = {
-    vertices: new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 1, 10, 0, 10, 0, 10, 10]),
-    triangles: new Uint32Array([0, 2, 1, 3, 4, 5, 0, 1, 4, 0, 4, 3, 1, 2, 5, 1, 5, 4, 2, 0, 3, 2, 3, 5]),
-  };
-  const index = createManufacturingFixtureMeshIndex(wedge);
-  assert.ok(index);
-  const intersectsPointPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
-    const [x, y, z] = segment.from;
-    const reach = radius + clearance;
-    return x + reach >= minimum[0] && x - reach <= maximum[0]
-      && y + reach >= minimum[1] && y - reach <= maximum[1]
-      && z >= minimumZ && z <= maximumZ;
-  };
-  const at = (x, y, z) => ({ from: [x, y, z], to: [x, y, z] });
-  assert.equal(fixtureMeshPotentialCollision(index, at(0.2, 0.2, 8), 0.05, 0, 0, 0, intersectsPointPrism), false);
-  assert.equal(fixtureMeshPotentialCollision(index, at(8, 1, 8), 0.05, 0, 0, 0, intersectsPointPrism), true);
-  assert.equal(fixtureMeshPotentialCollision(index, at(0.2, 0.2, 1.1), 0.05, 0, 0, 0, intersectsPointPrism), true);
-  assert.equal(fixtureMeshPotentialCollision(index, at(0.2, 0.2, 0), 0.05, 0, 5, 10, intersectsPointPrism), false);
-  assert.equal(fixtureMeshPotentialCollision(index, at(8, 1, 0), 0.05, 0, 5, 10, intersectsPointPrism), true);
-  const intersectsSegmentPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
-    const reach = radius + clearance;
-    return Math.min(segment.from[0], segment.to[0]) - reach <= maximum[0]
-      && Math.max(segment.from[0], segment.to[0]) + reach >= minimum[0]
-      && Math.min(segment.from[1], segment.to[1]) - reach <= maximum[1]
-      && Math.max(segment.from[1], segment.to[1]) + reach >= minimum[1]
-      && Math.min(segment.from[2], segment.to[2]) <= maximumZ
-      && Math.max(segment.from[2], segment.to[2]) >= minimumZ;
-  };
-  assert.equal(fixtureMeshPotentialCollision(index, { from: [0.2, 0.2, 8], to: [0.4, 0.2, 8] }, 0.05, 0, 0, 0, intersectsSegmentPrism), false);
-  assert.equal(fixtureMeshPotentialCollision(index, { from: [0.2, 0.2, 8], to: [8, 1, 8] }, 0.05, 0, 0, 0, intersectsSegmentPrism), true);
-  const fixture = { id: 'sloped-jaw-z', name: 'Skośna szczęka Z', shape: 'body', enabled: true, clearance: 0 };
-  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
-  const setup = createManufacturingSetup({ bodyId: camBox.id, operations: [operation] });
-  const baseline = calculateContourToolpath(setup, operation, [camBox]);
-  const path = {
-    ...baseline,
-    setup: { ...baseline.setup, fixtures: [fixture], fixtureMeshes: new Map([[fixture.id, index]]) },
-    tool: { ...baseline.tool, diameter: 0.1, stickout: 0.1, holderDiameter: 0 },
-    clearancePlaneZ: 8,
-    segments: [{ kind: 'rapid', from: [0.2, 0.2, 8], to: [0.4, 0.2, 8] }],
-  };
-  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
-  path.segments = [{ kind: 'rapid', from: [0.2, 0.2, 8], to: [8, 1, 8] }];
-  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
-});
-
-test('szew triangulacji pochyłej powierzchni nie blokuje przejazdu ponad szczęką', () => {
-  const jaw = {
-    vertices: Float32Array.from(camBox.vertices, (value, coordinate) => coordinate % 3 === 2 && coordinate >= 12
-      ? 1 + camBox.vertices[coordinate - 2] * 0.225 : value),
-    // Top and bottom use different diagonals; the ray hits one ordinary face
-    // and the seam of two other faces.
-    triangles: new Uint32Array([0, 3, 1, 1, 3, 2, ...camBox.triangles.slice(6)]),
-  };
-  const index = createManufacturingFixtureMeshIndex(jaw);
-  assert.ok(index);
-  const intersectsPointPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
-    const [x, y, z] = segment.from;
-    const reach = radius + clearance;
-    return x + reach >= minimum[0] && x - reach <= maximum[0]
-      && y + reach >= minimum[1] && y - reach <= maximum[1]
-      && z >= minimumZ && z <= maximumZ;
-  };
-  const at = (z) => ({ from: [10, 5, z], to: [10, 5, z] });
-  assert.equal(fixtureMeshPotentialCollision(index, at(8), 0.01, 0, 0, 0, intersectsPointPrism), false);
-  assert.equal(fixtureMeshPotentialCollision(index, at(3), 0.01, 0, 0, 0, intersectsPointPrism), true);
-});
-
-test('Setup CAM wylicza półfabrykat, WCS i zgodność z obrabiarką', () => {
-  const setup = createManufacturingSetup({
-    bodyId: 'body-test',
-    machineId: 'desktop-3018',
-    stock: { sideOffset: 2, topOffset: 3, bottomOffset: 1 },
-    safeHeight: 6,
-  });
-  const result = calculateManufacturingSetup(setup, [{ id: 'body-test', name: 'Detal', bounds: [[10, 20, -2], [110, 70, 18]] }]);
-  assert.equal(result.valid, true);
-  assert.deepEqual(result.stockBounds, [[8, 18, -3], [112, 72, 21]]);
-  assert.deepEqual(result.dimensions, [104, 54, 24]);
-  assert.deepEqual(result.origin, [60, 45, 21]);
-  assert.equal(result.clearancePlaneZ, 27);
-});
-
-test('Setup CAM ostrzega o przekroczeniu przesuwu maszyny', () => {
-  const setup = createManufacturingSetup({ bodyId: 'body-large', machineId: 'desktop-3018' });
-  const result = calculateManufacturingSetup(setup, [{ id: 'body-large', bounds: [[0, 0, 0], [400, 100, 20]] }]);
-  assert.equal(result.valid, false);
-  assert.match(result.warnings[0], /osi X/);
-});
-
-test('dokument v15 migruje dane wytwarzania do bieżącego schematu i przechodzi walidację', () => {
-  const legacy = createDocument('Projekt CAM');
-  legacy.schemaVersion = 15;
-  delete legacy.manufacturing;
-  const opened = openDocument(legacy, { now: '2026-09-08T12:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
-  assert.deepEqual(opened.document.manufacturing, { setups: [], activeSetupId: '', tools: [], operationTemplates: [] });
-  assert.equal(validateDocument(opened.document).valid, true);
-  assert.equal(opened.document.metadata.migrationHistory.some((entry) => entry.from === 15 && entry.to === 16), true);
-});
-
-test('planowanie CAM tworzy warstwową ścieżkę z bezpiecznymi przejazdami i posuwem', () => {
-  const setup = createManufacturingSetup({ bodyId: 'body-test', stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
-  const operation = createFacingOperation({ toolId: 'flat-6', stepover: 0.5, maxStepdown: 0.75, feedRate: 600, plungeRate: 150, spindleRpm: 8000 });
-  const result = calculateFacingToolpath(setup, operation, [{ id: 'body-test', bounds: [[0, 0, 0], [40, 20, 10]] }]);
-  assert.equal(result.valid, true);
-  assert.equal(result.layerCount, 3);
-  assert.equal(result.segments[0].kind, 'rapid');
-  assert.equal(result.segments.some((segment) => segment.kind === 'plunge' && segment.feed === 150), true);
-  assert.equal(result.segments.some((segment) => segment.kind === 'cut' && segment.feed === 600), true);
-  assert.equal(result.segments.at(-1).to[2], result.setup.clearancePlaneZ);
-  assert.ok(result.distance > result.cuttingDistance);
-  assert.ok(result.durationMinutes > 0);
-});
-
-test('postprocesor GRBL zapisuje metryczny G-code względem WCS i bezpiecznie kończy program', () => {
-  const setup = createManufacturingSetup({ bodyId: 'body-test', stock: { sideOffset: 1, topOffset: 1, bottomOffset: 0 }, safeHeight: 4 });
-  const operation = createFacingOperation({ toolId: 'flat-6', maxStepdown: 1, feedRate: 500, plungeRate: 120, spindleRpm: 7000 });
-  const output = createGrblGcode(setup, operation, [{ id: 'body-test', bounds: [[10, 20, 0], [30, 40, 5]] }], { projectName: 'Detal; test\nA' });
-  assert.match(output.text, /^; Detal {2}test A/m);
-  assert.match(output.text, /^G21$/m);
-  assert.match(output.text, /^G90$/m);
-  assert.match(output.text, /^S7000 M3$/m);
-  assert.match(output.text, /G0 Z[^\n]+\nG0 X[^\n]+ Y[^\n]+\nS7000 M3/);
-  assert.match(output.text, /^G1 X.* F120$/m);
-  assert.match(output.text, /^G1 X.* F500$/m);
-  assert.match(output.text, /M5\nM30\n$/);
-  assert.equal(output.postProcessor, 'grbl-mm-absolute');
-  assert.ok(output.lineCount > 10);
-});
-
-test('walidacja danych CAM odrzuca uszkodzony aktywny Setup i ujemny naddatek', () => {
-  const setup = createManufacturingSetup({ bodyId: 'body-test' });
-  setup.stock.sideOffset = -1;
-  const issues = validateManufacturing({ setups: [setup], activeSetupId: 'missing' });
-  assert.equal(issues.some((issue) => issue.path.endsWith('sideOffset') && issue.code === 'VALUE'), true);
-  assert.equal(issues.some((issue) => issue.path === 'manufacturing.activeSetupId' && issue.code === 'BROKEN_REFERENCE'), true);
-});
-
-test('CAM wyznacza rzeczywistą granicę bryły, kontur, kieszeń i adaptacyjne przejścia', () => {
-  const loops = extractTopBoundaryLoops(camBox);
-  assert.equal(loops.length, 1);
-  assert.equal(loops[0].length, 4);
-  const outside = offsetClosedContour(loops[0], 3);
-  assert.equal(Math.min(...outside.map((point) => point[0])), -3);
-  assert.equal(Math.max(...outside.map((point) => point[1])), 23);
-  const setup = createManufacturingSetup({ bodyId: camBox.id });
-  const contour = createContourOperation({ targetDepth: 3, maxStepdown: 1 });
-  const pocket = createPocketOperation({ targetDepth: 2, maxStepdown: 1, stepover: 0.5 });
-  const adaptive = createAdaptiveOperation({ targetDepth: 2, maxStepdown: 1, optimalLoad: 0.3 });
-  setup.operations.push(contour, pocket, adaptive);
-  const contourPath = calculateContourToolpath(setup, contour, [camBox]);
-  const pocketPath = calculatePocketToolpath(setup, pocket, [camBox]);
-  const adaptivePath = calculateAdaptiveToolpath(setup, adaptive, [camBox]);
-  assert.equal(contourPath.valid, true);
-  assert.equal(contourPath.layerCount, 3);
-  assert.equal(contourPath.segments.filter((segment) => segment.kind === 'cut').length, 12);
-  assert.equal(pocketPath.valid, true);
-  assert.equal(pocketPath.layerCount, 2);
-  assert.ok(pocketPath.rowCount >= 5);
-  assert.equal(adaptivePath.valid, true);
-  assert.ok(adaptivePath.ringCount >= 2);
-  assert.equal(adaptivePath.segments.some((segment) => segment.kind === 'cut' && segment.from[2] !== segment.to[2]), true);
-  const report = analyzeManufacturingProgram(setup, [camBox]);
-  assert.equal(report.valid, true);
-  assert.equal(report.operations.length, 3);
-  assert.ok(report.cuttingDistance > 0);
-  const simulation = simulateMaterialRemoval(setup, [camBox], null, 0.5, 24);
-  assert.equal(simulation.valid, true);
-  assert.ok(simulation.processedSegments > 0);
-  assert.ok(simulation.columns.length > 0);
-  assert.ok(simulation.cutter);
-});
-
-test('CAM eksportuje LinuxCNC i Mach3 oraz blokuje niebezpieczne ścieżki', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id });
-  const contour = createContourOperation({ targetDepth: 1 });
-  const linuxCnc = createMachineGcode(setup, contour, [camBox], { postProcessorId: 'linuxcnc' });
-  assert.equal(linuxCnc.extension, 'ngc');
-  assert.match(linuxCnc.text, /^%\n/);
-  assert.match(linuxCnc.text, /G64 P0\.01/);
-  assert.match(linuxCnc.text, /\nM2\n%/);
-  const mach3 = createMachineGcode(setup, contour, [camBox], { postProcessorId: 'mach3' });
-  assert.equal(mach3.extension, 'tap');
-  assert.match(mach3.text, /G80/);
-  assert.match(mach3.text, /\nM30\n/);
-  const unsafe = calculateContourToolpath(setup, contour, [camBox]);
-  unsafe.segments.splice(1, 0, { kind: 'rapid', from: [0, 0, 5], to: [10, 0, 5] });
-  assert.equal(analyzeToolpathSafety(unsafe).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
-  const outsideY = unsafe.stockBounds[0][1] - unsafe.tool.diameter / 2 - 1;
-  const outsideSegment = { kind: 'rapid', from: [-10, outsideY, 5], to: [50, outsideY, 5] };
-  const outside = { ...unsafe, segments: [...unsafe.segments.slice(0, 1), outsideSegment, ...unsafe.segments.slice(2)] };
-  assert.equal(analyzeToolpathSafety(outside).some((issue) => issue.code === 'RAPID_IN_STOCK'), false);
-  const nearEdgeY = unsafe.stockBounds[0][1] - unsafe.tool.diameter / 2 + 0.25;
-  const nearEdge = { ...outside, segments: [{ ...outsideSegment, from: [-10, nearEdgeY, 5], to: [50, nearEdgeY, 5] }] };
-  assert.equal(analyzeToolpathSafety(nearEdge).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
-  const lowHolderZ = unsafe.stockBounds[1][2] - unsafe.tool.stickout - 1;
-  const lowHolder = { ...outside, segments: [{ ...outsideSegment, from: [-10, outsideY, lowHolderZ], to: [50, outsideY, lowHolderZ] }] };
-  assert.equal(analyzeToolpathSafety(lowHolder).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
-  const stockCenter = unsafe.stockBounds[0].map((value, axis) => (value + unsafe.stockBounds[1][axis]) / 2);
-  const stockTop = unsafe.stockBounds[1][2];
-  const downwardRapid = { kind: 'rapid', from: [stockCenter[0], stockCenter[1], stockTop + 2], to: [stockCenter[0], stockCenter[1], stockTop - 1] };
-  assert.equal(analyzeToolpathSafety({ ...unsafe, segments: [downwardRapid] }).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
-  assert.equal(analyzeToolpathSafety({ ...unsafe, segments: [{ ...downwardRapid, from: downwardRapid.to, to: downwardRapid.from }] }).some((issue) => issue.code === 'RAPID_IN_STOCK'), false);
-  assert.equal(analyzeToolpathSafety({ ...unsafe, segments: [{ ...downwardRapid, from: [stockCenter[0], outsideY, stockTop + 2], to: [stockCenter[0], outsideY, stockTop - 1] }] }).some((issue) => issue.code === 'RAPID_IN_STOCK'), false);
-  const tooDeep = createContourOperation({ targetDepth: 30, toolId: 'flat-6' });
-  assert.match(calculateContourToolpath(setup, tooDeep, [camBox]).warnings.join(' '), /długość ostrza/);
-});
-
-test('CAM blokuje kolizję szerszej oprawki z uchwytem także na szybkim przejeździe', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id });
-  const contour = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
-  const basePath = calculateContourToolpath(setup, contour, [camBox]);
-  const fixture = { id: 'jaw-right', name: 'Prawa szczęka', enabled: true, bounds: [[4, 8, 106], [6, 10, 115]], clearance: 0 };
-  const path = {
-    ...basePath,
-    setup: { ...basePath.setup, fixtures: [fixture] },
-    tool: { ...basePath.tool, diameter: 3, holderDiameter: 20, stickout: 5 },
-    clearancePlaneZ: 100,
-    segments: [{ kind: 'rapid', from: [0, 0, 100], to: [10, 0, 100] }],
-  };
-  const issues = analyzeToolpathSafety(path);
-  assert.equal(issues.some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
-  assert.equal(issues.some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION' && issue.fixtureId === fixture.id), true);
-  assert.equal(analyzeToolpathSafety({ ...path, tool: { ...path.tool, stickout: 20 } }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), false);
-
-  const firstPoint = basePath.segments[0].from;
-  const maximumToolZ = Math.max(...basePath.segments.flatMap((segment) => [segment.from[2], segment.to[2]]));
-  const overheadFixture = { id: 'jaw-overhead', name: 'Górna szczęka', enabled: true, bounds: [[firstPoint[0] - 1, firstPoint[1] - 1, maximumToolZ + basePath.tool.stickout + 1], [firstPoint[0] + 1, firstPoint[1] + 1, maximumToolZ + basePath.tool.stickout + 5]], clearance: 0 };
-  const guardedSetup = { ...setup, fixtures: [overheadFixture], operations: [contour] };
-  const guardedPath = calculateContourToolpath(guardedSetup, contour, [camBox]);
-  assert.equal(analyzeToolpathSafety(guardedPath).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
-  assert.equal(analyzeManufacturingProgram(guardedSetup, [camBox]).operations[0].issues.some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), true);
-  assert.throws(() => createMachineGcode(guardedSetup, contour, [camBox]), /Eksport.*zablokowany/);
-});
-
-test('CAM wykrywa kolizję trzonu narzędzia ponad końcówką i nie zgłasza uchwytu poza wysięgiem', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id });
-  const contour = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
-  const basePath = calculateContourToolpath(setup, contour, [camBox]);
-  const fixture = { id: 'jaw-above-tip', name: 'Szczęka ponad końcówką', enabled: true, bounds: [[4, -1, 105], [6, 1, 108]], clearance: 0 };
-  const path = {
-    ...basePath,
-    setup: { ...basePath.setup, fixtures: [fixture] },
-    tool: { ...basePath.tool, diameter: 2, stickout: 10, holderDiameter: 0 },
-    segments: [{ kind: 'rapid', from: [0, 0, 100], to: [10, 0, 100] }],
-  };
-  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION' && issue.fixtureId === fixture.id), true);
-  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), false);
-  assert.equal(analyzeToolpathSafety({ ...path, segments: [{ kind: 'rapid', from: [0, 0, 94], to: [10, 0, 94] }] }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
-  assert.equal(analyzeToolpathSafety({ ...path, setup: { ...path.setup, fixtures: [{ ...fixture, bounds: [[4, -1, 111], [6, 1, 115]] }] } }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
-});
-
-test('CAM obraca szczękę wokół środka także w kontroli kolizji trzonu', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id });
-  const contour = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
-  const basePath = calculateContourToolpath(setup, contour, [camBox]);
-  const fixture = { id: 'angled-jaw', name: 'Ukośna szczęka', enabled: true, bounds: [[4, -1, 105], [16, 1, 108]], rotationDegrees: 90, clearance: 0 };
-  const path = {
-    ...basePath,
-    setup: { ...basePath.setup, fixtures: [fixture] },
-    tool: { ...basePath.tool, diameter: 2, stickout: 10, holderDiameter: 0 },
-    segments: [{ kind: 'rapid', from: [0, 5, 100], to: [20, 5, 100] }],
-  };
-  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION' && issue.fixtureId === fixture.id), true);
-  assert.equal(analyzeToolpathSafety({ ...path, setup: { ...path.setup, fixtures: [{ ...fixture, rotationDegrees: 0 }] } }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
-  assert.equal(analyzeToolpathSafety({ ...path, segments: [{ kind: 'rapid', from: [13, 5, 100], to: [20, 5, 100] }] }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
-});
-
-test('okrągły frez i oprawka nie zgłaszają fałszywej kolizji przy narożniku szczęki', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id });
-  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
-  const basePath = calculateContourToolpath(setup, operation, [camBox]);
-  const fixture = { id: 'jaw-corner', name: 'Narożnik szczęki', enabled: true, bounds: [[0, 0, 106], [10, 10, 110]], clearance: 0 };
-  const segmentAt = (x, y) => [{ kind: 'rapid', from: [x, y, 100], to: [x, y, 100] }];
-  const path = {
-    ...basePath,
-    setup: { ...basePath.setup, fixtures: [fixture] },
-    tool: { ...basePath.tool, diameter: 2, holderDiameter: 4, stickout: 5 },
-    segments: segmentAt(-1.5, -1.5),
-  };
-  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION' || issue.code === 'HOLDER_FIXTURE_COLLISION'), false);
-  assert.equal(analyzeToolpathSafety({ ...path, segments: [{ kind: 'rapid', from: [-1.5, -1.5, 100], to: [-2, -1.5, 100] }] }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), false);
-  assert.equal(analyzeToolpathSafety({ ...path, segments: segmentAt(-1.4, -1.4) }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), true);
-  const cutterPath = { ...path, tool: { ...path.tool, stickout: 10, holderDiameter: 0 }, segments: segmentAt(-0.9, -0.9) };
-  assert.equal(analyzeToolpathSafety(cutterPath).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
-  assert.equal(analyzeToolpathSafety({ ...cutterPath, segments: segmentAt(-0.7, -0.7) }).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
-});
-
-test('walcowy uchwyt sprawdza rzeczywisty promień w XY, wysięg w Z i odstęp', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id });
-  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
-  const basePath = calculateContourToolpath(setup, operation, [camBox]);
-  const fixture = { id: 'round-bolt', name: 'Śruba', enabled: true, shape: 'cylinder', bounds: [[0, 0, 106], [10, 10, 110]], clearance: 0, rotationDegrees: 0 };
-  const segmentAt = (x, y, z = 100) => [{ kind: 'rapid', from: [x, y, z], to: [x, y, z] }];
-  const path = {
-    ...basePath,
-    setup: { ...basePath.setup, fixtures: [fixture] },
-    tool: { ...basePath.tool, diameter: 2, holderDiameter: 0, stickout: 10 },
-    segments: segmentAt(0.5, 0.5),
-  };
-  const collides = (candidate) => analyzeToolpathSafety(candidate).some((issue) => issue.code === 'FIXTURE_COLLISION');
-  assert.equal(collides(path), false, 'walec nie zajmuje narożnika prostopadłościennej obwiedni');
-  assert.equal(collides({ ...path, segments: segmentAt(1, 1) }), true);
-  assert.equal(collides({ ...path, segments: segmentAt(1, 1, 94) }), false);
-  assert.equal(collides({ ...path, setup: { ...path.setup, fixtures: [{ ...fixture, clearance: 1 }] } }), true);
-  assert.equal(collides({ ...path, tool: { ...path.tool, holderDiameter: 4, stickout: 5 }, segments: segmentAt(12, 5) }), false);
-  assert.equal(analyzeToolpathSafety({ ...path, tool: { ...path.tool, holderDiameter: 4, stickout: 5 }, segments: segmentAt(11.9, 5) }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), true);
-});
-
-test('walcowy uchwyt blokuje eksport operacji przy kolizji', () => {
-  const operation = createFacingOperation({ toolId: 'flat-6' });
-  const setup = createManufacturingSetup({ bodyId: camBox.id, operations: [operation] });
-  const path = calculateFacingToolpath(setup, operation, [camBox]);
-  const point = path.segments.find((segment) => segment.kind === 'cut').from;
-  setup.fixtures = [{
-    id: 'round-path-bolt', name: 'Śruba przy ścieżce', enabled: true, shape: 'cylinder', clearance: 0, rotationDegrees: 0,
-    bounds: [[point[0] - 1, point[1] - 1, point[2] - 1], [point[0] + 1, point[1] + 1, point[2] + 1]],
-  }];
-  assert.equal(analyzeManufacturingProgram(setup, [camBox]).operations[0].issues.some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
-  assert.throws(() => createMachineGcode(setup, operation, [camBox]), /Eksport.*zablokowany/);
-});
-
-test('obrócona szczęka blokuje eksport rzeczywistego programu CAM, a odsunięta nie', () => {
-  const operation = createFacingOperation({ toolId: 'flat-6' });
-  const fixture = { id: 'rotated-program-jaw', name: 'Szczęka programu', enabled: true, bounds: [[-50, 59, 10], [90, 61, 12]], rotationDegrees: 90, clearance: 0 };
-  const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [fixture], operations: [operation] });
-  const blocked = analyzeManufacturingProgram(setup, [camBox]);
-  assert.equal(blocked.valid, false);
-  assert.equal(blocked.operations[0].issues.some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
-  assert.throws(() => createMachineGcode(setup, operation, [camBox]), /Eksport.*zablokowany/);
-  setup.fixtures[0].rotationDegrees = 0;
-  assert.equal(analyzeManufacturingProgram(setup, [camBox]).valid, true);
-  assert.match(createMachineGcode(setup, operation, [camBox]).text, /G1/);
-});
-
-test('kontrola CAM analizuje 150 tys. segmentów bez przepełnienia stosu i zachowuje błędy bezpieczeństwa', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id });
-  const contour = createContourOperation({ targetDepth: 1 });
-  const base = calculateContourToolpath(setup, contour, [camBox]);
-  const forward = { kind: 'rapid', from: [0, 0, 100], to: [1, 0, 100] };
-  const backward = { kind: 'rapid', from: [1, 0, 100], to: [0, 0, 100] };
-  const segments = Array.from({ length: 150000 }, (_unused, index) => index % 2 ? backward : forward);
-  const path = { ...base, clearancePlaneZ: 100 };
-  assert.deepEqual(analyzeToolpathSafety({ ...path, segments }), []);
-  assert.equal(analyzeToolpathSafety({ ...path, segments: [...segments, { kind: 'rapid', from: [0, 0, 100], to: [600, 0, 100] }] }).some((issue) => issue.code === 'MACHINE_TRAVEL'), true);
-  assert.equal(analyzeToolpathSafety({ ...path, segments: [...segments, { kind: 'cut', from: [0, 0, 100], to: [0, 0, NaN] }] })[0].code, 'NON_FINITE');
-});
-
-test('obrysy kieszeni i obróbki adaptacyjnej mierzą 150 tys. punktów bez limitu argumentów', () => {
-  const points = Array.from({ length: 150000 }, (_unused, index) => {
-    const angle = index / 150000 * Math.PI * 2;
-    return [20 * Math.cos(angle), 10 * Math.sin(angle)];
-  });
-  assert.deepEqual(measureCamPolygonBounds(points), [[-20, -10], [20, 10]]);
-  assert.equal(measureCamPolygonBounds([...points, [NaN, 0]]), null);
-  assert.equal(measureCamPolygonBounds([]), null);
-});
-
-test('CAM kontroluje przejazd między operacjami i blokuje eksport mimo bezpiecznych osobnych ścieżek', () => {
-  const body = { id: 'body-two-holes', bounds: [[0, 0, 0], [40, 20, 10]], manufacturingHoles: [
-    { featureId: 'left-hole', diameter: 5, quantity: 1, instances: [{ position: [5, 10, 10], direction: [0, 0, -1], depth: 6 }] },
-    { featureId: 'right-hole', diameter: 5, quantity: 1, instances: [{ position: [35, 10, 10], direction: [0, 0, -1], depth: 6 }] },
-  ] };
-  const left = createDrillingOperation({ holeFeatureIds: ['left-hole'], toolId: 'drill-5', cycleType: 'normal' });
-  const right = createDrillingOperation({ holeFeatureIds: ['right-hole'], toolId: 'drill-5', cycleType: 'normal' });
-  const setup = createManufacturingSetup({ bodyId: body.id, operations: [left, right] });
-  const clear = analyzeManufacturingProgram(setup, [body]);
-  assert.equal(clear.valid, true);
-  const safeZ = calculateManufacturingSetup(setup, [body]).clearancePlaneZ;
-  setup.fixtures = [{ id: 'middle-jaw', name: 'Środkowy uchwyt', enabled: true, bounds: [[18, 8, safeZ - 1], [22, 12, safeZ + 1]], clearance: 0 }];
-  assert.equal(analyzeManufacturingProgram({ ...setup, operations: [left] }, [body]).operations[0].valid, true);
-  assert.equal(analyzeManufacturingProgram({ ...setup, operations: [right] }, [body]).operations[0].valid, true);
-  const combined = analyzeManufacturingProgram(setup, [body]);
-  assert.equal(combined.valid, false);
-  assert.equal(combined.operations[1].issues.some((issue) => issue.code === 'INTER_OPERATION_FIXTURE_COLLISION'), true);
-  assert.throws(() => createManufacturingProgramGcode(setup, [body]), /Eksport programu zablokowany/);
-});
-
-test('CAM zarządza kolejnością, eksportuje kompletny program i tworzy arkusz ustawczy', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id, name: 'Setup produkcyjny', workOffset: 'G55' });
-  const contour = createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6' });
-  const pocket = createPocketOperation({ name: 'Kieszeń główna', targetDepth: 1, toolId: 'flat-6' });
-  const facing = createFacingOperation({ name: 'Planowanie bazowe', toolId: 'flat-6' });
-  setup.operations.push(contour, pocket, facing);
-  const optimized = optimizeManufacturingOperationOrder(setup, camBox);
-  assert.equal(optimized.changed, true);
-  assert.deepEqual(optimized.operations.map((operation) => operation.type), ['face', 'pocket', 'contour']);
-  assert.equal(optimized.toolChangesAfter, 0);
-  assert.equal(validateManufacturingOperationOrder({ ...setup, operations: optimized.operations }, camBox).valid, true);
-  const duplicate = duplicateManufacturingOperation({ ...setup, operations: optimized.operations }, pocket.id);
-  assert.equal(duplicate.operation.name, 'Kieszeń główna — kopia');
-  assert.notEqual(duplicate.operation.id, pocket.id);
-  const moved = moveManufacturingOperation({ ...setup, operations: duplicate.operations }, duplicate.operation.id, 'up', camBox);
-  assert.equal(moved.changed, true);
-  const blocked = moveManufacturingOperation({ ...setup, operations: moved.operations }, facing.id, 'down', camBox);
-  assert.equal(blocked.changed, false);
-  assert.match(blocked.warnings[0], /zależność technologiczną/);
-  const orderedSetup = { ...setup, operations: optimized.operations };
-  const program = createManufacturingProgramGcode(orderedSetup, [camBox], { projectName: 'Korpus produkcyjny', postProcessorId: 'linuxcnc' });
-  assert.equal(program.operationCount, 3);
-  assert.equal(program.postProcessor, 'linuxcnc');
-  assert.equal((program.text.match(/T2 M6/g) || []).length, 1);
-  assert.equal((program.text.match(/\nG55\n/g) || []).length, 1);
-  assert.match(program.text, /Planowanie/);
-  assert.match(program.text, /Kieszeń/);
-  assert.match(program.text, /Kontur końcowy/);
-  assert.match(program.text, /\nM5\nM2\n%\n$/);
-  const sheet = createManufacturingSetupSheet(orderedSetup, [camBox], { projectName: 'Korpus & produkcja' });
-  assert.equal(sheet.report.valid, true);
-  assert.equal(sheet.operationCount, 3);
-  assert.equal(sheet.toolCount, 1);
-  assert.match(sheet.html, /Arkusz ustawczy CAM/);
-  assert.match(sheet.html, /Korpus &amp; produkcja/);
-  assert.match(sheet.html, /Układ roboczy<\/span><strong>G55/);
-  assert.match(sheet.html, /ŚCIEŻKI SPRAWDZONE W MODELU/);
-});
-
-test('CAM zapisuje foldery i szablony oraz migruje starsze schematy', () => {
-  const group = createManufacturingOperationGroup({ name: 'Obróbka zgrubna' });
-  const source = createPocketOperation({ name: 'Kieszeń Al', targetDepth: 4, boundaryFaceId: 'face-top' });
-  const setup = createManufacturingSetup({ bodyId: camBox.id, operationGroups: [group], operations: [{ ...source, groupId: group.id }] });
-  const template = createManufacturingOperationTemplate(source, { name: 'Kieszeń aluminium' });
-  const document = ensureDocumentManufacturing({ manufacturing: { setups: [setup], activeSetupId: setup.id, tools: [], operationTemplates: [template] } });
-  assert.equal(document.manufacturing.setups[0].operations[0].groupId, group.id);
-  assert.equal(document.manufacturing.operationTemplates[0].operation.boundaryFaceId, '');
-  assert.deepEqual(validateManufacturing(document.manufacturing), []);
-  const instance = instantiateManufacturingOperationTemplate(template, setup, { groupId: group.id });
-  assert.equal(instance.type, 'pocket');
-  assert.equal(instance.targetDepth, 4);
-  assert.equal(instance.groupId, group.id);
-  assert.notEqual(instance.id, source.id);
-  const removed = deleteManufacturingOperationGroup({ ...setup, operations: [...setup.operations, instance] }, group.id);
-  assert.equal(removed.changed, true);
-  assert.equal(removed.operationGroups.length, 0);
-  assert.deepEqual(removed.operations.map((operation) => operation.groupId), ['', '']);
-  assert.equal(deleteManufacturingOperationGroup(removed, 'missing').changed, false);
-  const legacy = createDocument('CAM v17');
-  legacy.schemaVersion = 17;
-  delete legacy.manufacturing.operationTemplates;
-  const migrated = openDocument(legacy, { now: '2026-09-22T12:00:00.000Z' });
-  assert.equal(migrated.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
-  assert.deepEqual(migrated.document.manufacturing.operationTemplates, []);
-  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 17 && entry.to === 18), true);
-  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 18 && entry.to === 19), true);
-  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 19 && entry.to === 20), true);
-  assert.deepEqual(migrated.document.manufacturing.setups[0]?.fixtures || [], []);
-});
-
-test('nieznany typ własnego narzędzia CAM nie jest po cichu zamieniany na wiertło', () => {
-  const document = createDocument('Nieznany frez');
-  document.manufacturing.tools = [{ id: 'tool-unknown-profile', name: 'Frez kulisty', type: 'ball-end-mill', diameter: 6,
-    fluteLength: 20, stickout: 30, holderDiameter: 16, holderNeckDiameter: 16, holderNeckLength: 0, flutes: 2 }];
-  assert.throws(() => openDocument(document), /Nieobsługiwany typ narzędzia CAM/);
-});
-
-test('nieznany typ operacji CAM nie jest zamieniany na planowanie ani eksportowany', () => {
-  const operation = { id: 'cam-unknown-probe', name: 'Przyszłe sondowanie', type: 'probe-wcs', toolId: 'flat-6', postProcessorId: 'linuxcnc' };
-  const setup = createManufacturingSetup({ bodyId: camBox.id, stock: { topOffset: 2 }, operations: [operation] });
-  assert.equal(setup.operations[0].type, 'probe-wcs');
-  const report = analyzeManufacturingProgram(setup, [camBox]);
-  assert.equal(report.valid, false);
-  assert.equal(report.operations[0].issues.some((issue) => /Nieobsługiwany typ operacji CAM/.test(issue.message)), true);
-  assert.throws(() => createMachineGcode(setup, operation, [camBox]), /Nieobsługiwany typ operacji CAM/);
-  const document = createDocument('Nieznana operacja CAM');
-  document.manufacturing.setups = [setup];
-  document.manufacturing.activeSetupId = setup.id;
-  assert.throws(() => openDocument(document), /Nieobsługiwany typ operacji CAM/);
-});
-
-test('nieznany kształt uchwytu nie zmienia się po cichu w prostopadłościan', () => {
-  const operation = createFacingOperation();
-  const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [{ id: 'future-jaw', name: 'Nowy uchwyt', enabled: true,
-    shape: 'mesh-v2', bounds: [[-10, -10, 0], [10, 10, 20]], clearance: 0 }], operations: [operation] });
-  assert.equal(setup.fixtures[0].shape, 'mesh-v2');
-  assert.equal(calculateManufacturingSetup(setup, [camBox]).valid, false);
-  assert.throws(() => createMachineGcode(setup, operation, [camBox]), /nieobsługiwany kształt uchwytu/);
-  const document = createDocument('Nieznany uchwyt CAM');
-  document.manufacturing.setups = [setup];
-  document.manufacturing.activeSetupId = setup.id;
-  assert.throws(() => openDocument(document), /Strefa uchwytu wymaga kształtu/);
-});
-
-test('własny frez czołowy zachowuje węższą oprawkę i szyjkę po zapisaniu projektu', () => {
-  const document = createDocument('Frez czołowy');
-  document.manufacturing.tools = [{ id: 'tool-face-narrow', name: 'Frez czołowy Ø16', type: 'face-mill', diameter: 16,
-    fluteLength: 10, stickout: 25, holderDiameter: 12, holderNeckDiameter: 10, holderNeckLength: 6,
-    holderStages: [{ diameter: 8, length: 12 }, { diameter: 14, length: 5 }], flutes: 4 }];
-  const opened = openDocument(JSON.parse(JSON.stringify(document))).document;
-  assert.equal(opened.manufacturing.tools[0].holderDiameter, 12);
-  assert.equal(opened.manufacturing.tools[0].holderNeckDiameter, 10);
-  assert.deepEqual(opened.manufacturing.tools[0].holderStages, [{ diameter: 8, length: 12 }, { diameter: 14, length: 5 }]);
-  assert.deepEqual(validateManufacturing(opened.manufacturing), []);
-  opened.manufacturing.tools[0].holderStages[0].diameter = 0;
-  assert.equal(validateManufacturing(opened.manufacturing).some((issue) => issue.path.endsWith('holderStages[0].diameter')), true);
-  opened.manufacturing.tools[0].holderStages[0].diameter = 8;
-  opened.manufacturing.tools[0].holderStages[0].length = 0;
-  assert.equal(validateManufacturing(opened.manufacturing).some((issue) => issue.path.endsWith('holderStages[0].length')), true);
-  opened.manufacturing.tools[0].holderStages = Array.from({ length: 7 }, () => ({ diameter: 8, length: 10 }));
-  assert.equal(validateManufacturing(opened.manufacturing).some((issue) => issue.code === 'LIMIT' && issue.path.endsWith('holderStages')), true);
-});
-
-test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedynczy uchwyt v19', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [
-    { name: 'Lewa szczęka', enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], rotationDegrees: 30, clearance: 2 },
-    { name: 'Śruba', enabled: false, shape: 'cylinder', bounds: [[50, -5, 0], [55, 5, 15]], clearance: 1 },
-  ] });
-  const document = createDocument('Mocowanie CAM');
-  document.manufacturing.setups = [setup];
-  document.manufacturing.activeSetupId = setup.id;
-  const opened = openDocument(document);
-  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
-  assert.deepEqual(opened.document.manufacturing.setups[0].fixtures, setup.fixtures);
-  assert.equal(opened.document.manufacturing.setups[0].fixtures[1].shape, 'cylinder');
-  assert.deepEqual(validateManufacturing(opened.document.manufacturing), []);
-  assert.match(createManufacturingSetupSheet(setup, [camBox]).html, /obrót Z 30\.00°/);
-  const sameFixture = createManufacturingSetup({ bodyId: camBox.id, fixtures: setup.fixtures });
-  const sequence = { setups: [setup, sameFixture], activeSetupId: setup.id };
-  assert.equal(analyzeManufacturingSetupSequence(sequence, [camBox]).setups[1].requiresReclamp, false);
-  sameFixture.fixtures[0].shape = 'cylinder';
-  assert.equal(analyzeManufacturingSetupSequence(sequence, [camBox]).setups[1].requiresReclamp, true);
-  sameFixture.fixtures[0].shape = 'box';
-  sameFixture.fixtures[0].rotationDegrees = 31;
-  assert.equal(analyzeManufacturingSetupSequence(sequence, [camBox]).setups[1].requiresReclamp, true);
-  const legacy = createDocument('Mocowanie v19');
-  legacy.schemaVersion = 19;
-  legacy.manufacturing.setups = [{ ...setup, fixtures: undefined, fixture: { enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], clearance: 2 } }];
-  legacy.manufacturing.activeSetupId = setup.id;
-  const migrated = openDocument(legacy);
-  assert.equal(migrated.document.manufacturing.setups[0].fixtures.length, 1);
-  assert.equal(migrated.document.manufacturing.setups[0].fixtures[0].enabled, true);
-  assert.deepEqual(migrated.document.manufacturing.setups[0].fixtures[0].bounds, [[-5, -5, 0], [-2, 5, 15]]);
-  assert.equal(migrated.document.manufacturing.setups[0].fixtures[0].rotationDegrees, 0);
-  assert.equal(migrated.document.manufacturing.setups[0].fixtures[0].shape, 'box');
-  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 19 && entry.to === 20), true);
-  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 20 && entry.to === 21), true);
-  const v20 = createDocument('Mocowanie v20');
-  v20.schemaVersion = 20;
-  v20.manufacturing.setups = [{ ...setup, fixtures: [{ ...setup.fixtures[0], rotationDegrees: undefined }] }];
-  v20.manufacturing.activeSetupId = setup.id;
-  const upgraded = openDocument(v20);
-  assert.equal(upgraded.document.manufacturing.setups[0].fixtures[0].rotationDegrees, 0);
-  assert.equal(upgraded.document.manufacturing.setups[0].fixtures[0].shape, 'box');
-  assert.equal(upgraded.document.metadata.migrationHistory.some((entry) => entry.from === 21 && entry.to === 22), true);
-  assert.equal(upgraded.document.metadata.migrationHistory.some((entry) => entry.from === 20 && entry.to === 21), true);
-  assert.equal(createManufacturingSetup({ fixtures: [{ rotationDegrees: 390 }] }).fixtures[0].rotationDegrees, 30);
-  assert.equal(createManufacturingSetup({ fixtures: [{ rotationDegrees: 1e308 }] }).fixtures[0].rotationDegrees < 360, true);
-  assert.equal(createManufacturingSetup({ fixtures: [{ shape: 'cylinder' }] }).fixtures[0].shape, 'cylinder');
-  assert.equal(createManufacturingSetup({ fixtures: [{ shape: 'invalid' }] }).fixtures[0].shape, 'invalid');
-  const v21 = createDocument('Mocowanie v21');
-  v21.schemaVersion = 21;
-  v21.manufacturing.setups = [{ ...setup, fixtures: [{ ...setup.fixtures[0], shape: undefined }] }];
-  v21.manufacturing.activeSetupId = setup.id;
-  const upgradedV21 = openDocument(v21);
-  assert.equal(upgradedV21.document.manufacturing.setups[0].fixtures[0].shape, 'box');
-  assert.equal(upgradedV21.document.metadata.migrationHistory.some((entry) => entry.from === 21 && entry.to === 22), true);
-  assert.equal(upgradedV21.document.metadata.migrationHistory.some((entry) => entry.from === 22 && entry.to === 23), true);
-  const v22 = createDocument('Mocowanie v22');
-  v22.schemaVersion = 22;
-  v22.manufacturing.setups = [{ ...setup, fixtures: [{ ...setup.fixtures[0], bodyId: undefined }] }];
-  v22.manufacturing.activeSetupId = setup.id;
-  const upgradedV22 = openDocument(v22);
-  assert.equal(upgradedV22.document.manufacturing.setups[0].fixtures[0].bodyId, '');
-  assert.equal(upgradedV22.document.metadata.migrationHistory.some((entry) => entry.from === 22 && entry.to === 23), true);
-  const v23 = createDocument('Oprawka v23');
-  v23.schemaVersion = 23;
-  v23.manufacturing.tools = [{ id: 'tool-old-holder', name: 'Wiertło z v23', type: 'twist-drill', diameter: 5, fluteLength: 25, stickout: 35, holderDiameter: 13, flutes: 2 }];
-  const upgradedV23 = openDocument(v23);
-  assert.equal(upgradedV23.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
-  assert.equal(upgradedV23.document.metadata.migrationHistory.some((entry) => entry.from === 23 && entry.to === 24), true);
-  assert.equal(upgradedV23.document.manufacturing.tools[0].holderNeckDiameter, 13);
-  assert.equal(upgradedV23.document.manufacturing.tools[0].holderNeckLength, 0);
-  assert.deepEqual(validateManufacturing(upgradedV23.document.manufacturing), []);
-  upgradedV23.document.manufacturing.tools[0].holderNeckDiameter = 9;
-  upgradedV23.document.manufacturing.tools[0].holderNeckLength = 6;
-  const reopenedV24 = openDocument(JSON.parse(JSON.stringify(upgradedV23.document)));
-  assert.equal(reopenedV24.document.manufacturing.tools[0].holderNeckDiameter, 9);
-  assert.equal(reopenedV24.document.manufacturing.tools[0].holderNeckLength, 6);
-  assert.deepEqual(validateManufacturing(reopenedV24.document.manufacturing), []);
-  const v24 = createDocument('Frez własny v24');
-  v24.schemaVersion = 24;
-  v24.manufacturing.tools = [{ id: 'tool-custom-mill', name: 'Frez Ø6', type: 'flat-end-mill', diameter: 6, fluteLength: 20, stickout: 30, holderDiameter: 16, holderNeckDiameter: 10, holderNeckLength: 8, flutes: 4 }];
-  const upgradedV24 = openDocument(v24);
-  assert.equal(upgradedV24.document.metadata.migrationHistory.some((entry) => entry.from === 24 && entry.to === 25), true);
-  assert.equal(upgradedV24.document.manufacturing.tools[0].type, 'flat-end-mill');
-  assert.equal(upgradedV24.document.manufacturing.tools[0].holderNeckDiameter, 10);
-  const reopenedV25 = openDocument(JSON.parse(JSON.stringify(upgradedV24.document)));
-  assert.equal(reopenedV25.document.manufacturing.tools[0].type, 'flat-end-mill');
-  assert.equal(reopenedV25.document.manufacturing.tools[0].holderNeckLength, 8);
-  assert.deepEqual(reopenedV25.document.manufacturing.tools[0].holderStages, []);
-  assert.equal(upgradedV24.document.metadata.migrationHistory.some((entry) => entry.from === 25 && entry.to === 26), true);
-  const v25 = createDocument('Oprawka v25');
-  v25.schemaVersion = 25;
-  v25.manufacturing.tools = [{ id: 'tool-v25', name: 'Frez v25', type: 'flat-end-mill', diameter: 6,
-    fluteLength: 20, stickout: 30, holderDiameter: 16, holderNeckDiameter: 10, holderNeckLength: 8, flutes: 4 }];
-  const upgradedV25 = openDocument(v25);
-  assert.deepEqual(upgradedV25.document.manufacturing.tools[0].holderStages, []);
-  assert.equal(upgradedV25.document.metadata.migrationHistory.some((entry) => entry.from === 25 && entry.to === 26), true);
-  assert.deepEqual(validateManufacturing(reopenedV25.document.manufacturing), []);
-  const modeledFixture = createManufacturingSetup({ bodyId: camBox.id, fixtures: [{ shape: 'body', bodyId: 'jaw-body', enabled: true }] });
-  const modeledDocument = createDocument('Szczęka CAD');
-  modeledDocument.manufacturing.setups = [modeledFixture];
-  modeledDocument.manufacturing.activeSetupId = modeledFixture.id;
-  assert.equal(openDocument(JSON.parse(JSON.stringify(modeledDocument))).document.manufacturing.setups[0].fixtures[0].bodyId, 'jaw-body');
-  assert.equal(validateManufacturing(modeledDocument.manufacturing).length, 0);
-  modeledFixture.fixtures[0].bodyId = '';
-  assert.equal(validateManufacturing({ setups: [modeledFixture], activeSetupId: modeledFixture.id }).some((issue) => issue.path.endsWith('fixtures[0].bodyId')), true);
-  setup.fixtures[0].shape = 'unknown';
-  assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].shape')), true);
-  setup.fixtures[0].shape = 'box';
-  setup.fixtures[0].bounds = [[5, -5, 0], [-2, 5, 15]];
-  assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].bounds')), true);
-});
-
-test('raport kolejnych mocowań wymaga potwierdzenia WCS i ujawnia błędny Setup bez generowania ruchów sondy', () => {
-  const first = createManufacturingSetup({ name: 'Góra & detalu', bodyId: camBox.id, workOffset: 'G54', operations: [createFacingOperation()] });
-  const second = createManufacturingSetup({ name: 'Spód detalu', bodyId: camBox.id, workOffset: 'G55', wcsOrigin: 'stock-top-front-left', operations: [createFacingOperation()] });
-  const manufacturing = { setups: [first, second], activeSetupId: first.id };
-  const report = analyzeManufacturingSetupSequence(manufacturing, [camBox]);
-  assert.equal(report.valid, true);
-  assert.equal(report.operationCount, 2);
-  assert.equal(report.setups[1].workOffset, 'G55');
-  assert.match(report.setups[1].instructions.join(' '), /Zmierz i potwierdź zero G55/);
-  const sheet = createManufacturingSequenceSheet(manufacturing, [camBox], { projectName: 'Korpus <test>' });
-  assert.match(sheet.html, /Góra &amp; detalu/);
-  assert.match(sheet.html, /Korpus &lt;test&gt;/);
-  assert.match(sheet.html, /nie generuje ruchów sondy/);
-  assert.equal(translateModelingText('Kolejne mocowania · 2 Setupy', 'en'), 'Setup sequence · 2 Setups');
-  assert.equal(translateModelingText('Zmierz zero WCS · 2 operacji', 'en'), 'Measure WCS zero · 2 operations');
-
-  second.workOffset = 'G54';
-  assert.equal(analyzeManufacturingSetupSequence(manufacturing, [camBox]).setups[1].offsetReusedAtDifferentZero, true);
-  const third = createManufacturingSetup({ name: 'Powrót na G54', bodyId: camBox.id, workOffset: 'G54', wcsOrigin: 'stock-top-front-left', operations: [createFacingOperation()] });
-  second.workOffset = 'G55';
-  manufacturing.setups.push(third);
-  assert.equal(analyzeManufacturingSetupSequence(manufacturing, [camBox]).setups[2].offsetReusedAtDifferentZero, true);
-  manufacturing.setups.pop();
-  second.fixtures = [{ name: 'Kolizyjna szczęka', enabled: true, bounds: [[-10, -10, 5], [50, 30, 25]], clearance: 1 }];
-  const unsafe = analyzeManufacturingSetupSequence(manufacturing, [camBox]);
-  assert.equal(unsafe.valid, false);
-  assert.ok(unsafe.setups[1].issues.some((issue) => issue.includes('Kolizyjna szczęka')));
-  assert.match(createManufacturingSequenceSheet(manufacturing, [camBox]).html, /WYMAGA POPRAWY/);
-});
-
-test('CAM generuje skompensowane cięcie laserowe i plazmowe z kontrolą zgodności maszyny', () => {
-  const laserSetup = createManufacturingSetup({ bodyId: camBox.id, machineId: 'laser-600' });
-  const laserOperation = createCut2dOperation({ kerfWidth: 0.2, leadIn: 3, passes: 2, powerPercent: 70 });
-  laserSetup.operations.push(laserOperation);
-  const laserPath = calculateCut2dToolpath(laserSetup, laserOperation, [camBox]);
-  assert.equal(laserPath.valid, true);
-  assert.equal(laserPath.layerCount, 2);
-  assert.equal(laserPath.segments.filter((segment) => segment.kind === 'cut').length, 10);
-  const laser = createMachineGcode(laserSetup, laserOperation, [camBox]);
-  assert.equal(laser.postProcessor, 'grbl-laser');
-  assert.match(laser.text, /G0 Z[^\n]+\nG0 X[^\n]+ Y[^\n]+\nG0 X/);
-  assert.match(laser.text, /M4 S700/);
-  assert.match(laser.text, /\nM5\n/);
-  const mismatched = createCut2dOperation({ postProcessorId: 'linuxcnc-plasma' });
-  assert.match(calculateCut2dToolpath(laserSetup, mismatched, [camBox]).warnings.join(' '), /GRBL Laser/);
-  const plasmaSetup = createManufacturingSetup({ bodyId: camBox.id, machineId: 'plasma-1250' });
-  const plasmaOperation = createCut2dOperation({ postProcessorId: 'linuxcnc-plasma' });
-  const plasma = createMachineGcode(plasmaSetup, plasmaOperation, [camBox]);
-  assert.match(plasma.text, /^%\n/);
-  assert.match(plasma.text, /\nM3\nG4 P0\.5\n/);
-  assert.match(plasma.text, /\nM2\n%/);
-});
-
-test('CAM tokarki planuje czoło i średnicę zewnętrzną w układzie X/Z', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id, machineId: 'lathe-300' });
-  const facing = createTurningOperation('turn-face', { stockDiameter: 24, targetDiameter: 20, axialLength: 40, maxDepthOfCut: 1 });
-  const profile = createTurningOperation('turn-profile', { stockDiameter: 24, targetDiameter: 20, axialLength: 30, maxDepthOfCut: 1, feedRate: 0.25 });
-  setup.operations.push(facing, profile);
-  const facePath = calculateTurningToolpath(setup, facing, [camBox]);
-  const profilePath = calculateTurningToolpath(setup, profile, [camBox]);
-  assert.equal(facePath.valid, true);
-  assert.equal(facePath.passCount, 2);
-  assert.equal(profilePath.valid, true);
-  assert.equal(profilePath.passCount, 2);
-  assert.deepEqual(analyzeToolpathSafety(facePath), []);
-  assert.deepEqual(analyzeToolpathSafety(profilePath), []);
-  const unsafeRapid = { ...profilePath, segments: [{ kind: 'rapid', from: profilePath.segments[0].from,
-    to: [profilePath.stockBounds[1][0] - 2, profilePath.origin[1], profilePath.origin[2]] }] };
-  assert.equal(analyzeToolpathSafety(unsafeRapid).some((issue) => issue.code === 'RAPID_IN_TURNING_STOCK'), true);
-  assert.deepEqual(validateManufacturing({ setups: [setup], activeSetupId: setup.id }), []);
-  const output = createMachineGcode(setup, profile, [camBox]);
-  assert.equal(output.postProcessor, 'linuxcnc-turn');
-  assert.match(output.text, /\nG18\nG95\n/);
-  assert.match(output.text, /G0 X34\nG0 Z2\nG0 X34\nS1200 M3/);
-  assert.match(output.text, /G1 X20 Z-30/);
-  assert.match(output.text, /G1 X20 Z-30\nG1 X20 Z1\nG0 X34 Z1/);
-  assert.match(output.text, /\nM5\nM2\n%/);
-  const fullProgram = createManufacturingProgramGcode(setup, [camBox]);
-  assert.equal(fullProgram.operationCount, 2);
-  assert.equal((fullProgram.text.match(/G0 X34\nG0 Z2\nG0 X34\nS1200 M3/g) || []).length, 2);
-  const smallerProfile = createTurningOperation('turn-profile', { stockDiameter: 20, targetDiameter: 18, axialLength: 30 });
-  assert.match(createMachineGcode({ ...setup, operations: [facing, smallerProfile] }, smallerProfile, [camBox]).text, /G0 X34\nG0 Z2\nG0 X30\nS1200 M3/);
-  const oversized = createTurningOperation('turn-profile', { stockDiameter: 298, targetDiameter: 280, axialLength: 30 });
-  assert.match(calculateTurningToolpath(setup, oversized, [camBox]).warnings.join(' '), /Bezpieczna średnica przejazdu/);
-  assert.throws(() => createMachineGcode(setup, oversized, [camBox]), /Bezpieczna średnica przejazdu/);
 });
 
 test('wyszukiwarka pokazuje polskie opisy typów, a nadal znajduje po nazwie technicznej', () => {
@@ -6924,4 +5785,128 @@ test('wymiar między punktami przyciąga wierzchołki widoku i mierzy w jednostk
   const broken = annotationIssues(validateDocument(document)).map((issue) => issue.path);
   assert.ok(broken.some((path) => path.endsWith('.points')) && broken.some((path) => path.endsWith('.axis')));
   assert.throws(() => createPointDrawingDimension({ viewId: view.id, points: [[0, 0]] }), /dwóch punktów/);
+});
+
+test('sketch dimension annotations sit outside the sketch with the driving value', () => {
+  const point = (id, x, y) => ({ id, type: 'point', geometry: { x, y } });
+  const sketch = {
+    entities: [
+      point('a', 0, 0), point('b', 80, 0), point('c', 80, 50), point('d', 0, 50),
+      { id: 'bottom', type: 'line', pointIds: ['a', 'b'] },
+      { id: 'right', type: 'line', pointIds: ['b', 'c'] },
+      { id: 'center', type: 'point', geometry: { x: 40, y: 25 } },
+      { id: 'hole', type: 'circle', pointIds: ['center'], geometry: { radius: 'r' } },
+    ],
+    constraints: [
+      { id: 'k1', type: 'distance', value: '80' },
+      { id: 'k2', type: 'distance', value: 'h' },
+      { id: 'k3', type: 'diameter', value: '2 * r' },
+    ],
+    dimensions: [
+      { id: 'd1', type: 'aligned', entityIds: ['bottom'], constraintId: 'k1' },
+      { id: 'd2', type: 'vertical', entityIds: ['b', 'c'], constraintId: 'k2' },
+      { id: 'd3', type: 'diameter', entityIds: ['hole'], constraintId: 'k3' },
+    ],
+  };
+  const parameters = [{ name: 'h', expression: '50' }, { name: 'r', expression: '5' }];
+  const [bottom, right, hole] = sketchDimensionAnnotations(sketch, parameters, { offset: 10, arrow: 3 });
+  assert.equal(bottom.text, '80');
+  assert.ok(bottom.label[1] < 0, 'bottom edge dimension goes below the sketch');
+  assert.ok(bottom.segments.some(([start, end]) => start[1] === -10 && end[1] === -10 && Math.abs(end[0] - start[0]) === 80));
+  assert.equal(right.text, 'fx: 50');
+  assert.ok(right.label[0] > 80, 'right edge dimension goes to the right');
+  assert.equal(hole.text, 'fx: Ø10');
+  assert.equal(hole.constraintId, 'k3');
+  assert.equal(formatDimensionValue(12.345), '12.35');
+  assert.deepEqual(sketchDimensionAnnotations({ entities: [], dimensions: [] }), []);
+});
+
+test('migracja v27 → v28 archiwizuje usunięte dane renderu, animacji i ruchu bez utraty modelu', () => {
+  const legacy = createDocument('Projekt v27');
+  legacy.schemaVersion = 27;
+  legacy.renderScene = { preset: 'daylight', background: '#b9cad8', ambientIntensity: 2.2, keyIntensity: 3.8, fillIntensity: 1.1, keyAzimuth: 155, keyElevation: 62, exposure: 1.05, shadows: true, ground: true, decals: [] };
+  legacy.animationStoryboards = [{ id: 'storyboard-a', name: 'Montaż', duration: 4, keyframes: [] }];
+  legacy.motionLinks = [{ id: 'motion-link-a', name: 'Przełożenie', sourceJointId: 'j1', targetJointId: 'j2', ratio: 2, offset: 0, enabled: true }];
+  legacy.contactSets = [];
+  const sketchCount = legacy.sketches.length;
+  const opened = openDocument(structuredClone(legacy), { now: '2026-10-02T12:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
+  for (const key of ['renderScene', 'animationStoryboards', 'motionLinks', 'contactSets']) assert.equal(opened.document[key], undefined);
+  assert.deepEqual(opened.document.legacyRemovedFeatures, {
+    renderScene: legacy.renderScene,
+    animationStoryboards: legacy.animationStoryboards,
+    motionLinks: legacy.motionLinks,
+  });
+  assert.equal(opened.document.sketches.length, sketchCount);
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 27 && entry.to === 28));
+  const reopened = openDocument(JSON.parse(JSON.stringify(opened.document)));
+  assert.deepEqual(reopened.document.legacyRemovedFeatures, opened.document.legacyRemovedFeatures);
+  const plain = createDocument('Domyślny v27');
+  plain.schemaVersion = 27;
+  plain.renderScene = { ...legacy.renderScene, preset: 'studio', background: '#202936', ambientIntensity: 1.8, keyIntensity: 3.1, fillIntensity: 0.9, keyAzimuth: 135, keyElevation: 52, exposure: 1, decals: [] };
+  plain.animationStoryboards = [];
+  plain.motionLinks = [];
+  plain.contactSets = [];
+  assert.equal(openDocument(plain).document.legacyRemovedFeatures, undefined);
+});
+
+test('jednostronne wyciągnięcie przyjmuje ujemną odległość jako przeciwny kierunek', () => {
+  const document = createStarterDocument();
+  document.features[0].distance = '-8';
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(prepareDocument(document).features[0].distanceValue, -8);
+  const zero = createStarterDocument();
+  zero.features[0].distance = '0';
+  const preparedZero = (() => { try { return prepareDocument(zero).features[0]; } catch (error) { return { status: 'error', error: error.message }; } })();
+  assert.notEqual(preparedZero.status, 'ready');
+  const symmetric = createStarterDocument();
+  symmetric.features[0].distance = '-8';
+  symmetric.features[0].extent = 'symmetric';
+  const preparedSymmetric = (() => { try { return prepareDocument(symmetric).features[0]; } catch (error) { return { status: 'error', error: error.message }; } })();
+  assert.notEqual(preparedSymmetric.status, 'ready');
+});
+
+test('arkusz używa rzutu z usuwaniem linii ukrytych i rysuje je przerywaną linią', () => {
+  const body = {
+    id: 'body-hlr',
+    lines: new Float32Array([0, 0, 0, 10, 0, 0]),
+    metrics: { bounds: [[0, 0, 0], [10, 10, 10]] },
+    drawingProjections: {
+      front: {
+        visible: [[[0, 0], [10, 0]], [[10, 0], [10, -10]], [[10, -10], [0, -10]], [[0, -10], [0, 0]]],
+        hidden: [[[3, 0], [3, -5]], [[3, -5], [7, -5]]],
+      },
+    },
+  };
+  const projection = projectDrawingView({ orientation: 'front', bodyIds: [body.id] }, [body]);
+  assert.equal(projection.segments.length, 4);
+  assert.equal(projection.hiddenSegments.length, 2);
+  // Without a kernel projection for the orientation, every tessellation edge is drawn as visible.
+  const fallback = projectDrawingView({ orientation: 'top', bodyIds: [body.id] }, [body]);
+  assert.deepEqual(fallback.hiddenSegments, []);
+  const sheet = createDrawingSheet();
+  sheet.views.push(createBaseDrawingView({ bodyIds: [body.id], orientation: 'front', scale: 1, sheet }));
+  assert.equal(drawingSheetScene(sheet, [body]).views[0].hiddenSegments.length, 2);
+  assert.match(drawingSheetHtml(sheet, [body]), /class="hidden"/);
+  const hiddenDxf = drawingSheetDxf(sheet, [body]);
+  assert.match(hiddenDxf, /\n\$ACADVER\n1\nAC1009\n/);
+  assert.match(hiddenDxf, /\n8\nHIDDEN\n/);
+  assert.match(hiddenDxf, /0\nLTYPE\n2\nDASHED\n/);
+  assert.match(hiddenDxf, /0\nLAYER\n2\nHIDDEN\n70\n0\n62\n7\n6\nDASHED\n/);
+  const reimported = parseSketchImport(hiddenDxf, 'dxf');
+  assert.equal(reimported.layers.find((layer) => layer.name === 'HIDDEN')?.lineType, 'dashed');
+  // A hidden back edge under a visible edge split into pieces is not drawn twice.
+  const kept = removeHiddenOverlaps([[[0, 0], [0, -6]], [[0, -6], [0, -10]]], [[[0, 0], [0, -10]], [[2, 0], [2, -10]]]);
+  assert.deepEqual(kept, [[[2, 0], [2, -10]]]);
+  const partial = removeHiddenOverlaps([[[2, 0], [4, 0]]], [[[0, 0], [8, 0]]]);
+  assert.deepEqual(partial, [[[0, 0], [2, 0]], [[4, 0], [8, 0]]]);
+  const sparse = Array.from({ length: 9 }, (_, i) => [[Math.max(0, i - 0.01), 0], [Math.min(8, i + 0.01), 0]]);
+  const gaps = removeHiddenOverlaps(sparse, [[[0, 0], [8, 0]]]);
+  assert.equal(gaps.length, 8);
+  assert.ok(gaps.reduce((sum, [a, b]) => sum + Math.hypot(b[0] - a[0], b[1] - a[1]), 0) > 7.8);
+  // Isometric views look from the front-right-top corner: +X goes right, +Y goes back (up), +Z up.
+  const iso = projectDrawingView({ orientation: 'isometric' }, [{ id: 'axes', lines: new Float32Array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0]) }]);
+  const [xAxis, yAxis] = iso.segments.map(([start, end]) => [end[0] - start[0], end[1] - start[1]]);
+  assert.ok(xAxis[0] > 0 && xAxis[1] > 0, 'X goes right and down on the sheet');
+  assert.ok(yAxis[0] > 0 && yAxis[1] < 0, 'Y goes right and up on the sheet');
 });

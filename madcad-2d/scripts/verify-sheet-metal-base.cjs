@@ -30,7 +30,7 @@ async function clickTool(window, label) {
 
 async function selectWorkspace(window, value) {
   await window.webContents.executeJavaScript(`(() => {
-    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' };
+    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', tools: 'ZARZĄDZAJ' };
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === labels[${JSON.stringify(value)}]);
     if (!button) throw new Error('Brak głównego obszaru programu.');
     button.click();
@@ -63,7 +63,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.plane-options')`, 'wybór płaszczyzny');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.plane-options button')].find((button) => button.textContent.includes('XY')).click()`);
     await clickTool(window, 'Prostokąt');
-    await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([0, 0])`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([-20, -12])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.gesturePoints === 1`, 'środek prostokąta');
     await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([20, 12])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.profiles === 1`, 'zamknięty profil');

@@ -26,6 +26,7 @@ import {
   makeCylinder,
   makeLine,
   makeOffset,
+  makeProjectedEdges,
   makePolygon,
   makeSolid,
   makeSphere,
@@ -35,14 +36,17 @@ import {
   measureShapeVolumeProperties,
   setOC,
   setManifold,
+  ProjectionCamera,
 } from 'replicad';
 import { FEATURE_STATUS, prepareDocument, resolveOpenChainProfile } from './evaluator.js';
 import { evaluateFeatureHistoryCooperatively } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
+import { DRAWING_PROJECTION_CAMERAS, removeHiddenOverlaps } from './drawing-sheets.js';
+import { drawingProjectionGroupKey, uniqueDrawingSegments } from './drawing-projections.js';
+import { kernelDrawingCurveSegments, projectExactSections } from './drawing-sections.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
-import { calculatePrintLayout, normalizePrintLayout } from './print-layout.js';
 import { createThreeMfArchive } from './three-mf.js';
 import { boundsOverlap } from './geometry-inspection.js';
 import { parseStlMesh } from './model-import.js';
@@ -639,6 +643,7 @@ function extrusionSpan(feature, bodyMap) {
   if (feature.extent === 'two-sides') return { startDelta: startOffset - feature.secondDistanceValue, distance: feature.distanceValue + feature.secondDistanceValue };
   if (feature.extent === 'symmetric') return { startDelta: startOffset - feature.distanceValue / 2, distance: feature.distanceValue };
   if (feature.extent === 'through-all') return { startDelta: startOffset - THROUGH_ALL_DISTANCE / 2, distance: THROUGH_ALL_DISTANCE };
+  if (feature.distanceValue < 0) return { startDelta: startOffset + feature.distanceValue, distance: -feature.distanceValue };
   return { startDelta: startOffset, distance: feature.distanceValue };
 }
 
@@ -775,7 +780,7 @@ function pathSpine(path) {
         else if (segment.type === 'bspline3d') edges.push(makeExactBSplineEdge(segment.bspline, segment.reversed));
         else edges.push(makeLine(segment.start, segment.end));
       } catch (error) {
-        throw new Error(`Nie udało się utworzyć krzywej ${segment.type} (${segment.id}): ${error.message || error}`);
+        throw new Error(`Nie udało się utworzyć krzywej (${segment.type}): ${error.message || error}`);
       }
     }
     const wire = assembleWire(edges);
@@ -3060,19 +3065,69 @@ async function validateExportRoundTrip(kernelBodies, blobs, format) {
   return results;
 }
 
-function preparePrintBodies(kernelBodies, renderBodies, print) {
-  if (kernelBodies.some((body) => body.bodyKind === 'surface')) throw new Error('Druk 3D wymaga bryły zamkniętej. Użyj Pogrub na każdej powierzchni przed przejściem do WYTWARZAJ.');
-  const layoutResult = calculatePrintLayout(renderBodies, print);
-  const layout = normalizePrintLayout(print);
-  return layoutResult.instances.flatMap(({ index, offsetX }) => kernelBodies.map((body) => {
-    let shape = body.shape.clone().scale(layout.scale, [0, 0, 0]);
-    if (Math.abs(layout.orientationAngle) > 1e-9) shape = shape.rotate(layout.orientationAngle, [0, 0, 0], layout.orientationAxis);
-    if (Math.abs(layout.rotationX) > 1e-9) shape = shape.rotate(layout.rotationX, [0, 0, 0], [1, 0, 0]);
-    if (Math.abs(layout.rotationY) > 1e-9) shape = shape.rotate(layout.rotationY, [0, 0, 0], [0, 1, 0]);
-    if (Math.abs(layout.rotationZ) > 1e-9) shape = shape.rotate(layout.rotationZ, [0, 0, 0], [0, 0, 1]);
-    shape = shape.translate(layout.positionX + offsetX, layout.positionY, layout.positionZ);
-    return { ...body, id: `${body.id}-print-${index + 1}`, shape };
-  }));
+// Hidden-line removal for 2D drawing views: visible and hidden edges per body and orientation,
+// as 2D segments in the drawing's view coordinates. Mesh imports keep the tessellation fallback.
+function projectEdgesToSegments(edges, scale, tolerance) {
+  const segments = [];
+  for (const edge of edges) {
+    try {
+      const flattened = kernelDrawingCurveSegments(edge, (point) => [point[0] * scale, -point[1] * scale], tolerance, scale);
+      if (!flattened.length) continue;
+      const points = [flattened[0][0], ...flattened.map((segment) => segment[1])];
+      // A curve seen edge-on (e.g. a fillet arc from the side) projects to a straight line: keep one segment.
+      const [start, end] = [points[0], points.at(-1)];
+      const chord = Math.hypot(end[0] - start[0], end[1] - start[1]);
+      const straight = chord > 1e-9 && points.every((point) => Math.abs(((end[0] - start[0]) * (point[1] - start[1])) - ((end[1] - start[1]) * (point[0] - start[0]))) / chord <= tolerance / 4);
+      const path = straight ? [start, end] : points;
+      for (let index = 1; index < path.length; index += 1) {
+        if (Math.hypot(path[index][0] - path[index - 1][0], path[index][1] - path[index - 1][1]) > 1e-9) segments.push([path[index - 1], path[index]]);
+      }
+    } finally {
+      edge.delete?.();
+    }
+  }
+  return segments;
+}
+
+function projectDrawingBodies(kernelBodies, orientations = [], groups = [], tolerance = 0.001) {
+  const projections = {};
+  const compounds = [];
+  const sources = [...kernelBodies];
+  try {
+    for (const ids of groups) {
+      const selected = kernelBodies.filter((body) => ids.includes(body.id));
+      if (selected.length < 2 || selected.some((body) => !body.shape || body.representation === 'mesh-import')) continue;
+      // compoundShapes consumes its inputs; never hand it the revision cache's shapes.
+      const shape = compoundShapes(selected.map((body) => body.shape.clone()));
+      compounds.push(shape);
+      sources.push({ id: drawingProjectionGroupKey(selected.map((body) => body.id)), shape, group: true });
+    }
+    for (const body of sources) {
+      if (!body?.shape || body.representation === 'mesh-import') continue;
+      for (const orientation of orientations) {
+        const settings = DRAWING_PROJECTION_CAMERAS[orientation];
+        if (!settings) continue;
+        // The kernel's projection axis points at the viewer, so it is the opposite of the view
+        // direction; that flips the 2D Y axis, undone in projectEdgesToSegments.
+        const camera = new ProjectionCamera([0, 0, 0], settings.direction.map((value) => -value), settings.xAxis);
+        try {
+          const { visible, hidden } = makeProjectedEdges(body.shape, camera);
+          const target = body.group ? (projections.__groups ||= {}) : projections;
+          target[body.id] = target[body.id] || {};
+          const visibleSegments = uniqueDrawingSegments(projectEdgesToSegments(visible, settings.scale, tolerance));
+          target[body.id][orientation] = {
+            visible: visibleSegments,
+            hidden: uniqueDrawingSegments(removeHiddenOverlaps(visibleSegments, projectEdgesToSegments(hidden, settings.scale, tolerance))),
+          };
+        } finally {
+          camera.delete?.();
+        }
+      }
+    }
+  } finally {
+    compounds.forEach((shape) => shape.delete?.());
+  }
+  return projections;
 }
 
 async function exportBodies(kernelBodies, format, validateRoundTrip = false) {
@@ -3130,6 +3185,23 @@ async function handleMessage(data) {
     self.postMessage({ id, ok: true, type, result: { revision, analysis: evaluated.analysis, performance: evaluated.performance } });
     return;
   }
+  if (type === 'project-drawing') {
+    const evaluated = await resolveRevision(document, revision, 'display');
+    const cache = evaluated.drawingProjectionCache ||= new Map();
+    const tolerance = data.tolerance ?? 0.001;
+    if (!Number.isFinite(tolerance) || tolerance <= 0) throw new Error('Nieprawidłowa tolerancja rysunku.');
+    const key = JSON.stringify([data.orientations || [], data.groups || [], data.sections || [], tolerance]);
+    let projections = cache.get(key);
+    if (!projections) {
+      projections = projectDrawingBodies(evaluated.kernelBodies, data.orientations, data.groups, tolerance);
+      projections.__sections = projectExactSections(evaluated.kernelBodies, data.sections || [], tolerance);
+      cache.set(key, projections);
+      // Bound variants of body selections; this cache dies with the model revision.
+      if (cache.size > 4) cache.delete(cache.keys().next().value);
+    }
+    self.postMessage({ id, ok: true, type, result: { revision, projections } });
+    return;
+  }
   if (type === 'project-to-surface') {
     const evaluated = await resolveRevision(document, revision, 'display');
     const descriptor = projectPointsToSurface(evaluated, data.projection);
@@ -3138,13 +3210,8 @@ async function handleMessage(data) {
   }
   if (type === 'export') {
     const evaluated = await resolveRevision(document, revision, 'display');
-    const printBodies = preparePrintBodies(evaluated.kernelBodies, evaluated.renderBodies, document.print);
-    try {
-      const exported = await exportBodies(printBodies, format, validateRoundTrip);
-      self.postMessage({ id, ok: true, type, result: { format, revision, ...exported } }, exported.buffers);
-    } finally {
-      printBodies.forEach((body) => body.shape.delete?.());
-    }
+    const exported = await exportBodies(evaluated.kernelBodies, format, validateRoundTrip);
+    self.postMessage({ id, ok: true, type, result: { format, revision, ...exported } }, exported.buffers);
     return;
   }
   if (type === 'export-document') {

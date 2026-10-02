@@ -1,6 +1,6 @@
-# MadCAD — pierwsza część do druku / Your first printable part
+# MadCAD — pierwszy projekt CAD / Your first CAD project
 
-Aktualne dla `6.5.28`. Interaktywną wersję otwiera przycisk **Samouczek** w menu **Pomoc**.
+Aktualne dla `6.5.29`. Interaktywną wersję otwiera przycisk **Samouczek** w menu **Pomoc**.
 
 ## Ścieżka PL
 
@@ -10,8 +10,8 @@ Aktualne dla `6.5.28`. Interaktywną wersję otwiera przycisk **Samouczek** w me
 4. Zakończ szkic, zaznacz profil i wykonaj Wyciągnięcie.
 5. Zaznacz górną płaską ścianę i dwie krawędzie; dodaj otwór z odsunięciami.
 6. Sprawdź część narzędziami Zmierz, Masa i Analiza.
-7. W Druk 3D wybierz drukarkę, połóż płaską ścianę na stole i uruchom analizę.
-8. Zapisz `.madcad`, otwórz go ponownie i wyeksportuj 3MF albo STL w skali 1:1.
+7. Zmień wymiar szkicu, sprawdź przebudowę bryły oraz Cofnij/Ponów.
+8. Zapisz `.madcad`, otwórz go ponownie i wyeksportuj dokładną bryłę STEP albo rysunek DXF.
 
 ## English path
 
@@ -21,15 +21,13 @@ Aktualne dla `6.5.28`. Interaktywną wersję otwiera przycisk **Samouczek** w me
 4. Finish the sketch, select its profile, and Extrude it.
 5. Select the top planar face and two edges; add a hole with parametric offsets.
 6. Check the part with Measure, Mass, and Analysis.
-7. In 3D Print, choose a printer, place a planar face on the bed, and run analysis.
-8. Save and reopen `.madcad`, then export full-scale 3MF or STL.
+7. Edit a sketch dimension, check the rebuilt solid, and verify Undo/Redo.
+8. Save and reopen `.madcad`, then export an exact STEP solid or DXF drawing.
 
 ## Znane ograniczenia / Known limitations
 
 - DWG jest konwertowany lokalnie do DXF przez zainstalowany GNU LibreDWG lub ODA File Converter; złożone obiekty niestandardowe mogą zostać pominięte przez wybrany konwerter.
 - STEP zachowuje dokładną geometrię B-Rep. STL/3MF wczytują się jako natywne siatki do pomiaru, transformacji i eksportu; narzędzia ścian i krawędzi wymagają B-Rep.
-- Analiza drukowalności opisuje ryzyko, a nie gwarancję wydruku.
-- Przekazanie do slicera wymaga zainstalowanego Bambu Studio, PrusaSlicer albo Cura.
 - Złożona zmiana historii może wymagać ręcznej naprawy referencji B-Rep.
 
 MadCAD jest publikowany dla Windows x64, macOS Apple Silicon i Linux x64 (AppImage). Każda paczka ma sumę SHA-256.

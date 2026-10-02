@@ -21,7 +21,6 @@ import {
   History,
   Layers3,
   Link2,
-  Magnet,
   Minus,
   Network,
   PanelLeftClose,
@@ -30,7 +29,6 @@ import {
   Search,
   Settings2,
   ShieldCheck,
-  Sun,
   Square,
   Trash2,
   X,
@@ -78,7 +76,7 @@ export function CrashRecoveryBanner({ info, onSave, onOpenSnapshots, onDismiss, 
   );
 }
 
-export function ProjectDashboard({ document, bodyCount, health, snapshotCount, onOpenParameters, onOpenSnapshots, onOpenComparison, onOpenHealth, onOpenDependencies, onOpenComponents, onCreatePart, onCreateAssembly, onOpenNamedViews, onOpenRenderScene, readOnly = false, onBack }) {
+export function ProjectDashboard({ document, bodyCount, health, snapshotCount, onOpenParameters, onOpenSnapshots, onOpenComparison, onOpenHealth, onOpenDependencies, onOpenComponents, onCreatePart, onCreateAssembly, onOpenNamedViews, readOnly = false, onBack }) {
   const counts = health?.counts || {};
   const healthLabel = health?.status === 'critical' ? 'Wymaga działania' : health?.status === 'warning' ? 'Wymaga uwagi' : 'Projekt zdrowy';
   const issueCount = (counts.critical || 0) + (counts.warning || 0);
@@ -92,7 +90,6 @@ export function ProjectDashboard({ document, bodyCount, health, snapshotCount, o
       ['projectHealthBtn', ShieldCheck, 'Kondycja projektu', issueCount ? `${issueCount} elementów do sprawdzenia` : 'Brak wykrytych problemów', onOpenHealth],
       ['projectDependenciesBtn', Network, 'Gdzie używane', 'Referencje i zależności obiektów', onOpenDependencies],
       ['projectNamedViewsBtn', Eye, 'Zapisane widoki', 'Pozycje kamery zapisane w projekcie', onOpenNamedViews],
-      ['projectRenderSceneBtn', Sun, 'Scena i render', 'Światło, tło, cienie i zapis PNG', onOpenRenderScene],
     ]],
     ['STRUKTURA', [
       ['projectComponentsBtn', Boxes, 'Komponenty', `${document.components.length} komponentów`, onOpenComponents],
@@ -350,8 +347,8 @@ export function ProjectSearchPalette({ index = [], language = 'pl', commands = [
   );
 }
 
-export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onToggleSketchVisibility = () => {}, onToggleBodyVisibility = () => {}, onClose }) {
-  const [expanded, setExpanded] = useState({ origin: false, construction: false, components: false, joints: false, motionLinks: false, contactSets: false, configurations: false, sketches: true, surfaces: true, bodies: true });
+export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onToggleSketchVisibility = () => {}, onToggleBodyVisibility = () => {}, onEditSketch = () => {}, onClose }) {
+  const [expanded, setExpanded] = useState({ origin: false, construction: false, components: false, joints: false, configurations: false, sketches: true, surfaces: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis', 'construction-point'].includes(reference.kind));
   const componentRoots = componentInstanceTree(document);
@@ -432,16 +429,6 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
       </button>
       {expanded.joints && document.joints.map((joint) => <button className={`tree-row tree-joint ${selection?.kind === 'joint' && selection.id === joint.id ? 'selected' : ''}`} type="button" key={joint.id} title={`${joint.type} · oś ${joint.axis.toUpperCase()} · ${joint.value}`} onClick={() => onSelect({ kind: 'joint', id: joint.id, movingInstanceId: joint.movingInstanceId })}><span /><Link2 size={13} /><span>{joint.name}</span><small>{joint.type === 'rigid' ? 'LOCK' : joint.value}</small></button>)}</>}
 
-      {!!document.motionLinks?.length && <><button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj powiązania ruchu." onClick={() => toggle('motionLinks')}>
-        {expanded.motionLinks ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<GitCompareArrows size={14} /><span>Motion Links</span><small>{document.motionLinks?.length || 0}</small>
-      </button>
-      {expanded.motionLinks && document.motionLinks.map((link) => <button className={`tree-row tree-motion-link ${selection?.kind === 'motionLink' && selection.id === link.id ? 'selected' : ''}`} type="button" key={link.id} title={`${link.ratio}× ${link.offset ? `· offset ${link.offset}` : ''}`} onClick={() => onSelect({ kind: 'motionLink', id: link.id })}><span /><GitCompareArrows size={13} /><span>{link.name}</span><small>{link.ratio}×</small></button>)}</>}
-
-      {!!document.contactSets?.length && <><button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj monitorowane pary kontaktowe." onClick={() => toggle('contactSets')}>
-        {expanded.contactSets ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Magnet size={14} /><span>Contact Sets</span><small>{document.contactSets?.length || 0}</small>
-      </button>
-      {expanded.contactSets && document.contactSets.map((contactSet) => <button className={`tree-row tree-contact-set ${selection?.kind === 'contactSet' && selection.id === contactSet.id ? 'selected' : ''}`} type="button" key={contactSet.id} title={contactSet.enabled ? 'Monitorowanie kontaktu aktywne' : 'Monitorowanie kontaktu wyłączone'} onClick={() => onSelect({ kind: 'contactSet', id: contactSet.id })}><span /><Magnet size={13} /><span>{contactSet.name}</span><small>{contactSet.enabled ? 'ON' : 'OFF'}</small></button>)}</>}
-
       {!!document.assemblyConfigurations?.length && <><button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj konfiguracje złożenia." onClick={() => toggle('configurations')}>
         {expanded.configurations ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Save size={14} /><span>Konfiguracje</span><small>{document.assemblyConfigurations?.length || 0}</small>
       </button>
@@ -456,8 +443,9 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
           <button
             className={`tree-row tree-grandchild ${selection?.kind === 'sketch' && selection.id === sketch.id ? 'selected' : ''} ${activeSketchId === sketch.id ? 'editing' : ''} ${sketch.visible === false ? 'hidden-object' : ''}`}
             type="button"
-            title={`Zaznacz ${sketch.name}; użyj Edytuj, aby wrócić do szkicu.`}
+            title={`Zaznacz ${sketch.name}; kliknij dwukrotnie albo użyj Edytuj, aby wrócić do szkicu.`}
             onClick={() => onSelect({ kind: 'sketch', id: sketch.id })}
+            onDoubleClick={() => onEditSketch(sketch.id)}
           >
             <span /><PencilRuler size={13} /><span>{sketch.name}</span><small>{sketch.space === '3d' ? '3D' : sketch.frame ? 'UCS' : sketch.plane}</small>
           </button>
@@ -517,7 +505,7 @@ export function StartPage({ commandCustomization = null }) {
               <li><span>1</span><div><PencilRuler size={18} /><strong>Szkic 2D</strong><small>Linie, łuki, snap, trim, offset, więzy i wymiary.</small></div></li>
               <li><span>2A</span><div><FileBox size={18} /><strong>Arkusz techniczny 2D</strong><small>Widoki, wymiary oraz zapis do PDF lub DXF.</small></div></li>
               <li><span>2B</span><div><Layers3 size={18} /><strong>Model parametryczny 3D</strong><small>Wyciągnięcia, operacje bryłowe i edytowalna historia.</small></div></li>
-              <li><span>3</span><div><Box size={18} /><strong>Opcjonalnie: druk 3D</strong><small>Osobne przygotowanie modelu i przekazanie do slicera.</small></div></li>
+              <li><span>3</span><div><Box size={18} /><strong>Zapis i wymiana CAD</strong><small>Zapisz projekt, otwórz go ponownie i wyeksportuj geometrię.</small></div></li>
             </ol>
           </aside>
         </div>

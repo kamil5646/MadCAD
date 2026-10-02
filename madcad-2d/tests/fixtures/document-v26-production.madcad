@@ -1,0 +1,359 @@
+{
+  "schemaVersion": 26,
+  "id": "document-4a1ef1e3-1",
+  "name": "Uchwyt testowy",
+  "units": "mm",
+  "parameters": [
+    {
+      "id": "param-5bae68d4-2",
+      "name": "szerokosc",
+      "label": "Szerokość",
+      "expression": "60",
+      "unit": "mm"
+    },
+    {
+      "id": "param-5aa9fb97-3",
+      "name": "glebokosc",
+      "label": "Głębokość",
+      "expression": "40",
+      "unit": "mm"
+    },
+    {
+      "id": "param-d7e2c0ae-4",
+      "name": "wysokosc",
+      "label": "Wysokość",
+      "expression": "8",
+      "unit": "mm"
+    },
+    {
+      "id": "param-0e487693-5",
+      "name": "srednicaOtworu",
+      "label": "Średnica otworu",
+      "expression": "8",
+      "unit": "mm"
+    }
+  ],
+  "sketches": [
+    {
+      "id": "sketch-4f8bd053-8",
+      "name": "Szkic podstawy",
+      "type": "sketch",
+      "space": "2d",
+      "plane": "XY",
+      "planeOffset": "0",
+      "visible": true,
+      "entities": [
+        {
+          "id": "entity-619caba5-9",
+          "type": "point",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [],
+          "geometry": {
+            "x": "(0) - (szerokosc) / 2",
+            "y": "(0) - (glebokosc) / 2"
+          },
+          "expressionKeys": [
+            "x",
+            "y"
+          ],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        },
+        {
+          "id": "entity-a3d4762c-a",
+          "type": "point",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [],
+          "geometry": {
+            "x": "(0) + (szerokosc) / 2",
+            "y": "(0) - (glebokosc) / 2"
+          },
+          "expressionKeys": [
+            "x",
+            "y"
+          ],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        },
+        {
+          "id": "entity-e6033eb5-b",
+          "type": "point",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [],
+          "geometry": {
+            "x": "(0) + (szerokosc) / 2",
+            "y": "(0) + (glebokosc) / 2"
+          },
+          "expressionKeys": [
+            "x",
+            "y"
+          ],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        },
+        {
+          "id": "entity-3fb1a5ac-c",
+          "type": "point",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [],
+          "geometry": {
+            "x": "(0) - (szerokosc) / 2",
+            "y": "(0) + (glebokosc) / 2"
+          },
+          "expressionKeys": [
+            "x",
+            "y"
+          ],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        },
+        {
+          "id": "entity-76781270-d",
+          "type": "line",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [
+            "entity-619caba5-9",
+            "entity-a3d4762c-a"
+          ],
+          "geometry": {},
+          "expressionKeys": [],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        },
+        {
+          "id": "entity-16b6fcfc-e",
+          "type": "line",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [
+            "entity-a3d4762c-a",
+            "entity-e6033eb5-b"
+          ],
+          "geometry": {},
+          "expressionKeys": [],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        },
+        {
+          "id": "entity-f87a7cf6-f",
+          "type": "line",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [
+            "entity-e6033eb5-b",
+            "entity-3fb1a5ac-c"
+          ],
+          "geometry": {},
+          "expressionKeys": [],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        },
+        {
+          "id": "entity-318d2414-g",
+          "type": "line",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [
+            "entity-3fb1a5ac-c",
+            "entity-619caba5-9"
+          ],
+          "geometry": {},
+          "expressionKeys": [],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        },
+        {
+          "id": "entity-1cc1a19a-h",
+          "type": "point",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [],
+          "geometry": {
+            "x": "0",
+            "y": "0"
+          },
+          "expressionKeys": [
+            "x",
+            "y"
+          ],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        },
+        {
+          "id": "entity-2599042a-i",
+          "type": "circle",
+          "role": "standard",
+          "fixed": false,
+          "pointIds": [
+            "entity-1cc1a19a-h"
+          ],
+          "geometry": {
+            "radius": "(srednicaOtworu) / 2"
+          },
+          "expressionKeys": [
+            "radius"
+          ],
+          "layerId": "layer-0",
+          "color": "by-layer",
+          "lineType": "by-layer",
+          "lineWeight": "by-layer"
+        }
+      ],
+      "profiles": [
+        {
+          "id": "profile-27a9a129-6",
+          "name": "Prostokąt",
+          "type": "rectangle",
+          "construction": false,
+          "geometry": {
+            "width": "szerokosc",
+            "height": "glebokosc",
+            "x": "0",
+            "y": "0"
+          },
+          "entityIds": [
+            "entity-76781270-d",
+            "entity-16b6fcfc-e",
+            "entity-f87a7cf6-f",
+            "entity-318d2414-g"
+          ],
+          "closed": true,
+          "source": "primitive"
+        },
+        {
+          "id": "profile-7b5f42d1-7",
+          "name": "Okrąg",
+          "type": "circle",
+          "construction": false,
+          "geometry": {
+            "diameter": "srednicaOtworu",
+            "x": "0",
+            "y": "0"
+          },
+          "entityIds": [
+            "entity-2599042a-i"
+          ],
+          "closed": true,
+          "source": "primitive"
+        }
+      ],
+      "constraints": [],
+      "dimensions": [],
+      "blockInstances": []
+    }
+  ],
+  "features": [
+    {
+      "id": "feature-7e6309cb-j",
+      "name": "Podstawa",
+      "type": "extrude",
+      "suppressed": false,
+      "sketchId": "sketch-4f8bd053-8",
+      "profileIds": [
+        "profile-27a9a129-6"
+      ],
+      "distance": "wysokosc",
+      "operation": "new"
+    },
+    {
+      "id": "feature-6bd24690-k",
+      "name": "Otwór centralny",
+      "type": "hole",
+      "suppressed": false,
+      "targetBodyId": "body-feature-7e6309cb-j",
+      "sketchId": "sketch-4f8bd053-8",
+      "profileId": "profile-7b5f42d1-7",
+      "diameter": "srednicaOtworu",
+      "depth": "wysokosc"
+    }
+  ],
+  "timelineRollbackFeatureId": "",
+  "featureGroups": [],
+  "linkedProjects": [],
+  "namedViews": [],
+  "bodies": [],
+  "components": [],
+  "componentInstances": [],
+  "rigidGroups": [],
+  "joints": [],
+  "motionLinks": [],
+  "contactSets": [],
+  "assemblyConfigurations": [],
+  "activeAssemblyConfigurationId": "",
+  "animationStoryboards": [],
+  "renderScene": {
+    "preset": "studio",
+    "background": "#202936",
+    "ambientIntensity": 1.8,
+    "keyIntensity": 3.1,
+    "fillIntensity": 0.9,
+    "keyAzimuth": 135,
+    "keyElevation": 52,
+    "exposure": 1,
+    "shadows": true,
+    "ground": true,
+    "decals": []
+  },
+  "references": [],
+  "blocks": [],
+  "drawings": [],
+  "layers": [
+    {
+      "id": "layer-0",
+      "name": "0",
+      "color": "#74cef0",
+      "lineType": "continuous",
+      "lineWeight": 0.25,
+      "visible": true,
+      "locked": false,
+      "printable": true
+    }
+  ],
+  "activeLayerId": "layer-0",
+  "metadata": {
+    "createdAt": "2026-10-02T08:05:41.002Z",
+    "modifiedAt": "2026-10-02T08:05:41.003Z"
+  },
+  "print": {
+    "profileId": "prusa-mk4",
+    "scale": 0.5,
+    "copies": 3,
+    "rotationX": 90
+  },
+  "manufacturing": {
+    "setups": [
+      {
+        "id": "legacy-setup",
+        "operations": [
+          {
+            "type": "future-operation"
+          }
+        ]
+      }
+    ],
+    "tools": []
+  }
+}

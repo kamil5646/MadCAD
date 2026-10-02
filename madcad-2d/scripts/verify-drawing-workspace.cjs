@@ -25,7 +25,7 @@ async function clickText(window, selector, label) {
 
 async function selectWorkspace(window, value) {
   await window.webContents.executeJavaScript(`(() => {
-    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' };
+    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', tools: 'ZARZĄDZAJ' };
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === labels[${JSON.stringify(value)}]);
     if (!button) throw new Error('Brak głównego obszaru programu.');
     button.click();
@@ -62,6 +62,14 @@ async function clickRibbonCommand(window, label) {
 app.whenReady().then(async () => {
   const { DOCUMENT_SCHEMA_VERSION } = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'cad-core', 'document.js')).href);
   const window = new BrowserWindow({ width: 1500, height: 940, show: true, webPreferences: { partition: `madcad-drawing-${Date.now()}` } });
+  const executeJavaScript = window.webContents.executeJavaScript.bind(window.webContents);
+  window.webContents.executeJavaScript = async (expression, ...args) => {
+    try { return await executeJavaScript(expression, ...args); }
+    catch (error) { throw new Error(`Nieudana akcja renderera: ${expression}\n${error.message}`, { cause: error }); }
+  };
+  window.webContents.on('console-message', (details) => {
+    if (details.level === 'error') process.stderr.write(`[renderer] ${details.message}\n`);
+  });
   window.setContentSize(1500, 877);
   try {
     await fs.mkdir(artifactsDir, { recursive: true });
@@ -84,6 +92,8 @@ app.whenReady().then(async () => {
     if (!(await clickText(window, '.ribbon-tool', 'Model 3D'))) throw new Error('Brak polecenia Model 3D.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.length === 1 && document.querySelectorAll('.drawing-view line').length > 8`, 'skojarzony widok bazowy');
     await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.views?.length === 1`, 'autozapis arkusza');
+    // The view switches to the kernel's hidden-line projection once it arrives for this model revision.
+    await waitFor(window, `window.__madcadDrawingProjectionState?.bodies >= 1`, 'rzut arkusza z usuwaniem linii ukrytych', 30000);
 
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.length === 0`, 'undo widoku');
@@ -231,6 +241,64 @@ app.whenReady().then(async () => {
     if (state.schemaVersion !== DOCUMENT_SCHEMA_VERSION || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.visibleProjectionLines < 20 || !state.projectedInkInsidePaper || state.hatchCount < 1 || state.annotationCount !== 11 || state.userAnnotationCount !== 9 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon|point-dimension' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage || !state.drawingMode || !state.projectBrowserHidden || !state.timelineHidden || !state.zoomToolbar || !state.panelToggles) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
+    // Real kernel regression: the rear box is completely behind the front box.
+    // Its four outline edges must be hidden, not another four solid lines.
+    const core = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'cad-core', 'document.js')).href);
+    const drawing = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'cad-core', 'drawing-sheets.js')).href);
+    const fixture = core.createDocument('Wzajemne zasłanianie brył');
+    fixture.features.push(
+      core.createFeature('primitive', { primitiveType: 'box', x: '0', y: '0', z: '0', width: '20', depth: '2', height: '20' }),
+      core.createFeature('primitive', { primitiveType: 'box', x: '5', y: '8', z: '5', width: '10', depth: '2', height: '10' }),
+    );
+    const sheet = drawing.createDrawingSheet();
+    sheet.views.push(drawing.createBaseDrawingView({ bodyIds: fixture.features.map((feature) => `body-${feature.id}`), orientation: 'front', scale: 1, sheet }));
+    fixture.drawings.push(sheet);
+    await waitFor(window, `typeof window.__madcadVerifyLoadSerializedDocument === 'function' && (window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(fixture))}), true)`, 'załadowanie fixture zasłaniania');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.evaluatedFeatureData?.at(-1)?.id === ${JSON.stringify(fixture.features.at(-1).id)}`, 'przebudowana nowa fixture');
+    await window.webContents.executeJavaScript(`window.desktopApp = { saveDrawingPdf: async ({ html }) => { window.__drawingExportHtml = html; return { ok: true, filePath: 'test.pdf' }; } }; true;`);
+    await selectWorkspace(window, 'drawing');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn').click()`);
+    await waitFor(window, `Boolean(document.querySelector('#fileExportPdfBtn'))`, 'eksport świeżego arkusza');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileExportPdfBtn').click()`);
+    await waitFor(window, `Boolean(window.__drawingExportHtml)`, 'dokładny rzut przed eksportem PDF');
+    const occlusion = await window.webContents.executeJavaScript(`(() => {
+      const html = new DOMParser().parseFromString(window.__drawingExportHtml, 'text/html');
+      return { visible: html.querySelectorAll('g.geometry > line:not(.hidden)').length, hidden: html.querySelectorAll('g.geometry > line.hidden').length };
+    })()`);
+    if (occlusion.visible !== 4 || occlusion.hidden !== 4) throw new Error('Niepoprawne zasłanianie brył: ' + JSON.stringify(occlusion));
+    state.compoundOcclusion = occlusion;
+    const sectionFixture = core.createDocument('Dokładny przekrój kuli');
+    sectionFixture.features.push(core.createFeature('primitive', { primitiveType: 'sphere', radius: '10', x: '0', y: '0', z: '0' }));
+    const sectionSheet = drawing.createDrawingSheet();
+    const sphereView = drawing.createBaseDrawingView({ bodyIds: [`body-${sectionFixture.features[0].id}`], orientation: 'front', scale: 1, sheet: sectionSheet });
+    sectionSheet.views.push(sphereView, drawing.createSectionDrawingView({ parentView: sphereView, sectionPosition: 0.5 }));
+    sectionFixture.drawings.push(sectionSheet);
+    await window.webContents.executeJavaScript(`window.__drawingExportHtml = null; window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(sectionFixture))}); true;`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.evaluatedFeatureData?.[0]?.id === ${JSON.stringify(sectionFixture.features[0].id)}`, 'dokładna kula do przekroju');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn').click()`);
+    await waitFor(window, `Boolean(document.querySelector('#fileExportPdfBtn'))`, 'eksport przekroju');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileExportPdfBtn').click()`);
+    await waitFor(window, `Boolean(window.__drawingExportHtml)`, 'dokładny przekrój B-Rep przed PDF');
+    const exactSection = await window.webContents.executeJavaScript(`(() => {
+      const html = new DOMParser().parseFromString(window.__drawingExportHtml, 'text/html');
+      const lines = [...html.querySelectorAll('g.geometry.section > line:not(.hatch):not(.hidden)')];
+      const points = lines.flatMap((line) => [[Number(line.getAttribute('x1')), Number(line.getAttribute('y1'))], [Number(line.getAttribute('x2')), Number(line.getAttribute('y2'))]]);
+      const center = [Math.min(...points.map(p => p[0])) + 10, Math.min(...points.map(p => p[1])) + 10];
+      return { count: lines.length, radiusError: Math.max(...points.map(p => Math.abs(Math.hypot(p[0] - center[0], p[1] - center[1]) - 10))) };
+    })()`);
+    if (exactSection.count < 100 || exactSection.radiusError > 0.002) throw new Error('Niepoprawny dokładny przekrój kuli: ' + JSON.stringify(exactSection));
+    state.exactSphereSection = exactSection;
+    const missingFixture = JSON.parse(JSON.stringify(sectionFixture));
+    missingFixture.drawings[0].views[0].bodyIds.push('body-disappeared-after-history-edit');
+    const missingRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`window.__drawingExportHtml = null; window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(missingFixture))}); true;`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${missingRevision} && window.__madcadVerifyEngineState?.status === 'ready'`, 'arkusz z utraconą bryłą');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn').click()`);
+    await waitFor(window, `Boolean(document.querySelector('#fileExportPdfBtn'))`, 'eksport niekompletnego widoku');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileExportPdfBtn').click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('nieistniejącej bryły')`, 'jawne odrzucenie eksportu utraconej bryły');
+    if (await window.webContents.executeJavaScript(`Boolean(window.__drawingExportHtml)`)) throw new Error('PDF nie powinien być zapisany dla widoku z utraconą bryłą.');
+    state.missingBodyExportRejected = true;
     // Windows pipes stdout asynchronously. Exiting Electron before the write
     // callback can leave its completion handle invalid despite passing checks.
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`, () => app.exit(0));

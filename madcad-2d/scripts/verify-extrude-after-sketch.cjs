@@ -58,6 +58,19 @@ app.whenReady().then(async () => {
       partition: `madcad-extrude-sketch-${Date.now()}`,
     },
   });
+  // Electron otherwise replaces renderer exceptions with a generic IPC error,
+  // losing the failing action on CI. Keep the original message and expression.
+  const executeJavaScript = window.webContents.executeJavaScript.bind(window.webContents);
+  window.webContents.executeJavaScript = async (expression, ...args) => {
+    try {
+      return await executeJavaScript(expression, ...args);
+    } catch (error) {
+      throw new Error(`Renderer action failed: ${expression}\n${error.message}`, { cause: error });
+    }
+  };
+  window.webContents.on('console-message', (details) => {
+    if (details.level === 'error') process.stderr.write(`[renderer] ${details.message}\n`);
+  });
   let exitCode = 0;
   try {
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
@@ -71,7 +84,7 @@ app.whenReady().then(async () => {
 
     await clickTool(window, 'Prostokąt');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle'`, 'polecenie prostokata');
-    await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([0, 0])`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([-20, -12])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.gesturePoints === 1`, 'pierwszy punkt prostokata');
     await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([20, 12])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.profiles === 1`, 'zamkniety profil prostokata');
@@ -135,6 +148,23 @@ app.whenReady().then(async () => {
     if (result.sketches !== 1 || result.profiles !== 1 || result.features !== 1 || result.bodies !== 1 || result.planePickerVisible || Math.abs(result.volume - 11520) > 0.01 || !result.dimensions.some((value) => Math.abs(value - 12) < 0.01)) {
       throw new Error(`Bledny wynik przeplywu szkic -> Wyciagnij: ${JSON.stringify(result)}`);
     }
+
+    // A dblclick must use the clicked timeline entry, not a stale selection.
+    // Dispatch it without a preceding click, as can happen before React has
+    // rendered the first click of a fast double-click.
+    process.stdout.write('[verify] timeline double-click without prior feature selection\n');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(null)`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'document'`, 'puste zaznaczenie przed dwuklikiem');
+    await window.webContents.executeJavaScript(`(() => {
+      const item = document.querySelector('.timeline-item');
+      if (!item) throw new Error('Brak operacji na osi historii');
+      item.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'extrude' && window.__madcadVerifyDocumentState?.command?.distance === '12'`, 'dwuklik otwiera wskazane wyciągnięcie', 3000);
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    await waitFor(window, `!document.querySelector('.command-dialog') && window.__madcadVerifyDocumentState?.selection?.kind === 'feature' && window.__madcadVerifyDocumentState?.selection?.id === window.__madcadVerifyDocumentState?.featureData?.[0]?.id && window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 11520) < 0.01`, 'anulowanie dwukliku zachowuje bryłę i zaznaczenie operacji', 3000);
+    result.timelineDoubleClick = true;
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(window.__madcadVerifyDocumentState.sketches[0].id)`);
     await waitFor(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'ponownie edytowany szkic');
@@ -374,7 +404,8 @@ app.whenReady().then(async () => {
 
     process.stdout.write('[verify] side-face dependent cut\n');
     const sideLoadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
-    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(savedProject))})`);
+    const sideProject = { ...savedProject, parameters: [...savedProject.parameters, { id: 'parameter-depth-regression', name: 'depth', expression: '5', unit: 'mm', label: 'Głębokość' }] };
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(sideProject))})`);
     await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${sideLoadRevision}
       && window.__madcadVerifyEngineState?.status === 'ready'
       && window.__madcadVerifyDocumentState?.features === 1
@@ -398,7 +429,13 @@ app.whenReady().then(async () => {
     await clickTool(window, 'Zakończ szkic');
     await clickTool(window, 'Wyciągnij');
     await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wycięcie od ściany bocznej');
-    await setCommandField(window, 'Operacja', 'cut');
+    // A negative distance on a face sketch goes into the body and switches Join to Cut by itself.
+    await setCommandField(window, 'Odległość', '-depth');
+    await waitFor(window, `[...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.firstElementChild?.textContent.trim() === 'Operacja')?.querySelector('select')?.value === 'cut'`, 'automatyczne Wytnij dla ujemnej odległości');
+    await setCommandField(window, 'Odległość', 'depth');
+    await waitFor(window, `[...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.firstElementChild?.textContent.trim() === 'Operacja')?.querySelector('select')?.value === 'join'`, 'automatyczne Połącz dla dodatniego parametru');
+    await setCommandField(window, 'Odległość', '0-depth');
+    await waitFor(window, `[...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.firstElementChild?.textContent.trim() === 'Operacja')?.querySelector('select')?.value === 'cut'`, 'automatyczne Wytnij dla wyrażenia parametrycznego');
     await setCommandField(window, 'Kierunek', 'through-all');
     const sideCutRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
@@ -662,6 +699,19 @@ app.whenReady().then(async () => {
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;
+    try {
+      const state = await executeJavaScript(`({
+        engine: { status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision },
+        document: window.__madcadVerifyDocumentState,
+        dialog: document.querySelector('.command-dialog')?.textContent,
+        notice: document.querySelector('.workspace-notice')?.textContent,
+      })`);
+      await fs.writeFile(path.join(path.dirname(artifactPath), 'extrude-after-sketch-failure.json'), JSON.stringify(state, null, 2));
+      const image = await window.webContents.capturePage();
+      await fs.writeFile(path.join(path.dirname(artifactPath), 'extrude-after-sketch-failure.png'), image.toPNG());
+    } catch (diagnosticError) {
+      process.stderr.write(`[verify] Failure diagnostics unavailable: ${diagnosticError.message}\n`);
+    }
   } finally {
     // Do the awaited cleanup first and never destroy the last window before
     // app.exit(): the default window-all-closed quit would win the race and

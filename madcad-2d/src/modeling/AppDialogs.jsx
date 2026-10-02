@@ -72,13 +72,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
         </header>
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
-          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.5.28 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
           <div className={`license-plan-status ${planStatus.expired ? 'expired' : ''}`} role="status"><span>Aktywny plan</span><strong>{planStatus.label}</strong><small>{planStatus.detail}</small></div>
-          <div className="license-plan-grid" aria-label="Plany MadCAD">
-            <article className={licensePlan.mode === 'personal' ? 'selected' : ''}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe. Wymaga bezpłatnego konta MadCAD.</small></article>
-            <article className={licensePlan.mode === 'commercial-trial' ? 'selected' : ''}><strong>Ocena komercyjna</strong><span>40 dni pełnej wersji</span><small>Jednorazowy okres oceny przypisany do konta. Wymaga połączenia przy aktywacji.</small></article>
-            <article className={licensePlan.mode === 'commercial' ? 'selected' : ''}><strong>Komercyjna</strong><span>Licencja imienna</span><small>Plan i liczba stanowisk są sprawdzane na serwerze. Po sprawdzeniu działa także offline.</small></article>
-          </div>
           {licensePlan.signedIn ? (
             <section className="license-account-panel" aria-label="Konto MadCAD">
               <div><strong>{licensePlan.account?.displayName || licensePlan.account?.email}</strong><small>{licensePlan.account?.email} · {licensePlan.connection === 'online' ? 'sprawdzono online' : 'tryb offline'}</small></div>
@@ -107,6 +101,16 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
             </form>
           )}
           {error && <p className="license-account-error" role="alert"><AlertTriangle size={15} />{error}</p>}
+          {/* Secondary information stays available but folded, so the first screen is: free use, plan, sign-in. */}
+          <details className="license-info-card license-plan-details">
+            <summary>{isPolish ? 'Plany licencji i informacje o wydaniu' : 'License plans and release information'}</summary>
+            <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.5.29 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
+            <div className="license-plan-grid" aria-label="Plany MadCAD">
+              <article className={licensePlan.mode === 'personal' ? 'selected' : ''}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe. Wymaga bezpłatnego konta MadCAD.</small></article>
+              <article className={licensePlan.mode === 'commercial-trial' ? 'selected' : ''}><strong>Ocena komercyjna</strong><span>40 dni pełnej wersji</span><small>Jednorazowy okres oceny przypisany do konta. Wymaga połączenia przy aktywacji.</small></article>
+              <article className={licensePlan.mode === 'commercial' ? 'selected' : ''}><strong>Komercyjna</strong><span>Licencja imienna</span><small>Plan i liczba stanowisk są sprawdzane na serwerze. Po sprawdzeniu działa także offline.</small></article>
+            </div>
+          </details>
           <details className="license-info-card license-info-commercial license-commercial-details">
             <summary>{isPolish ? 'Użytek komercyjny jest płatny — co to oznacza?' : 'Commercial use requires a paid license — what does this mean?'}</summary>
             <ul>

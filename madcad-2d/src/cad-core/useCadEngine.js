@@ -11,7 +11,7 @@ function engineError(message, code = 'CAD_ENGINE_ERROR') {
 
 export function cadGeometrySignature(document) {
   const geometryDocument = { ...document };
-  delete geometryDocument.manufacturing;
+  delete geometryDocument.legacyProduction;
   delete geometryDocument.metadata;
   return JSON.stringify(geometryDocument);
 }
@@ -28,6 +28,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
   const latestDocumentRef = useRef(document);
   const latestGeometrySignatureRef = useRef(geometrySignature);
   const evaluatedGeometrySignatureRef = useRef(null);
+  const evaluatedRevisionRef = useRef(null);
   latestDocumentRef.current = document;
   latestGeometrySignatureRef.current = geometrySignature;
   const [workerGeneration, setWorkerGeneration] = useState(0);
@@ -149,7 +150,13 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
         const result = await send({ type: 'evaluate', document: evaluationDocument, revision, quality });
         if (active && canceledRevisionRef.current !== revision && result.revision === revision && latestGeometrySignatureRef.current === geometrySignature) {
           evaluatedGeometrySignatureRef.current = geometrySignature;
+          evaluatedRevisionRef.current = revision;
           setState((current) => ({ ...current, status: 'ready', error: '', ...result, evaluatedDocument: latestDocumentRef.current }));
+        } else {
+          // Discarded result: canceled after the worker had finished, or superseded by a newer edit
+          // that the worker did not interrupt in time. Either way the rebuild never reaches the model.
+          canceledRevisionsRef.current += 1;
+          if (active) setState((current) => ({ ...current }));
         }
       } catch (error) {
         if (error.code === 'STALE_REVISION') {
@@ -218,6 +225,18 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     return result.descriptor;
   }, [document, send]);
 
+  const getCurrentRevision = useCallback(() => (
+    evaluatedGeometrySignatureRef.current === latestGeometrySignatureRef.current && evaluatedRevisionRef.current === revisionRef.current ? revisionRef.current : null
+  ), []);
+
+  const projectDrawingViews = useCallback(async (orientations, groups = [], sections = [], tolerance = 0.001) => {
+    const revision = revisionRef.current;
+    if (getCurrentRevision() !== revision) throw engineError('Poczekaj na ukończenie przebudowy modelu przed eksportem rysunku.', 'PROJECTION_MODEL_PENDING');
+    const result = await send({ type: 'project-drawing', document, revision, orientations, groups, sections, tolerance });
+    if (result.revision !== revision || getCurrentRevision() !== revision) throw engineError('Silnik zwrócił rzut arkusza z innej rewizji dokumentu.', 'PROJECTION_REVISION_MISMATCH');
+    return result.projections;
+  }, [document, send, getCurrentRevision]);
+
   const restartWorkerForTest = useCallback(() => {
     if (!workerRef.current) throw engineError('Silnik CAD nie jest gotowy do testu odtwarzania.', 'WORKER_NOT_READY');
     const crash = engineError('Kontrolowana awaria workera w teście desktopowym.', 'WORKER_CRASH');
@@ -232,5 +251,5 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     setWorkerGeneration((generation) => generation + 1);
   }, [rejectPending]);
 
-  return { ...state, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, cancelRebuild, exportExternalDocument, exportModel, projectPointsToSurface, restartWorkerForTest };
+  return { ...state, isCurrent: evaluatedGeometrySignatureRef.current === geometrySignature && state.revision === revisionRef.current, getCurrentRevision, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, cancelRebuild, exportExternalDocument, exportModel, projectDrawingViews, projectPointsToSurface, restartWorkerForTest };
 }

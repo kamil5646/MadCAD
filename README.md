@@ -10,7 +10,7 @@
 
 MadCAD to desktopowy CAD 2D/3D dla Windows, macOS i Linux. Jego rdzeniem jest szybkie
 szkicowanie w stylu klasycznego CAD połączone z parametryczną historią oraz
-modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodatkiem.
+modelowaniem bryłowym. Program służy do projektowania szkiców, modeli 3D i rysunków technicznych.
 
 **[Pobierz najnowsze stabilne wydanie](https://github.com/kamil5646/MadCAD/releases/latest)** ·
 **[Strona projektu](https://madcad.madmagsystem.pl/)** ·
@@ -20,7 +20,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 Aktualny audyt techniczny i plan stabilizacji: [AUDIT-2026-09-20.md](./AUDIT-2026-09-20.md).
 Skrócony playbook dla dalszych prac: [AGENTS.md](./AGENTS.md).
 
-> **Uwaga o wydaniu 6.5.28:** paczki są publikowane bez podpisu producenta,
+> **Uwaga o wydaniu 6.5.29:** paczki są publikowane bez podpisu producenta,
 > dlatego Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
 > Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.
 > Wbudowany aktualizator pobiera paczkę z oficjalnego wydania, sprawdza SHA-256
@@ -39,7 +39,6 @@ Skrócony playbook dla dalszych prac: [AGENTS.md](./AGENTS.md).
 - Modelowanie 3D: Extrude, Revolve, Sweep, Loft, Coil, Boolean, Shell, Draft, fillet i chamfer.
 - Trwałe referencje B-Rep, historia operacji, geometria konstrukcyjna i pomiary.
 - Import i eksport `STEP`, `STL`, `3MF`; poprawny import jest dopasowywany do widoku, a odrzucony nie blokuje historii. Import szkicu obejmuje `DWG`, `DXF`, `SVG`; własny parametryczny format to `.madcad`.
-- Kontrola drukowalności, gabarytów i dopasowania modelu do stołu drukarki.
 - Interfejs polski i angielski, lokalne pliki projektów, bezpłatne konto MadCAD,
   brak telemetrii projektów i brak klucza produktu.
 - Przeglądarka projektu jest domyślnie zwinięta, aby maksymalizować obszar rysowania.
@@ -118,8 +117,8 @@ Dokładna instrukcja uruchomienia niepodpisanych paczek: [INSTALL.md](./INSTALL.
 
 MadCAD is a desktop 2D/3D CAD application for Windows, macOS, and Linux. It combines
 classic CAD-style direct drawing and basic keyboard shortcuts with parametric solid
-modeling and exact STEP exchange. STL/3MF export and 3D-print checks are optional
-add-ons, not the center of the product.
+modeling, technical drawings, and exact STEP exchange.
+
 
 Private, educational, non-profit use by an individual is free without a time
 limit. Businesses may evaluate the complete application for 40 days. Continued

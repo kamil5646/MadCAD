@@ -1,22 +1,24 @@
 import React from 'react';
-import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, Film, FolderOpen, GitCompareArrows, ImageDown, ImagePlus, Keyboard, Layers3, Lightbulb, Link2, Lock, LockOpen, Magnet, PackageOpen, Pause, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Search, Sun, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, Keyboard, Layers3, Link2, Lock, LockOpen, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Search, Trash2, Ungroup, X, XCircle } from 'lucide-react';
 import { detectAssemblyCollisions } from '../cad-core/assembly-motion.js';
 import { COMPONENT_APPEARANCE_PRESETS, componentAppearancePreset, componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree, normalizeComponentAppearance } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
-import { ENGINEERING_MATERIALS } from '../cad-core/static-screening.js';
-import { THERMAL_MATERIALS } from '../cad-core/thermal-screening.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
-import { RENDER_ENVIRONMENT_PRESETS, normalizeRenderScene, renderEnvironmentPreset } from '../cad-core/render-scene.js';
 import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
 import { multipleSelectionLabel } from './platform-shortcuts.js';
 import { useDialogFocus } from './use-dialog-focus.js';
 
 export function Field({ label, ariaLabel, value, onChange, suffix = '', type = 'text', disabled = false, autoFocus = false }) {
+  const inputRef = React.useRef(null);
+  // Like Fusion: the value in the first field is selected, so typing replaces it instead of appending.
+  React.useEffect(() => {
+    if (autoFocus) inputRef.current?.select();
+  }, [autoFocus]);
   return (
     <label className="command-field">
       <span>{label}</span>
       <div className="command-input-wrap">
-        <input aria-label={ariaLabel} autoFocus={autoFocus} type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
+        <input ref={inputRef} aria-label={ariaLabel} autoFocus={autoFocus} data-dialog-initial-focus={autoFocus || undefined} type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
         {suffix && <em>{suffix}</em>}
       </div>
     </label>
@@ -43,51 +45,6 @@ export function NamedViewsPanel({ views = [], currentCamera = null, readOnly = f
         {views.map((view) => <div className="named-view-row" key={view.id}><button type="button" onClick={() => onActivate(view)}><Eye size={14} /><span><strong>{view.name}</strong><small>{view.camera.position.map((value) => value.toFixed(1)).join(', ')}</small></span></button><button type="button" aria-label={`Usuń zapisany widok ${view.name}`} disabled={readOnly} onClick={() => onDelete(view.id)}><Trash2 size={13} /></button></div>)}
       </div>
       <p className="named-view-note">Widok zapisuje pozycję kamery, punkt celu i kierunek góry. Nie zmienia geometrii modelu.</p>
-    </aside>
-  );
-}
-
-export function RenderScenePanel({ scene, bodies = [], selectedFace = null, readOnly = false, onChange, onAddDecal, onUpdateDecal, onDeleteDecal, onSaveRender, onClose }) {
-  const settings = normalizeRenderScene(scene);
-  const decalInputRef = React.useRef(null);
-  const update = (patch) => onChange(normalizeRenderScene({ ...settings, ...patch }));
-  const applyPreset = (presetId) => update({ ...renderEnvironmentPreset(presetId), preset: presetId, shadows: settings.shadows, ground: settings.ground });
-  return (
-    <aside className="measure-panel render-scene-panel" aria-label="Scena i render lokalny">
-      <header><div><Sun size={16} /><strong>Scena i render</strong></div><button type="button" title="Zamknij scenę i render" aria-label="Zamknij scenę i render" onClick={onClose}><X size={15} /></button></header>
-      <label><span>Środowisko</span><select id="renderScenePreset" value={settings.preset} disabled={readOnly} onChange={(event) => applyPreset(event.target.value)}>{Object.values(RENDER_ENVIRONMENT_PRESETS).map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select></label>
-      <label className="render-color-field"><span>Tło</span><input aria-label="Kolor tła renderu" type="color" value={settings.background} disabled={readOnly} onChange={(event) => update({ background: event.target.value })} /></label>
-      <div className="render-scene-section"><strong><Lightbulb size={14} /> Oświetlenie</strong>
-        <label><span>Światło otoczenia <em>{settings.ambientIntensity.toFixed(1)}</em></span><input aria-label="Natężenie światła otoczenia" type="range" min="0" max="8" step="0.1" value={settings.ambientIntensity} disabled={readOnly} onChange={(event) => update({ ambientIntensity: event.target.value })} /></label>
-        <label><span>Światło główne <em>{settings.keyIntensity.toFixed(1)}</em></span><input aria-label="Natężenie światła głównego" type="range" min="0" max="12" step="0.1" value={settings.keyIntensity} disabled={readOnly} onChange={(event) => update({ keyIntensity: event.target.value })} /></label>
-        <label><span>Światło wypełniające <em>{settings.fillIntensity.toFixed(1)}</em></span><input aria-label="Natężenie światła wypełniającego" type="range" min="0" max="8" step="0.1" value={settings.fillIntensity} disabled={readOnly} onChange={(event) => update({ fillIntensity: event.target.value })} /></label>
-        <label><span>Ekspozycja <em>{settings.exposure.toFixed(2)}</em></span><input aria-label="Ekspozycja renderu" type="range" min="0.25" max="3" step="0.05" value={settings.exposure} disabled={readOnly} onChange={(event) => update({ exposure: event.target.value })} /></label>
-        <label><span>Kierunek <em>{Math.round(settings.keyAzimuth)}°</em></span><input aria-label="Kierunek światła głównego" type="range" min="-180" max="180" step="5" value={settings.keyAzimuth} disabled={readOnly} onChange={(event) => update({ keyAzimuth: event.target.value })} /></label>
-        <label><span>Wysokość <em>{Math.round(settings.keyElevation)}°</em></span><input aria-label="Wysokość światła głównego" type="range" min="0" max="90" step="5" value={settings.keyElevation} disabled={readOnly} onChange={(event) => update({ keyElevation: event.target.value })} /></label>
-      </div>
-      <div className="render-scene-toggles"><label><input type="checkbox" checked={settings.shadows} disabled={readOnly} onChange={(event) => update({ shadows: event.target.checked })} /> Cienie</label><label><input type="checkbox" checked={settings.ground} disabled={readOnly} onChange={(event) => update({ ground: event.target.checked })} /> Podłoże</label></div>
-      <section className="render-decal-section" aria-label="Naklejki na modelu">
-        <strong><ImagePlus size={14} /> Naklejki</strong>
-        <p>{selectedFace ? `Wybrana ściana: ${selectedFace.id}` : 'Wybierz jedną ścianę modelu, aby dodać obraz.'}</p>
-        <input ref={decalInputRef} className="render-decal-input" aria-label="Plik obrazu naklejki" type="file" accept="image/png,image/jpeg,image/webp" disabled={readOnly || !selectedFace} onChange={(event) => { const file = event.target.files?.[0]; if (file) onAddDecal(file, selectedFace); event.target.value = ''; }} />
-        <button id="addRenderDecalBtn" type="button" disabled={readOnly || !selectedFace} onClick={() => decalInputRef.current?.click()}><ImagePlus size={14} /> Dodaj obraz na wybraną ścianę</button>
-        <div className="render-decal-list">
-          {!settings.decals.length && <small>Brak naklejek w projekcie.</small>}
-          {settings.decals.map((decal) => {
-            const faceExists = bodies.some((body) => body.id === decal.bodyId && body.topology?.faces?.some((face) => face.id === decal.faceId));
-            return <article className={faceExists ? '' : 'missing'} key={decal.id}>
-            <header><label><input type="checkbox" checked={decal.visible} disabled={readOnly} onChange={(event) => onUpdateDecal(decal.id, { visible: event.target.checked })} /> <span>{decal.name}</span></label><button type="button" aria-label={`Usuń naklejkę ${decal.name}`} disabled={readOnly} onClick={() => onDeleteDecal(decal.id)}><Trash2 size={13} /></button></header>
-            {!faceExists && <p>Utracono ścianę źródłową.</p>}
-            <button className="render-decal-reassign" type="button" disabled={readOnly || !selectedFace || (selectedFace.bodyId === decal.bodyId && selectedFace.id === decal.faceId)} onClick={() => onUpdateDecal(decal.id, { bodyId: selectedFace.bodyId, faceId: selectedFace.id })}><Link2 size={12} /> Przypisz do zaznaczonej ściany</button>
-            <label><span>Rozmiar <em>{Math.round(decal.scale * 100)}%</em></span><input aria-label={`Rozmiar naklejki ${decal.name}`} type="range" min="0.1" max="1" step="0.05" value={decal.scale} disabled={readOnly} onChange={(event) => onUpdateDecal(decal.id, { scale: event.target.value })} /></label>
-            <label><span>Krycie <em>{Math.round(decal.opacity * 100)}%</em></span><input aria-label={`Krycie naklejki ${decal.name}`} type="range" min="0.05" max="1" step="0.05" value={decal.opacity} disabled={readOnly} onChange={(event) => onUpdateDecal(decal.id, { opacity: event.target.value })} /></label>
-            <label><span>Obrót <em>{Math.round(decal.rotation)}°</em></span><input aria-label={`Obrót naklejki ${decal.name}`} type="range" min="-180" max="180" step="5" value={decal.rotation} disabled={readOnly} onChange={(event) => onUpdateDecal(decal.id, { rotation: event.target.value })} /></label>
-          </article>;
-          })}
-        </div>
-      </section>
-      <button id="saveLocalRenderBtn" className="render-save-button" type="button" onClick={onSaveRender}><ImageDown size={15} /> Zapisz bieżący widok jako PNG</button>
-      <p>Render korzysta z aktualnej kamery, wyglądu komponentów i ustawień zapisanych w projekcie.</p>
     </aside>
   );
 }
@@ -131,19 +88,12 @@ export function LayersPanel({ document, selectedEntities = [], readOnly = false,
   );
 }
 
-export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], contactSets: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedMotionLinkId = '', selectedConfigurationId = '', selectedContactSetId = '', selectedBodyIds = [], linkedProjectStatuses = {}, readOnly = false, explodeAmount = 0, onExplodeAmountChange, activeStoryboardId = '', animationPlaying = false, storyboardExporting = false, animationTime = 0, animationInstanceOffsets = {}, animationInstanceRotations = {}, animationJointValues = {}, animationNote = '', onPreviewStoryboardOffset, onPreviewStoryboardRotation, onPreviewStoryboardJoint, onAnimationNoteChange, onSelectStoryboard, onCreateStoryboard, onUpdateStoryboard, onDeleteStoryboard, onAddStoryboardKeyframe, onDeleteStoryboardKeyframe, onSeekStoryboard, onPlayStoryboard, onStopStoryboard, onExportStoryboardVideo, onExportStoryboardInstructions, onCreate, onLinkProject, onPackAndGo, onRefreshLinkedProject, onRepairLinkedProject, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectMotionLink, onCreateMotionLink, onUpdateMotionLink, onDeleteMotionLink, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onSelectContactSet, onCreateContactSet, onUpdateContactSet, onDeleteContactSet, onClose }) {
+export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedConfigurationId = '', selectedBodyIds = [], linkedProjectStatuses = {}, readOnly = false, explodeAmount = 0, onExplodeAmountChange, onCreate, onLinkProject, onPackAndGo, onRefreshLinkedProject, onRepairLinkedProject, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onClose }) {
   const [rigidMateId, setRigidMateId] = React.useState('');
   const [jointMateId, setJointMateId] = React.useState('');
   const [jointType, setJointType] = React.useState('revolute');
   const [jointAxis, setJointAxis] = React.useState('z');
-  const [motionSourceId, setMotionSourceId] = React.useState('');
-  const [motionTargetId, setMotionTargetId] = React.useState('');
-  const [motionRatio, setMotionRatio] = React.useState('1');
-  const [motionOffset, setMotionOffset] = React.useState('0');
   const [configurationName, setConfigurationName] = React.useState('');
-  const [contactFirstId, setContactFirstId] = React.useState('');
-  const [contactSecondId, setContactSecondId] = React.useState('');
-  const [storyboardName, setStoryboardName] = React.useState('');
   const [interferenceFirstId, setInterferenceFirstId] = React.useState('');
   const [interferenceSecondId, setInterferenceSecondId] = React.useState('');
   const [interferencePair, setInterferencePair] = React.useState([]);
@@ -168,10 +118,6 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
   componentInstanceTree(document).forEach((instance) => collectInstanceRows(instance));
   const instances = React.useMemo(() => document.componentInstances || [], [document.componentInstances]);
   const explodedOccurrenceCount = instances.filter((instance) => instance.visible && document.components.find((component) => component.id === instance.componentId)?.bodyIds?.length).length;
-  const storyboards = document.animationStoryboards || [];
-  const activeStoryboard = storyboards.find((item) => item.id === activeStoryboardId) || storyboards[0] || null;
-  const selectedAnimationOffset = selectedInstance ? animationInstanceOffsets[selectedInstance.id] || [0, 0, 0] : [0, 0, 0];
-  const selectedAnimationRotation = selectedInstance ? animationInstanceRotations[selectedInstance.id] || [0, 0, 0] : [0, 0, 0];
   const interferenceResult = React.useMemo(() => (
     interferencePair.length === 2 && interferencePair.every((instanceId) => instances.some((instance) => instance.id === instanceId))
       ? detectAssemblyCollisions(document, bodies, { instanceIds: interferencePair })
@@ -187,13 +133,8 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
   const rigidMates = selectedInstance ? instances.filter((instance) => instance.id !== selectedInstance.id && instance.parentInstanceId === selectedInstance.parentInstanceId && !rigidGroups.some((group) => group.instanceIds.includes(instance.id))) : [];
   const joints = document.joints || [];
   const selectedJoint = joints.find((joint) => joint.id === selectedJointId) || null;
-  const selectedAnimationJointValue = selectedJoint ? animationJointValues[selectedJoint.id] ?? selectedJoint.value : 0;
-  const motionLinks = document.motionLinks || [];
-  const selectedMotionLink = motionLinks.find((link) => link.id === selectedMotionLinkId) || null;
   const configurations = document.assemblyConfigurations || [];
   const selectedConfiguration = configurations.find((configuration) => configuration.id === selectedConfigurationId) || null;
-  const contactSets = document.contactSets || [];
-  const selectedContactSet = contactSets.find((contactSet) => contactSet.id === selectedContactSetId) || null;
   const jointMates = selectedInstance ? instances.filter((instance) => instance.id !== selectedInstance.id && instance.parentInstanceId === selectedInstance.parentInstanceId) : [];
   const jointUnit = selectedJoint?.type === 'slider' ? 'mm' : '°';
   const updateOrigin = (axis, value) => onUpdate(selected.id, { origin: { ...selected.origin, [axis]: Number(value) } });
@@ -217,21 +158,6 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
         <label><span>Rozłożenie</span><input aria-label="Stopień rozstrzelenia złożenia" type="range" min="0" max="1" step="0.05" value={explodeAmount} disabled={explodedOccurrenceCount < 2} onChange={(event) => onExplodeAmountChange?.(Number(event.target.value))} /><output>{Math.round(explodeAmount * 100)}%</output></label>
         <p>{explodedOccurrenceCount < 2 ? 'Wstaw co najmniej dwa wystąpienia części.' : 'Tylko podgląd: położenia, jointy i historia modelu pozostają bez zmian.'}</p>
       </div>
-      <section className="component-storyboard" aria-label="Storyboard animacji złożenia">
-        <div className="component-section-title"><strong>Storyboard i animacja</strong><span>{storyboards.length}</span></div>
-        <form onSubmit={(event) => { event.preventDefault(); onCreateStoryboard?.(storyboardName); setStoryboardName(''); }}><input aria-label="Nazwa nowego storyboardu" value={storyboardName} maxLength="60" placeholder={`Storyboard ${storyboards.length + 1}`} disabled={readOnly} onChange={(event) => setStoryboardName(event.target.value)} /><button type="submit" disabled={readOnly}><Plus size={13} /> Nowy</button></form>
-        {activeStoryboard && <>
-          <div className="storyboard-selection"><select aria-label="Aktywny storyboard" value={activeStoryboard.id} onChange={(event) => onSelectStoryboard?.(event.target.value)}>{storyboards.map((storyboard) => <option key={storyboard.id} value={storyboard.id}>{storyboard.name}</option>)}</select><button type="button" aria-label={`Usuń storyboard ${activeStoryboard.name}`} disabled={readOnly} onClick={() => onDeleteStoryboard?.(activeStoryboard.id)}><Trash2 size={12} /></button></div>
-          <div className="storyboard-properties"><label><span>Nazwa</span><input aria-label="Nazwa storyboardu" value={activeStoryboard.name} disabled={readOnly} onChange={(event) => onUpdateStoryboard?.(activeStoryboard.id, { name: event.target.value })} /></label><label><span>Czas trwania</span><input aria-label="Czas trwania storyboardu" type="number" min="0.1" max="300" step="0.5" value={activeStoryboard.duration} disabled={readOnly} onChange={(event) => onUpdateStoryboard?.(activeStoryboard.id, { duration: event.target.value })} /></label></div>
-          <div className="storyboard-transport"><button type="button" aria-label={animationPlaying ? 'Zatrzymaj animację' : 'Odtwórz animację'} onClick={() => animationPlaying ? onStopStoryboard?.() : onPlayStoryboard?.(activeStoryboard)}>{animationPlaying ? <Pause size={14} /> : <Play size={14} />}{animationPlaying ? ' Stop' : ' Odtwórz'}</button><button type="button" disabled={readOnly} onClick={() => onAddStoryboardKeyframe?.(activeStoryboard.id, animationTime, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, animationNote)}><Plus size={13} /> Klatka</button></div>
-          <div className="storyboard-export"><button type="button" disabled={Boolean(storyboardExporting) || activeStoryboard.keyframes.length < 2} onClick={() => onExportStoryboardVideo?.(activeStoryboard)}><Film size={13} /> {storyboardExporting === 'video' ? 'Nagrywanie…' : 'Film WebM'}</button><button type="button" disabled={Boolean(storyboardExporting)} onClick={() => onExportStoryboardInstructions?.(activeStoryboard)}><FileDown size={13} /> {storyboardExporting === 'instructions' ? 'Tworzenie…' : 'Instrukcja HTML'}</button></div>
-          <label><span>Czas <em>{animationTime.toFixed(1)} s</em></span><input aria-label="Czas storyboardu" type="range" min="0" max={activeStoryboard.duration} step="0.05" value={Math.min(animationTime, activeStoryboard.duration)} onChange={(event) => onSeekStoryboard?.(activeStoryboard, Number(event.target.value))} /></label>
-          {selectedInstance && <div className="storyboard-instance-motion"><strong>Animacja: {selectedInstance.name}</strong><span>Przesunięcie · mm</span><div>{['X', 'Y', 'Z'].map((axis, index) => <label key={`move-${axis}`}><span>{axis}</span><input aria-label={`Przesunięcie animacji ${axis}`} type="number" step="1" value={Number(selectedAnimationOffset[index].toFixed(2))} onChange={(event) => { const next = [...selectedAnimationOffset]; next[index] = Number(event.target.value) || 0; onPreviewStoryboardOffset?.(selectedInstance.id, next); }} /></label>)}</div><span>Obrót · °</span><div>{['X', 'Y', 'Z'].map((axis, index) => <label key={`rotate-${axis}`}><span>{axis}</span><input aria-label={`Obrót animacji ${axis}`} type="number" step="1" value={Number(selectedAnimationRotation[index].toFixed(2))} onChange={(event) => { const next = [...selectedAnimationRotation]; next[index] = Number(event.target.value) || 0; onPreviewStoryboardRotation?.(selectedInstance.id, next); }} /></label>)}</div></div>}
-          {selectedJoint && <label><span>Ruch jointa · {selectedJoint.name}</span><input aria-label="Wartość jointa w animacji" type="number" min={selectedJoint.limits.enabled ? selectedJoint.limits.min : undefined} max={selectedJoint.limits.enabled ? selectedJoint.limits.max : undefined} step="1" value={Number(selectedAnimationJointValue.toFixed(2))} onChange={(event) => onPreviewStoryboardJoint?.(selectedJoint.id, Number(event.target.value) || 0)} /></label>}
-          <label><span>Opis kroku</span><input aria-label="Opis kroku storyboardu" value={animationNote} maxLength="160" placeholder="np. Odkręć osłonę" onChange={(event) => onAnimationNoteChange?.(event.target.value)} /></label>
-          <div className="storyboard-keyframes">{activeStoryboard.keyframes.map((frame) => <div key={frame.id}><button type="button" title={`Przejdź do ${frame.time.toFixed(1)} s`} onClick={() => onSeekStoryboard?.(activeStoryboard, frame.time)}>{frame.time.toFixed(1)} s · {Math.round(frame.explodeAmount * 100)}%</button><button type="button" aria-label={`Usuń klatkę ${frame.time.toFixed(1)} s`} disabled={readOnly} onClick={() => onDeleteStoryboardKeyframe?.(activeStoryboard.id, frame.id)}><X size={11} /></button></div>)}</div>
-        </>}
-      </section>
       <div className="component-list" aria-label="Struktura dokumentu">
         <div className="component-section-title"><strong>Definicje</strong><span>{document.components.length}</span></div>
         {!document.components.length && <p>Utwórz część z zaznaczonej bryły albo puste złożenie nadrzędne.</p>}
@@ -258,34 +184,11 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
         {selectedInstance && !selectedJoint && <div className="component-joint-create"><select aria-label="Typ nowego jointa" value={jointType} disabled={readOnly} onChange={(event) => setJointType(event.target.value)}><option value="rigid">Rigid</option><option value="revolute">Revolute</option><option value="slider">Slider</option></select><select aria-label="Oś nowego jointa" value={jointAxis} disabled={readOnly || jointType === 'rigid'} onChange={(event) => setJointAxis(event.target.value)}><option value="x">Oś X</option><option value="y">Oś Y</option><option value="z">Oś Z</option></select><select aria-label="Bazowe wystąpienie jointa" value={jointMateId} disabled={readOnly || selectedInstance.grounded || !jointMates.length} onChange={(event) => setJointMateId(event.target.value)}><option value="">Wybierz element bazowy</option>{jointMates.map((instance) => <option key={instance.id} value={instance.id}>{instance.name}</option>)}</select><button type="button" disabled={readOnly || selectedInstance.grounded || !jointMateId} onClick={() => { onCreateJoint({ type: jointType, axis: jointAxis, referenceInstanceId: jointMateId, movingInstanceId: selectedInstance.id }); setJointMateId(''); }}><Plus size={14} /> Utwórz joint</button></div>}
         {selectedJoint && <div className="component-joint-properties"><label><span>Nazwa</span><input aria-label="Nazwa jointa" value={selectedJoint.name} disabled={readOnly} onChange={(event) => onUpdateJoint(selectedJoint.id, { name: event.target.value })} /></label><div className="component-joint-grid"><label><span>Typ</span><select aria-label="Typ jointa" value={selectedJoint.type} disabled={readOnly} onChange={(event) => onUpdateJoint(selectedJoint.id, { type: event.target.value })}><option value="rigid">Rigid</option><option value="revolute">Revolute</option><option value="slider">Slider</option></select></label><label><span>Oś</span><select aria-label="Oś jointa" value={selectedJoint.axis} disabled={readOnly || selectedJoint.type === 'rigid'} onChange={(event) => onUpdateJoint(selectedJoint.id, { axis: event.target.value })}><option value="x">X</option><option value="y">Y</option><option value="z">Z</option></select></label></div>{selectedJoint.type !== 'rigid' && <><label className="joint-limit-toggle"><input type="checkbox" checked={selectedJoint.limits.enabled} disabled={readOnly} onChange={(event) => onUpdateJoint(selectedJoint.id, { limits: { enabled: event.target.checked } })} /> Aktywne limity</label><div className="component-joint-grid"><label><span>Minimum {jointUnit}</span><input aria-label="Minimalny limit jointa" type="number" value={selectedJoint.limits.min} disabled={readOnly} onChange={(event) => onUpdateJoint(selectedJoint.id, { limits: { min: Number(event.target.value) } })} /></label><label><span>Maksimum {jointUnit}</span><input aria-label="Maksymalny limit jointa" type="number" value={selectedJoint.limits.max} disabled={readOnly} onChange={(event) => onUpdateJoint(selectedJoint.id, { limits: { max: Number(event.target.value) } })} /></label></div><label><span>Położenie {jointUnit}</span><input aria-label="Wartość jointa" type="range" min={selectedJoint.limits.enabled ? selectedJoint.limits.min : selectedJoint.type === 'slider' ? -100 : -180} max={selectedJoint.limits.enabled ? selectedJoint.limits.max : selectedJoint.type === 'slider' ? 100 : 180} step={selectedJoint.type === 'slider' ? 0.5 : 1} value={selectedJoint.value} disabled={readOnly || !selectedJoint.enabled} onChange={(event) => onSetJointValue(selectedJoint.id, Number(event.target.value))} /><input aria-label="Numeryczna wartość jointa" type="number" value={selectedJoint.value} disabled={readOnly || !selectedJoint.enabled} onChange={(event) => onSetJointValue(selectedJoint.id, Number(event.target.value))} /></label></>}<div className="component-instance-toggles"><label><input type="checkbox" checked={selectedJoint.enabled} disabled={readOnly} onChange={(event) => onUpdateJoint(selectedJoint.id, { enabled: event.target.checked })} /> Joint aktywny</label></div><div className="component-actions"><button type="button" disabled={readOnly} onClick={() => onUpdateJoint(selectedJoint.id, { captureRest: true })}><RotateCcw size={14} /> Ustaw bieżące jako zero</button><button className="danger" type="button" disabled={readOnly} onClick={() => onDeleteJoint(selectedJoint.id)}><Trash2 size={14} /> Usuń joint</button></div></div>}
       </div>
-      <div className="component-motion-links" aria-label="Powiązania ruchu">
-        <div className="component-section-title"><strong>Motion Links</strong><span>{motionLinks.length}</span></div>
-        <div className="component-motion-list">
-          {!motionLinks.length && <p>Powiąż dwa jointy przełożeniem i opcjonalnym offsetem.</p>}
-          {motionLinks.map((link) => <button className={selectedMotionLink?.id === link.id ? 'active' : ''} type="button" key={link.id} onClick={() => onSelectMotionLink(link.id)}><GitCompareArrows size={14} /><span><strong>{link.name}</strong><small>{joints.find((joint) => joint.id === link.sourceJointId)?.name} → {joints.find((joint) => joint.id === link.targetJointId)?.name}</small></span><em>{link.ratio}× {link.offset ? `${link.offset > 0 ? '+' : ''}${link.offset}` : ''}</em></button>)}
-        </div>
-        {joints.length >= 2 && !selectedMotionLink && <div className="component-motion-create"><select aria-label="Źródłowy joint Motion Link" value={motionSourceId} disabled={readOnly} onChange={(event) => setMotionSourceId(event.target.value)}><option value="">Joint źródłowy</option>{joints.map((joint) => <option key={joint.id} value={joint.id}>{joint.name}</option>)}</select><select aria-label="Docelowy joint Motion Link" value={motionTargetId} disabled={readOnly} onChange={(event) => setMotionTargetId(event.target.value)}><option value="">Joint docelowy</option>{joints.map((joint) => <option key={joint.id} value={joint.id}>{joint.name}</option>)}</select><div className="component-joint-grid"><label><span>Przełożenie</span><input aria-label="Przełożenie Motion Link" type="number" step="0.1" value={motionRatio} disabled={readOnly} onChange={(event) => setMotionRatio(event.target.value)} /></label><label><span>Offset</span><input aria-label="Offset Motion Link" type="number" step="0.1" value={motionOffset} disabled={readOnly} onChange={(event) => setMotionOffset(event.target.value)} /></label></div><button type="button" disabled={readOnly || !motionSourceId || !motionTargetId || motionSourceId === motionTargetId} onClick={() => { onCreateMotionLink({ sourceJointId: motionSourceId, targetJointId: motionTargetId, ratio: Number(motionRatio), offset: Number(motionOffset) }); setMotionTargetId(''); }}><Plus size={14} /> Utwórz Motion Link</button></div>}
-        {selectedMotionLink && <div className="component-motion-properties"><label><span>Nazwa</span><input aria-label="Nazwa Motion Link" value={selectedMotionLink.name} disabled={readOnly} onChange={(event) => onUpdateMotionLink(selectedMotionLink.id, { name: event.target.value })} /></label><div className="component-joint-grid"><label><span>Przełożenie</span><input aria-label="Przełożenie wybranego Motion Link" type="number" step="0.1" value={selectedMotionLink.ratio} disabled={readOnly} onChange={(event) => onUpdateMotionLink(selectedMotionLink.id, { ratio: Number(event.target.value) })} /></label><label><span>Offset</span><input aria-label="Offset wybranego Motion Link" type="number" step="0.1" value={selectedMotionLink.offset} disabled={readOnly} onChange={(event) => onUpdateMotionLink(selectedMotionLink.id, { offset: Number(event.target.value) })} /></label></div><div className="component-instance-toggles"><label><input type="checkbox" checked={selectedMotionLink.enabled} disabled={readOnly} onChange={(event) => onUpdateMotionLink(selectedMotionLink.id, { enabled: event.target.checked })} /> Motion Link aktywny</label></div><div className="component-actions"><button type="button" onClick={() => onSelectMotionLink('')}><X size={14} /> Zamknij edycję</button><button className="danger" type="button" disabled={readOnly} onClick={() => { onDeleteMotionLink(selectedMotionLink.id); onSelectMotionLink(''); }}><Trash2 size={14} /> Usuń Motion Link</button></div></div>}
-      </div>
       <div className="component-configurations" aria-label="Konfiguracje złożenia">
         <div className="component-section-title"><strong>Konfiguracje</strong><span>{configurations.length}</span></div>
         <div className="component-configuration-create"><input aria-label="Nazwa nowej konfiguracji" value={configurationName} disabled={readOnly} placeholder={`Konfiguracja ${configurations.length + 1}`} onChange={(event) => setConfigurationName(event.target.value)} /><button type="button" disabled={readOnly} onClick={() => { onCreateConfiguration({ name: configurationName }); setConfigurationName(''); }}><Save size={14} /> Zapisz nową</button></div>
         <div className="component-configuration-list">{configurations.map((configuration) => <div className={`component-configuration-row ${configuration.id === document.activeAssemblyConfigurationId ? 'active' : ''} ${configuration.id === selectedConfigurationId ? 'selected' : ''}`} key={configuration.id}><button type="button" onClick={() => onSelectConfiguration(configuration.id)}><span><strong>{configuration.name}</strong><small>{configuration.instanceStates.length} wyst. · {configuration.jointStates.length} joint.</small></span></button><button type="button" aria-label={`Aktywuj konfigurację ${configuration.name}`} disabled={readOnly} onClick={() => onApplyConfiguration(configuration.id)}><Play size={13} /></button></div>)}</div>
         {selectedConfiguration && <div className="component-configuration-properties"><label><span>Nazwa</span><input aria-label="Nazwa konfiguracji" value={selectedConfiguration.name} disabled={readOnly} onChange={(event) => onUpdateConfiguration(selectedConfiguration.id, { name: event.target.value })} /></label><label><span>Opis</span><textarea aria-label="Opis konfiguracji" rows="2" value={selectedConfiguration.description} disabled={readOnly} onChange={(event) => onUpdateConfiguration(selectedConfiguration.id, { description: event.target.value })} /></label><div className="component-actions"><button type="button" disabled={readOnly} onClick={() => onUpdateConfiguration(selectedConfiguration.id, { captureCurrent: true })}><Save size={14} /> Zapisz bieżący stan</button><button className="danger" type="button" disabled={readOnly} onClick={() => { onDeleteConfiguration(selectedConfiguration.id); onSelectConfiguration(''); }}><Trash2 size={14} /> Usuń konfigurację</button></div></div>}
-      </div>
-      <div className="component-contact-sets" aria-label="Pary kontaktowe złożenia">
-        <div className="component-section-title"><strong>Contact Sets</strong><span>{contactSets.length}</span></div>
-        <div className="component-contact-list">
-          {!contactSets.length && <p>Wskaż pary, które mają być stale monitorowane podczas ruchu złożenia.</p>}
-          {contactSets.map((contactSet) => {
-            const state = collisionResult.contactSets?.find((item) => item.id === contactSet.id);
-            const firstName = instances.find((instance) => instance.id === contactSet.firstInstanceId)?.name || 'Brak';
-            const secondName = instances.find((instance) => instance.id === contactSet.secondInstanceId)?.name || 'Brak';
-            return <button className={`${selectedContactSet?.id === contactSet.id ? 'active' : ''} ${state?.status || ''}`} type="button" key={contactSet.id} onClick={() => onSelectContactSet(contactSet.id)}><Magnet size={14} /><span><strong>{contactSet.name}</strong><small>{firstName} ↔ {secondName}</small></span><em>{state?.status === 'exact' ? 'KONTAKT' : state?.status === 'broad-phase' ? 'RYZYKO' : contactSet.enabled ? 'LUZ' : 'OFF'}</em></button>;
-          })}
-        </div>
-        {instances.length >= 2 && !selectedContactSet && <div className="component-contact-create"><select aria-label="Pierwsze wystąpienie Contact Set" value={contactFirstId} disabled={readOnly} onChange={(event) => setContactFirstId(event.target.value)}><option value="">Pierwsze wystąpienie</option>{instances.map((instance) => <option key={instance.id} value={instance.id}>{instance.name}</option>)}</select><select aria-label="Drugie wystąpienie Contact Set" value={contactSecondId} disabled={readOnly} onChange={(event) => setContactSecondId(event.target.value)}><option value="">Drugie wystąpienie</option>{instances.map((instance) => <option key={instance.id} value={instance.id}>{instance.name}</option>)}</select><button type="button" disabled={readOnly || !contactFirstId || !contactSecondId || contactFirstId === contactSecondId} onClick={() => { onCreateContactSet({ firstInstanceId: contactFirstId, secondInstanceId: contactSecondId }); setContactSecondId(''); }}><Plus size={14} /> Utwórz Contact Set</button></div>}
-        {selectedContactSet && <div className="component-contact-properties"><label><span>Nazwa</span><input aria-label="Nazwa Contact Set" value={selectedContactSet.name} disabled={readOnly} onChange={(event) => onUpdateContactSet(selectedContactSet.id, { name: event.target.value })} /></label><div className="component-instance-toggles"><label><input type="checkbox" checked={selectedContactSet.enabled} disabled={readOnly} onChange={(event) => onUpdateContactSet(selectedContactSet.id, { enabled: event.target.checked })} /> Monitorowanie kontaktu aktywne</label></div><div className="component-actions"><button type="button" onClick={() => onSelectContactSet('')}><X size={14} /> Zamknij edycję</button><button className="danger" type="button" disabled={readOnly} onClick={() => { onDeleteContactSet(selectedContactSet.id); onSelectContactSet(''); }}><Trash2 size={14} /> Usuń Contact Set</button></div></div>}
       </div>
       <div className={`component-interference ${interferenceStatus}`} aria-label="Analiza kolizji wskazanych komponentów">
         <div className="component-section-title"><strong>Interference</strong><span>{interferenceStatusLabel}</span></div>
@@ -501,182 +404,6 @@ export function MassPropertiesPanel({ density, result, error, onDensityChange, o
   );
 }
 
-export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', fixedEnd = 'min', force = '1000', result, error = '', onChange, onClose }) {
-  const format = (value, digits = 2) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
-  return (
-    <aside className="measure-panel static-screening-panel" aria-label="Szybka analiza statyczna">
-      <header><div><ScanSearch size={16} /><strong>Szybka analiza statyczna</strong></div><button type="button" title="Zamknij analizę statyczną" aria-label="Zamknij analizę statyczną" onClick={onClose}><X size={15} /></button></header>
-      <div className="measure-panel-body">
-        <p className="analysis-scope">Wstępny szacunek belki wspornikowej — nie pełny solver MES.</p>
-        <label><span>Bryła</span><select aria-label="Bryła analizy statycznej" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
-        <label><span>Materiał</span><select aria-label="Materiał analizy statycznej" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(ENGINEERING_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
-        <div className="static-axis-grid"><label><span>Oś długości</span><select aria-label="Oś długości belki" value={spanAxis} onChange={(event) => onChange({ spanAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Kierunek siły</span><select aria-label="Kierunek siły" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label></div>
-        <label><span>Utwierdzenie</span><select aria-label="Utwierdzony koniec belki" value={fixedEnd} onChange={(event) => onChange({ fixedEnd: event.target.value })}><option value="min">Początek osi (MIN)</option><option value="max">Koniec osi (MAX)</option></select></label>
-        <Field label="Siła na wolnym końcu" value={force} onChange={(value) => onChange({ force: value })} suffix="N" />
-        {error && <p className="measure-error">{error}</p>}
-        {result && <div className={`static-result ${result.status}`}>
-          <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zapas ≥ 2' : result.status === 'warning' ? 'Mały zapas' : 'Przekroczona granica plastyczności'}</strong><span>FoS {format(result.safetyFactor)}</span></div>
-          <div className="measure-row"><span>Długość obliczeniowa</span><strong>{format(result.length)} mm</strong></div>
-          <div className="measure-row"><span>Przekrój z obwiedni</span><strong>{format(result.sectionWidth)} × {format(result.sectionHeight)} mm</strong></div>
-          <div className="measure-row"><span>Maks. naprężenie</span><strong>{format(result.maximumStress)} MPa</strong></div>
-          <div className="measure-row"><span>Ugięcie końca</span><strong>{format(result.tipDeflection, 3)} mm</strong></div>
-          <div className="measure-row"><span>Granica materiału</span><strong>{format(result.material.yieldStrength)} MPa</strong></div>
-          {result.mass !== null && <div className="measure-row"><span>Szacowana masa</span><strong>{format(result.mass)} g</strong></div>}
-        </div>}
-        {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
-      </div>
-    </aside>
-  );
-}
-
-export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', distributedForce = '10', elementCount = '8', requiredSafetyFactor = '2', loadCases, result, error = '', onChange, onExport, onClose }) {
-  const [diagram, setDiagram] = React.useState('deflection');
-  const editableLoadCases = loadCases || [{ id: 'base', name: 'Bazowy', factor: '1' }, { id: 'working', name: 'Roboczy', factor: '1.25' }, { id: 'overload', name: 'Przeciążenie', factor: '1.5' }];
-  const updateLoadCase = (id, patch) => onChange({ loadCases: editableLoadCases.map((loadCase) => loadCase.id === id ? { ...loadCase, ...patch } : loadCase) });
-  const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
-  const nodes = result?.nodalDeflections || [];
-  const maximumDisplacement = Math.max(0, ...nodes.map((node) => Math.abs(node.displacement)));
-  const chartPoints = nodes.map((node) => {
-    const x = result.length ? 8 + node.x / result.length * 224 : 8;
-    const y = maximumDisplacement ? 8 + Math.abs(node.displacement) / maximumDisplacement * 46 : 8;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(' ');
-  const momentPoints = (result?.bendingMoments || []).map((node) => {
-    const x = result.length ? 8 + node.x / result.length * 224 : 8;
-    const y = result.maximumMoment ? 54 - node.moment / result.maximumMoment * 46 : 54;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(' ');
-  const maximumShear = Math.max(0, ...(result?.shearForces || []).map((node) => node.shear));
-  const shearPoints = (result?.shearForces || []).map((node) => {
-    const x = result.length ? 8 + node.x / result.length * 224 : 8;
-    const y = maximumShear ? 54 - node.shear / maximumShear * 46 : 54;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(' ');
-  const stressPoints = (result?.bendingStresses || []).map((node) => {
-    const x = result.length ? 8 + node.x / result.length * 224 : 8;
-    const y = result.maximumStress ? 54 - node.stress / result.maximumStress * 46 : 54;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(' ');
-  return (
-    <aside className="measure-panel static-screening-panel beam-fea-panel" aria-label="MES belki 1D">
-      <header><div><ScanSearch size={16} /><strong>MES belki 1D</strong></div><button type="button" title="Zamknij MES belki" aria-label="Zamknij MES belki" onClick={onClose}><X size={15} /></button></header>
-      <div className="measure-panel-body">
-        <p className="analysis-scope">Liniowy solver elementów belkowych — nie MES dowolnej bryły 3D.</p>
-        <label><span>Bryła</span><select aria-label="Bryła MES belki" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
-        <label><span>Materiał</span><select aria-label="Materiał MES belki" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(ENGINEERING_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
-        <div className="static-axis-grid"><label><span>Oś długości</span><select aria-label="Oś długości MES" value={spanAxis} onChange={(event) => onChange({ spanAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Kierunek siły</span><select aria-label="Kierunek siły MES" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label></div>
-        <label><span>Obciążenie</span><select aria-label="Typ obciążenia MES" value={loadType} onChange={(event) => onChange({ loadType: event.target.value })}><option value="tip">Siła skupiona w położeniu</option><option value="distributed">Równomiernie rozłożone</option><option value="combined">Siła skupiona + rozłożone</option></select></label>
-        <div className="beam-fea-inputs"><Field label={loadType === 'distributed' ? 'Obciążenie liniowe' : 'Siła skupiona'} value={force} onChange={(value) => onChange({ force: value })} suffix={loadType === 'distributed' ? 'N/mm' : 'N'} /><Field label="Elementy" value={elementCount} onChange={(value) => onChange({ elementCount: value })} /></div>
-        {loadType === 'combined' && <Field label="Obciążenie liniowe kombinacji" value={distributedForce} onChange={(value) => onChange({ distributedForce: value })} suffix="N/mm" />}
-        <Field label="Wymagany współczynnik bezpieczeństwa" value={requiredSafetyFactor} onChange={(value) => onChange({ requiredSafetyFactor: value })} />
-        {loadType !== 'distributed' && <Field label="Położenie od utwierdzenia" value={loadPositionPercent} onChange={(value) => onChange({ loadPositionPercent: value })} suffix="%" />}
-        <div className="beam-fea-factor-editor" aria-label="Współczynniki scenariuszy obciążenia">
-          <header><strong>Scenariusze obciążenia</strong><button type="button" disabled={editableLoadCases.length >= 8} onClick={() => onChange({ loadCases: [...editableLoadCases, { id: `case-${Date.now()}`, name: `Przypadek ${editableLoadCases.length + 1}`, factor: '1' }] })}><Plus size={12} /> Dodaj</button></header>
-          <div className="beam-fea-factor-rows">{editableLoadCases.map((loadCase) => <div className="beam-fea-factor-row" key={loadCase.id}><input aria-label={`Nazwa scenariusza ${loadCase.name}`} maxLength="40" value={loadCase.name} onChange={(event) => updateLoadCase(loadCase.id, { name: event.target.value })} /><div><input aria-label={`Współczynnik scenariusza ${loadCase.name}`} value={loadCase.factor} onChange={(event) => updateLoadCase(loadCase.id, { factor: event.target.value })} /><span>×</span></div><button type="button" aria-label={`Usuń scenariusz ${loadCase.name}`} disabled={editableLoadCases.length <= 1} onClick={() => onChange({ loadCases: editableLoadCases.filter((item) => item.id !== loadCase.id) })}><Trash2 size={12} /></button></div>)}</div>
-        </div>
-        <div className="beam-fea-legend" aria-label="Legenda warunków brzegowych"><span><i className="support" />Utwierdzenie</span><span><i className="load" />Obciążenie</span><span><i className="deformation" />Deformacja</span></div>
-        {error && <p className="measure-error">{error}</p>}
-        {result && <div className="beam-fea-chart-tabs" role="group" aria-label="Wynik wykresu MES">
-          <button type="button" className={diagram === 'deflection' ? 'active' : ''} aria-pressed={diagram === 'deflection'} onClick={() => setDiagram('deflection')}>Ugięcie</button>
-          <button type="button" className={diagram === 'moment' ? 'active' : ''} aria-pressed={diagram === 'moment'} onClick={() => setDiagram('moment')}>Moment</button>
-          <button type="button" className={diagram === 'shear' ? 'active' : ''} aria-pressed={diagram === 'shear'} onClick={() => setDiagram('shear')}>Tnąca</button>
-          <button type="button" className={diagram === 'stress' ? 'active' : ''} aria-pressed={diagram === 'stress'} onClick={() => setDiagram('stress')}>Naprężenie</button>
-        </div>}
-        {diagram === 'deflection' && nodes.length > 1 && <div className="beam-fea-chart"><span>Linia ugięcia · skala automatyczna</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres ugięcia węzłów MES"><line x1="8" y1="8" x2="232" y2="8" /><polyline points={chartPoints} />{nodes.map((node, index) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={maximumDisplacement ? 8 + Math.abs(node.displacement) / maximumDisplacement * 46 : 8} r={index === nodes.length - 1 ? 2.8 : 1.5} />)}</svg></div>}
-        {diagram === 'moment' && result?.bendingMoments?.length > 1 && <div className="beam-fea-chart beam-fea-moment-chart"><span>Moment zginający · maks. {format(result.maximumMoment)} N·mm</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres momentu zginającego MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={momentPoints} />{result.bendingMoments.map((node) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={result.maximumMoment ? 54 - node.moment / result.maximumMoment * 46 : 54} r="1.5" />)}</svg></div>}
-        {diagram === 'shear' && result?.shearForces?.length > 1 && <div className="beam-fea-chart beam-fea-shear-chart"><span>Siła tnąca · maks. {format(maximumShear)} N</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres siły tnącej MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={shearPoints} />{result.shearForces.map((node, index) => <circle key={`${node.x}-${index}`} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={maximumShear ? 54 - node.shear / maximumShear * 46 : 54} r="1.5" />)}</svg></div>}
-        {diagram === 'stress' && result?.bendingStresses?.length > 1 && <div className="beam-fea-chart beam-fea-stress-chart"><span>Wykorzystanie granicy · maks. {format(result.utilizationPercent)}%</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres naprężenia zginającego MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={stressPoints} />{result.bendingStresses.map((node) => <circle className={node.exceedsYield ? 'failed' : node.utilizationPercent >= 50 ? 'warning' : 'safe'} key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={result.maximumStress ? 54 - node.stress / result.maximumStress * 46 : 54} r={node.exceedsYield ? '2.5' : '1.5'} />)}</svg></div>}
-        {result?.loadCases?.length > 0 && <div className="beam-fea-load-cases" aria-label="Scenariusze obciążenia MES">
-          <div><strong>Obwiednia scenariuszy</strong><span>Krytyczny: {result.criticalLoadCase.name} ×{format(result.criticalLoadCase.factor, 2)}</span></div>
-          {result.loadCases.map((loadCase) => <div className={`beam-fea-load-case ${loadCase.status}`} key={loadCase.id}><span>{loadCase.name} <small>×{format(loadCase.factor, 2)}</small></span><strong>FoS {format(loadCase.safetyFactor)}</strong><em>{loadCase.meetsSafetyTarget ? 'spełnia cel' : loadCase.status === 'failed' ? 'plastyczność' : 'poniżej celu'}</em></div>)}
-        </div>}
-        {result && <button className="beam-fea-export" type="button" onClick={onExport}><FileDown size={13} /> Eksportuj raport CSV</button>}
-        {result && <div className={`static-result ${result.status}`}>
-          <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Cel bezpieczeństwa spełniony' : result.status === 'warning' ? 'Poniżej wymaganego celu' : 'Przekroczona plastyczność'}</strong><span>{result.elementCount} elem.</span></div>
-          <div className="measure-row"><span>Węzły / DOF</span><strong>{result.nodeCount} / {result.nodeCount * 2}</strong></div>
-          <div className="measure-row"><span>Ugięcie końca</span><strong>{format(result.tipDeflection)} mm</strong></div>
-          <div className="measure-row"><span>Błąd walidacji</span><strong>{format(result.convergenceError, 6)}%</strong></div>
-          <div className="measure-row"><span>Maks. naprężenie</span><strong>{format(result.maximumStress)} MPa</strong></div>
-          <div className="measure-row"><span>Wykorzystanie granicy</span><strong>{format(result.utilizationPercent)}%</strong></div>
-          <div className="measure-row"><span>Węzły powyżej granicy</span><strong>{result.yieldExceededNodeCount} / {result.nodeCount}</strong></div>
-          <div className="measure-row"><span>Reakcja podpory</span><strong>{format(result.reactionForce)} N</strong></div>
-          <div className="measure-row"><span>Moment podpory</span><strong>{format(result.reactionMoment)} N·mm</strong></div>
-          <div className="measure-row"><span>Siła wypadkowa</span><strong>{format(result.totalLoad)} N</strong></div>
-          {result.loadType === 'tip' && <div className="measure-row"><span>Położenie siły</span><strong>{format(result.loadPosition)} mm</strong></div>}
-          <div className="measure-row"><span>Współczynnik bezpieczeństwa</span><strong>{format(result.safetyFactor)}</strong></div>
-          <div className="measure-row"><span>Wymagany współczynnik</span><strong>{format(result.requiredSafetyFactor)}</strong></div>
-          <div className="measure-row"><span>Margines względem celu</span><strong>{result.safetyMarginPercent >= 0 ? '+' : ''}{format(result.safetyMarginPercent)}%</strong></div>
-        </div>}
-        {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
-      </div>
-    </aside>
-  );
-}
-
-export function SolidFeaPanel({ bodies = [], bodyId = '', materialId = 's235', supportAxis = 'x', supportSide = 'min', supportFaceId = '', supportFaceLabel = '', loadAxis = 'z', loadSide = 'max', loadFaceId = '', loadFaceLabel = '', force = '1000', meshDensity = '6', result, error = '', onChange, onClose }) {
-  const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
-  return (
-    <aside className="measure-panel static-screening-panel solid-fea-panel" aria-label="Liniowy MES bryły 3D">
-      <header><div><ScanSearch size={16} /><strong>MES bryły 3D <em>LINIOWY</em></strong></div><button type="button" title="Zamknij MES bryły 3D" aria-label="Zamknij MES bryły 3D" onClick={onClose}><X size={15} /></button></header>
-      <div className="measure-panel-body">
-        <p className="analysis-scope">Liniowa sprężystość 3D na objętościowej siatce czworościennej.</p>
-        <label><span>Bryła</span><select aria-label="Bryła MES 3D" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
-        <label><span>Materiał</span><select aria-label="Materiał MES 3D" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(ENGINEERING_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
-        <section className="solid-fea-boundary"><strong>Utwierdzenie</strong>{supportFaceId ? <div className="solid-fea-face-reference"><Anchor size={13} /><span>{supportFaceLabel || 'Wskazana ściana modelu'}</span></div> : <div className="static-axis-grid"><label><span>Oś</span><select aria-label="Oś utwierdzenia MES 3D" value={supportAxis} onChange={(event) => onChange({ supportAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Strona</span><select aria-label="Strona utwierdzenia MES 3D" value={supportSide} onChange={(event) => onChange({ supportSide: event.target.value })}><option value="min">MIN</option><option value="max">MAX</option></select></label></div>}</section>
-        <section className="solid-fea-boundary"><strong>Obciążenie powierzchni</strong>{loadFaceId && <div className="solid-fea-face-reference load"><Anchor size={13} /><span>{loadFaceLabel || 'Wskazana ściana modelu'}</span></div>}<div className="static-axis-grid"><label><span>Kierunek</span><select aria-label="Kierunek siły MES 3D" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label>{!loadFaceId && <label><span>Strona</span><select aria-label="Strona obciążenia MES 3D" value={loadSide} onChange={(event) => onChange({ loadSide: event.target.value })}><option value="max">MAX</option><option value="min">MIN</option></select></label>}</div></section>
-        <div className="beam-fea-inputs"><Field label="Siła całkowita" value={force} onChange={(value) => onChange({ force: value })} suffix="N" /><Field label="Gęstość siatki" ariaLabel="Gęstość siatki" value={meshDensity} onChange={(value) => onChange({ meshDensity: value })} suffix="2–16" /></div>
-        {error && <p className="measure-error">{error}</p>}
-        {result && <>
-          <div className={`static-result ${result.status}`}>
-            <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zapas ≥ 2' : result.status === 'warning' ? 'Mały zapas' : 'Przekroczona granica'}</strong><span>FoS {format(result.safetyFactor, 2)}</span></div>
-            <div className="measure-row"><span>Siatka</span><strong>{result.nodeCount} węzłów · {result.elementCount} elem.</strong></div>
-            <div className="measure-row"><span>Adaptacja cech</span><strong>{result.adaptation?.addedPlaneCount ? `${result.adaptation.addedPlaneCount} płaszczyzn` : 'Niepotrzebna'}</strong></div>
-            <div className="measure-row"><span>Utwierdzone / obciążone</span><strong>{result.fixedNodeCount} / {result.loadedNodeCount}</strong></div>
-            <div className="measure-row"><span>Maks. przemieszczenie</span><strong>{format(result.maximumDisplacement, 5)} mm</strong></div>
-            <div className="measure-row"><span>Maks. von Mises</span><strong>{format(result.maximumStress)} MPa</strong></div>
-            <div className="measure-row"><span>Błąd objętości siatki</span><strong>{result.volumeErrorPercent == null ? '—' : `${format(result.volumeErrorPercent, 2)}%`}</strong></div>
-            <div className="measure-row"><span>Błąd równowagi sił</span><strong>{format(result.equilibriumErrorPercent, 4)}%</strong></div>
-            <div className="measure-row"><span>Zbieżność siatki</span><strong>{result.convergence?.status === 'converged' ? '≤ 10%' : result.convergence?.status === 'refine' ? 'Zagęść siatkę' : 'Brak porównania'}</strong></div>
-            {result.convergence?.displacementChangePercent != null && <div className="measure-row"><span>Zmiana u / σ</span><strong>{format(result.convergence.displacementChangePercent, 1)}% / {format(result.convergence.stressChangePercent, 1)}%</strong></div>}
-            <div className="measure-row"><span>Kontrola wyniku</span><strong>{result.verification?.status === 'verified' ? 'Zweryfikowany' : 'Wymaga przeglądu'}</strong></div>
-            <div className="measure-row"><span>Solver</span><strong>{result.iterationCount} iteracji</strong></div>
-          </div>
-          <div className="beam-fea-legend" aria-label="Legenda MES bryły 3D"><span><i className="support" />Utwierdzenie</span><span><i className="load" />Obciążenie</span><span><i className="deformation" />Naprężenie</span></div>
-        </>}
-        {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
-      </div>
-    </aside>
-  );
-}
-
-export function ThermalScreeningPanel({ bodies = [], bodyId = '', materialId = 's235', axis = 'x', hotTemperature = '100', coldTemperature = '20', result, error = '', onChange, onClose }) {
-  const format = (value, digits = 2) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
-  return (
-    <aside className="measure-panel static-screening-panel thermal-screening-panel" aria-label="Szybka analiza cieplna">
-      <header><div><Sun size={16} /><strong>Szybka analiza cieplna</strong></div><button type="button" title="Zamknij analizę cieplną" aria-label="Zamknij analizę cieplną" onClick={onClose}><X size={15} /></button></header>
-      <div className="measure-panel-body">
-        <p className="analysis-scope">Wstępny model przewodzenia 1D — nie pełny solver termiczny MES.</p>
-        <label><span>Bryła</span><select aria-label="Bryła analizy cieplnej" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
-        <label><span>Materiał</span><select aria-label="Materiał analizy cieplnej" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(THERMAL_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
-        <label><span>Kierunek przepływu</span><select aria-label="Kierunek przepływu ciepła" value={axis} onChange={(event) => onChange({ axis: event.target.value })}>{['x', 'y', 'z'].map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></label>
-        <div className="static-axis-grid"><Field label="Strona ciepła" value={hotTemperature} onChange={(value) => onChange({ hotTemperature: value })} suffix="°C" /><Field label="Strona chłodu" value={coldTemperature} onChange={(value) => onChange({ coldTemperature: value })} suffix="°C" /></div>
-        {error && <p className="measure-error">{error}</p>}
-        {result && <div className={`static-result ${result.status}`}>
-          <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zakres materiału' : 'Przekroczona temp. użytkowa'}</strong><span>ΔT {format(result.deltaTemperature)}°C</span></div>
-          <div className="measure-row"><span>Droga przewodzenia</span><strong>{format(result.pathLength)} mm</strong></div>
-          <div className="measure-row"><span>Pole przekroju</span><strong>{format(result.area)} mm²</strong></div>
-          <div className="measure-row"><span>Opór cieplny</span><strong>{format(result.thermalResistance, 4)} K/W</strong></div>
-          <div className="measure-row"><span>Przepływ ciepła</span><strong>{format(result.heatFlow, 3)} W</strong></div>
-          <div className="measure-row"><span>Strumień ciepła</span><strong>{format(result.heatFlux, 0)} W/m²</strong></div>
-          <div className="measure-row"><span>Swobodne wydłużenie</span><strong>{format(result.freeExpansion, 4)} mm</strong></div>
-          <div className="measure-row"><span>Limit materiału</span><strong>{format(result.material.maxServiceTemperature)}°C</strong></div>
-        </div>}
-        {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
-      </div>
-    </aside>
-  );
-}
-
 export function GeometryInspectionPanel({ result, inspectionMode = 'draft', draftDirection = 'z-positive', draftTolerance = '0.5', thicknessTarget = '2', thicknessTolerance = '0.25', onChange, onClose }) {
   const draft = result.draft;
   const thickness = result.thickness;
@@ -752,66 +479,22 @@ export function SurfaceAnalysisPanel({ analysis, continuity, curvature, onChange
   );
 }
 
-export function MeshToolsPanel({ body, report, groups = [], brepBlocker = '', readOnly = false, onRepair, onOrient, onFillHoles, onReduce, onSmooth, onRemesh, onGroup, onConvertToBrep, onClose }) {
-  const [panelMode, setPanelMode] = React.useState('repair');
-  const [reduction, setReduction] = React.useState('50');
-  const [iterations, setIterations] = React.useState('2');
-  const [strength, setStrength] = React.useState('25');
-  const [targetEdgeLength, setTargetEdgeLength] = React.useState(() => report?.averageEdgeLength ? Number(report.averageEdgeLength.toPrecision(3)).toString() : '5');
-  const [maximumHoleDiameter, setMaximumHoleDiameter] = React.useState(() => report?.averageEdgeLength ? Number((report.averageEdgeLength * 2).toPrecision(3)).toString() : '10');
-  const [featureAngle, setFeatureAngle] = React.useState('30');
-  const clean = report && !report.degenerateTriangles && !report.duplicateTriangles;
+export function MeshToolsPanel({ body, report, brepBlocker = '', readOnly = false, onConvertToBrep, onClose }) {
   return (
-    <aside className="measure-panel mesh-tools-panel" aria-label="Diagnostyka i naprawa siatki">
+    <aside className="measure-panel mesh-tools-panel" aria-label="Diagnostyka siatki">
       <header><div><ScanSearch size={16} /><strong>Narzędzia siatki</strong></div><button type="button" title="Zamknij narzędzia siatki" aria-label="Zamknij narzędzia siatki" onClick={onClose}><X size={15} /></button></header>
       <div className="measure-panel-body">
         <strong>{body?.name || 'Siatka'}</strong>
         <div className="mesh-diagnostics-grid">
           <div><span>Wierzchołki</span><strong>{report?.weldedVertexCount?.toLocaleString('pl-PL') || 0}</strong></div>
           <div><span>Trójkąty</span><strong>{report?.triangleCount?.toLocaleString('pl-PL') || 0}</strong></div>
-          <div><span>Zdegenerowane</span><strong>{report?.degenerateTriangles || 0}</strong></div>
-          <div><span>Powtórzone</span><strong>{report?.duplicateTriangles || 0}</strong></div>
           <div><span>Otwarte brzegi</span><strong>{report?.boundaryEdges || 0}</strong></div>
           <div><span>Niemanifold</span><strong>{report?.nonManifoldEdges || 0}</strong></div>
         </div>
-        <div className="mesh-panel-tabs" role="tablist" aria-label="Grupa narzędzi siatki">
-          <button type="button" role="tab" aria-selected={panelMode === 'repair'} className={panelMode === 'repair' ? 'active' : ''} onClick={() => setPanelMode('repair')}>Naprawa</button>
-          <button type="button" role="tab" aria-selected={panelMode === 'edit'} className={panelMode === 'edit' ? 'active' : ''} onClick={() => setPanelMode('edit')}>Obróbka</button>
-        </div>
-        {panelMode === 'repair' ? <>
-          <p>Czyszczenie nie tworzy powierzchni; otwory uzupełniasz osobno z limitem rozmiaru.</p>
-          <button className="mesh-action-button primary" type="button" disabled={readOnly || !report || clean} onClick={onRepair}><RotateCcw size={14} />{clean ? 'Geometria jest oczyszczona' : 'Bezpieczne czyszczenie'}</button>
-          <section className="mesh-operation-section">
-            <header><strong>Kierunek ścian</strong><span>{report?.inconsistentEdges ? `${report.inconsistentEdges} niespójnych` : 'Kontrola bryły'}</span></header>
-            <div className="mesh-operation-controls single-button"><button type="button" disabled={readOnly || !report} onClick={onOrient}>{report?.inconsistentEdges ? 'Uporządkuj' : 'Sprawdź kierunek'}</button></div>
-          </section>
-          <section className="mesh-operation-section">
-            <header><strong>Małe otwory</strong><span>{report?.boundaryEdges ? `${report.boundaryEdges} krawędzi` : 'Siatka zamknięta'}</span></header>
-            <div className="mesh-operation-controls"><Field label="Maks. średnica" type="number" value={maximumHoleDiameter} onChange={setMaximumHoleDiameter} suffix="mm" /><button type="button" disabled={readOnly || !report?.boundaryEdges || Boolean(report?.nonManifoldEdges)} onClick={() => onFillHoles(Number(maximumHoleDiameter))}>Wypełnij</button></div>
-          </section>
           <section className="mesh-operation-section mesh-conversion-section">
             <header title={brepBlocker || 'Zamień zamkniętą siatkę na fasetową bryłę CAD.'}><strong>B-Rep</strong><span>{brepBlocker ? 'Niedostępne' : 'Gotowa bryła'}</span></header>
             <div className="mesh-operation-controls single-button"><button type="button" title={brepBlocker || 'Utwórz fasetową bryłę CAD z tej siatki.'} disabled={readOnly || Boolean(brepBlocker)} onClick={onConvertToBrep}>Utwórz B-Rep</button></div>
           </section>
-        </> : <>
-          <section className="mesh-operation-section">
-            <header><strong>Redukcja</strong><span>Mniej trójkątów</span></header>
-            <div className="mesh-operation-controls"><Field label="Pozostaw" type="number" value={reduction} onChange={setReduction} suffix="%" /><button type="button" disabled={readOnly || !report || report.triangleCount < 2} onClick={() => onReduce(Number(reduction) / 100)}>Redukuj</button></div>
-          </section>
-          <section className="mesh-operation-section">
-            <header><strong>Wygładzanie</strong><span>Chroni brzegi</span></header>
-            <div className="mesh-operation-controls two-fields"><Field label="Kroki" type="number" value={iterations} onChange={setIterations} /><Field label="Siła %" type="number" value={strength} onChange={setStrength} /><button type="button" disabled={readOnly || !report} onClick={() => onSmooth({ iterations: Number(iterations), strength: Number(strength) / 100, preserveBoundary: true })}>Wygładź</button></div>
-          </section>
-          <section className="mesh-operation-section">
-            <header><strong>Przebudowa</strong><span>Równe krawędzie</span></header>
-            <div className="mesh-operation-controls"><Field label="Krawędź docelowa" type="number" value={targetEdgeLength} onChange={setTargetEdgeLength} suffix="mm" /><button type="button" disabled={readOnly || !report} onClick={() => onRemesh(Number(targetEdgeLength))}>Przebuduj</button></div>
-          </section>
-          <section className="mesh-operation-section">
-            <header><strong>Grupy ścian</strong><span>{groups.length ? (groups.length === 1 ? '1 grupa' : `${groups.length} grup`) : 'Nie wyznaczono'}</span></header>
-            <div className="mesh-operation-controls"><Field label="Kąt cechy" type="number" value={featureAngle} onChange={setFeatureAngle} suffix="°" /><button type="button" disabled={readOnly || !report} onClick={() => onGroup(Number(featureAngle))}>Grupuj</button></div>
-            {groups.length > 0 && <div className="mesh-group-summary"><span>Największa grupa</span><strong>{groups[0].triangleCount.toLocaleString('pl-PL')} trójkątów</strong></div>}
-          </section>
-        </>}
       </div>
     </aside>
   );

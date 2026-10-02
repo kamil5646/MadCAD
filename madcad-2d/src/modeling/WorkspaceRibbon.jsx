@@ -107,12 +107,10 @@ const TOOL_DESCRIPTIONS = {
   'Punkt na osi': 'Utwórz punkt w podanej odległości wzdłuż osi konstrukcyjnej.',
   'Otwórz': 'Wczytaj zapisany projekt MadCAD z dysku.',
   'Wybierz': 'Wyczyść zaznaczenie i wróć do trybu wyboru obiektów.',
-  'STL': 'Eksportuj siatkę gotową do programu przygotowującego druk 3D.',
+  'STL': 'Eksportuj geometrię modelu jako siatkę STL.',
   'STEP': 'Eksportuj dokładną bryłę B-Rep do wymiany z innymi programami CAD.',
   '3MF': 'Eksportuj model i jego jednostki do archiwum 3MF.',
   'STEP / STL / 3MF': 'Wczytaj model STEP, STL albo 3MF do bieżącego projektu.',
-  'Druk 3D': 'Otwórz kontrolę gabarytów i ustawień eksportu do druku 3D.',
-  'Kontrola druku': 'Sprawdź, czy model mieści się na stole drukarki.',
   'Zmierz': 'Pokaż dokładne wymiary zaznaczonej bryły, ściany, krawędzi, wierzchołka albo pary elementów.',
   'Przekrój': 'Włącz interaktywną płaszczyznę przekroju bez zmiany historii modelu.',
   'Właściwości masy': 'Oblicz objętość, pole, masę i środek masy dla zadanej gęstości materiału.',
@@ -152,14 +150,13 @@ const TOOL_COLOR_GROUPS = Object.freeze({
   sheet: new Set(['Blacha', 'Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Rozwiń blachę', 'Zagnij ponownie', 'Szczelina blachy', 'Tabela gięć']),
   plastic: new Set(['Plastic', 'Boss', 'Snap-fit', 'Grille']),
   assembly: new Set(['Komponenty']),
-  manufacturing: new Set(['Nowy Setup', 'Obróbki', 'Symuluj', 'G-code']),
   drawing: new Set(['Nowy arkusz', 'Widoki zależne', 'Opisy techniczne']),
   mesh: new Set(['Importuj model', 'Napraw siatkę', 'Redukuj siatkę', 'Krzywizna siatki', 'Siatka do B-Rep']),
   destructive: new Set(['Usuń', 'Delete Face + Heal', 'Szczelina blachy']),
   edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
   reference: new Set(['Project', 'Więzy', 'Wymiary', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Wymiar poziomy', 'Wymiar pionowy', 'Wymiar odcinka', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa', 'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
   inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię', 'Punkty zapisu', 'Porównaj wersje', 'Kondycja projektu', 'Gdzie używane', 'Wybierz']),
-  output: new Set(['Import SVG/DXF', 'Import DWG', 'STEP / STL / 3MF', 'STEP', 'STL', '3MF', 'Kontrola druku', 'Tabela gięć']),
+  output: new Set(['Import SVG/DXF', 'Import DWG', 'STEP / STL / 3MF', 'STEP', 'STL', '3MF', 'Tabela gięć']),
 });
 
 const TOOL_GROUP_COLORS = Object.freeze({
@@ -169,7 +166,6 @@ const TOOL_GROUP_COLORS = Object.freeze({
   sheet: ['#74b8cf', '#4f8799'],
   plastic: ['#74b8cf', '#4f8799'],
   assembly: ['#8da9b5', '#607985'],
-  manufacturing: ['#8da9b5', '#607985'],
   drawing: ['#8da9b5', '#607985'],
   mesh: ['#8da9b5', '#607985'],
   edit: ['#c9a45f', '#8c7040'],
@@ -243,7 +239,7 @@ function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
   );
 }
 
-export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClick, disabled = false, primary = false, compact = false, title, description, disabledReason }) {
+export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClick, disabled = false, primary = false, active = false, compact = false, title, description, disabledReason }) {
   const featured = FEATURED_TOOL_LABELS.has(label);
   const operational = typeof onClick === 'function';
   const effectiveDisabled = disabled || !operational;
@@ -274,9 +270,10 @@ export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClic
     <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''} ${effectiveDisabled ? 'disabled' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
       <button
         id={id}
-        className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+        className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${active ? 'active' : ''} ${compact ? 'compact' : ''}`}
         style={toolColorStyle(label)}
         type="button"
+        aria-pressed={active || undefined}
         onClick={onClick}
         disabled={effectiveDisabled}
         data-tool-label={label}
@@ -291,7 +288,11 @@ export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClic
   );
 }
 
-export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items, disabled = false, description, disabledReason }) {
+export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items, disabled = false, description, disabledReason, shortcutAction = null }) {
+  // Optional direct action for the menu's own shortcut (e.g. D dimensions the selection);
+  // when it returns false the menu opens as usual.
+  const shortcutActionRef = useRef(shortcutAction);
+  shortcutActionRef.current = shortcutAction;
   const [open, setOpen] = useState(false);
   const featured = FEATURED_TOOL_LABELS.has(label);
   const menuRef = useRef(null);
@@ -313,7 +314,7 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
   ].join('|');
   useEffect(() => {
     const cleanups = [
-      ...triggerShortcuts.map((value) => toolHelp?.registerShortcut(value, { label, disabled, onClick: () => setOpen(true) })),
+      ...triggerShortcuts.map((value) => toolHelp?.registerShortcut(value, { label, disabled, onClick: () => { if (shortcutActionRef.current?.()) return; setOpen(true); } })),
       ...shortcutEntries.map((entry) => toolHelp?.registerShortcut(entry.shortcut, {
       label: entry.label,
       disabled: entry.disabled,
@@ -446,7 +447,7 @@ export function collectRibbonCommands(children) {
 
 export function calculateVisibleRibbonGroups(widths, availableWidth, stickyIndices = [], overflowWidth = 78) {
   const sticky = new Set(stickyIndices);
-  const normalIndices = widths.map((_, index) => index).filter((index) => !sticky.has(index));
+  const normalIndices = Array.from({ length: widths.length }, (_, index) => index).filter((index) => !sticky.has(index));
   const stickyWidth = stickyIndices.reduce((total, index) => total + (widths[index] || 0), 0);
   const fullWidth = widths.reduce((total, width) => total + width, 0);
   if (fullWidth <= availableWidth) return { visible: normalIndices, hidden: [] };
@@ -586,7 +587,9 @@ export function ResponsiveRibbon({ children, language = 'pl', commandRegistry = 
         );
         if (width > 0) measuredWidths.current[index] = width;
       });
-      if (measuredWidths.current.length < groupCount || measuredWidths.current.some((width) => !width)) return;
+      // A group hidden at measurement time leaves a hole in the array; .some() skips holes,
+      // so check every index explicitly and wait until all groups have been measured.
+      if (Array.from({ length: groupCount }, (_, index) => measuredWidths.current[index]).some((width) => !width)) return;
       const stickyIndices = stickyKey ? stickyKey.split(',').map(Number) : [];
       const containerStyle = getComputedStyle(container);
       const horizontalPadding = (Number.parseFloat(containerStyle.paddingLeft) || 0)

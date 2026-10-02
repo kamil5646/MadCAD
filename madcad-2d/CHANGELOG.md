@@ -1,5 +1,31 @@
 # Changelog
 
+## 6.5.29 — CAD 2D/3D (2026-10-02)
+
+- usunięto symulacje MES/cieplne, render, animacje, edycję siatek skanów oraz Motion Links i Contact Sets; schemat v28 archiwizuje starsze dane w nieaktywnym `legacyRemovedFeatures`;
+
+- parser wymiarów odrzuca brakujące operatory, błędną kolejność wartości i niepełne nawiasy zamiast obliczać przypadkowy wynik;
+- przekroje PDF/DXF powstają z przecięcia B-Rep, nie z siatki podglądu; eksport odrzuca także model oczekujący na przebudowę w oknie debounce;
+- krzywe rzutów są dzielone adaptacyjnie do tolerancji na papierze z uwzględnieniem skali widoku; DXF definiuje przerywany typ linii dla warstwy HIDDEN;
+- eksport zatrzymuje widoki z utraconymi bryłami lub szkicami; spline jest dzielony procedurą ugięcia kernela, zamiast polegać na zgodności samego środka przedziału z cięciwą;
+- ujemne wyrażenia parametryczne (`-depth`, `0-depth`) automatycznie wybierają Wytnij dla szkicu na ścianie; zmiana kierunku zachowuje wyrażenie parametryczne;
+- PDF/DXF oraz podgląd wydruku czekają na dokładny rzut aktualnego modelu; błędy kernela lub zmiana modelu zatrzymują eksport z komunikatem;
+- wiele brył w widoku arkusza zasłania się wzajemnie, a pokrywające się krawędzie są rysowane tylko raz;
+- filtrowanie linii ukrytych usuwa rzeczywiste przedziały pokrycia, zachowując przerwy zamiast testować tylko dziewięć punktów;
+- wyniki rzutów są buforowane w bieżącej rewizji, z ograniczeniem liczby wariantów.
+
+- usunięto obszar CAM, frezowanie/toczenie/cięcie, ścieżki narzędzi, symulację obróbki i eksport G-code;
+- usunięto panel druku 3D, profile drukarek/materiałów, układ stołu, mapę drukowalności i uruchamianie slicerów;
+- eksport zapisuje geometrię CAD w położeniu i skali projektu, bez dawnych transformacji oraz kopii drukowania;
+- schemat `.madcad` v27 zachowuje model ze starszych plików; dawne dane produkcyjne są archiwizowane w nieaktywnym `legacyProduction`;
+- interfejs, samouczek i plan rozwoju skupiają się na szkicach, modelowaniu brył, historii i dokumentacji 2D.
+- dwuklik operacji w historii otwiera wskazaną operację także przed odświeżeniem zaznaczenia; test regresji obejmuje anulowanie, edycję, Cofnij/Ponów i zapis/otwarcie bryły.
+- anulowanie edycji operacji przywraca jej zaznaczenie zamiast zostawiać profil z nieaktywnym uchwytem wyciągania;
+- biblioteki interfejsu i kernela są pakowane jako gotowy kod JS/WASM, bez dodatkowych kopii źródeł w `node_modules`; wersje bibliotek pozostają bez zmian.
+- poprawiono pierwszeństwo znaków jednoargumentowych w wymiarach i parametrach: `2*-3` daje −6, a `10/-2` daje −5; działają też zagnieżdżone znaki i parametry.
+
+Znane ograniczenia: na wyraźną decyzję użytkownika pominięto ręczny scenariusz CAD po zalogowaniu w zainstalowanej aplikacji Windows. Automatyczne testy Windows i instalatora pozostają obowiązkowe. Paczki Windows/macOS nie mają podpisu producenta ani notaryzacji Apple. Testy przeszły dla opisanych przypadków, nie oznaczają gwarancji poprawności każdej geometrii.
+
 ## 6.5.28 (2026-10-02)
 
 - wymiary między punktami na arkuszu 2D (Wymiary → Wymiar między punktami): kliknięcia przyciągają się do wierzchołków widoku, wymiar może być poziomy, pionowy albo wyrównany, podąża za przesunięciem i skalą widoku oraz za zmianą modelu, a jego kierunek, odsunięcie, dokładność i tolerancję można edytować;

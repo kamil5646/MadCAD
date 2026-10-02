@@ -52,12 +52,10 @@ if (/schemaVersion\s*(?:===|!==)\s*\d+/.test(desktopVerificationSources)) {
 const expectedShardMatrix = `shard: [${Object.keys(manifest).join(', ')}]`;
 if (!ci.includes(expectedShardMatrix)) throw new Error('CI nie uruchamia wszystkich części pełnej bramki desktopowej.');
 if (!/npm run verify:desktop-suite -- \$\{\{ matrix\.shard \}\}/.test(ci)) throw new Error('CI nie uruchamia dzielonej pełnej bramki desktopowej.');
-if (!ci.includes('npm run verify:solid-fea-benchmarks')) throw new Error('CI nie uruchamia benchmarków MES bryły 3D.');
 if (!ci.includes('npm run test:license')) throw new Error('CI nie uruchamia testów klienta licencji.');
 if (!ci.includes('npm run test:import-file')) throw new Error('CI nie uruchamia testów natywnego importu plików.');
 if (!ci.includes('npm run verify:packaged-startup -- ${{ matrix.kind }}')) throw new Error('CI nie uruchamia rozpakowanych paczek na izolowanym profilu.');
 if (!release.includes('npm run verify:desktop-suite -- all')) throw new Error('Wydanie nie uruchamia pełnej bramki desktopowej.');
-if (!release.includes('npm run verify:solid-fea-benchmarks')) throw new Error('Wydanie nie uruchamia benchmarków MES bryły 3D.');
 if (!release.includes('npm run test:license')) throw new Error('Wydanie nie uruchamia testów klienta licencji.');
 if (!release.includes('npm run test:import-file')) throw new Error('Wydanie nie uruchamia testów natywnego importu plików.');
 if (!release.includes('npm run verify:packaged-startup -- mac') || !release.includes('npm run verify:packaged-startup -- mac-dmg')
