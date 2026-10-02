@@ -98,3 +98,20 @@ są lokalnymi artefaktami testowymi, nie nowym wydaniem 6.5.28.
 
 Pełny scenariusz CAD w zainstalowanej aplikacji Windows nadal wymaga osobnego
 potwierdzenia. CI desktopowe i test startu NSIS nie są jego zastępstwem.
+
+## Migracja w produkcyjnym pakiecie i nawigacja
+
+Przez natywne okno otwarto kopię fixture v26 w produkcyjnym pakiecie macOS
+z polskim interfejsem. Aplikacja pokazała komunikat migracji do v27,
+przebudowała jedną bryłę i odtworzyła dwie operacje historii. Zapis przez UI
+zachował szkice i cechy dokładnie jak w fixture oraz dawne pola produkcyjne
+w `legacyProduction`; `.bak` pozostał dokumentem v26. Pliku fixture w repo
+nie zmieniono. Porównanie JSON tych danych przeszło wszystkie asercje.
+
+CI `36988266221` wykryło dryf środka kamery w teście orbity na macOS.
+Stary test mógł uznać powtarzane odczyty kamery za stabilizację, nawet gdy
+renderer nie narysował nowej klatki. Kontrola czeka teraz na cztery świeże
+klatki bez ruchu zgłaszanego przez `OrbitControls.update()` i nadal sprawdza
+wektor oraz środek kamery. Nie zwiększono limitu czasu ani tolerancji geometrii.
+Diagnostyka klatek działa tylko w trybie `verify`, nie w produkcyjnym pakiecie.
+Po zmianie przeszedł test nawigacji i cały shard interfejsu: 12 scenariuszy.

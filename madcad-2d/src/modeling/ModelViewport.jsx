@@ -3166,9 +3166,11 @@ export default function ModelViewport({
     resize();
 
     let frame = 0;
+    const verifyRenderedFrames = new URLSearchParams(window.location.search).has('verify');
     const render = () => {
-      controls.update();
+      const cameraMoving = controls.update();
       renderer.render(scene, camera);
+      if (verifyRenderedFrames) window.__madcadViewportFrameState = { renderedAt: performance.now(), cameraMoving };
       frame = requestAnimationFrame(render);
     };
     render();
@@ -3247,6 +3249,7 @@ export default function ModelViewport({
       delete window.__madcadJointVisualState;
       delete window.__madcadStoryboardGuideState;
       delete window.__madcadCameraState;
+      delete window.__madcadViewportFrameState;
       delete window.__madcadViewportNavigationState;
       delete window.__madcadFormCageState;
       delete window.__madcadFormPointerDebug;

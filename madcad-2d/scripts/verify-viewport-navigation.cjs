@@ -64,7 +64,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
     await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Przesuń widok"]')?.getAttribute('aria-pressed') === 'false'`, 'powrót do zaznaczania klawiszem Escape');
 
-    const camera = () => window.webContents.executeJavaScript(`structuredClone(window.__madcadCameraState)`);
+    const camera = () => window.webContents.executeJavaScript(`structuredClone({ ...window.__madcadCameraState, renderedFrame: window.__madcadViewportFrameState })`);
     const waitForCameraToSettle = async (timeoutMs = 6000) => {
       const startedAt = Date.now();
       let previous = await camera();
@@ -73,12 +73,13 @@ app.whenReady().then(async () => {
         await new Promise((resolve) => setTimeout(resolve, 80));
         const current = await camera();
         const movement = distance(previous.position, current.position) + distance(previous.target, current.target);
-        if (movement <= 0.003) stableSamples += 1;
-        else stableSamples = 0;
-        // CI renderers can skip several frames while the main process is still
-        // receiving mouse input. A few identical samples alone do not mean
-        // OrbitControls has finished applying its damped pan/rotation.
-        if (stableSamples >= 4 && Date.now() - startedAt >= 700) return current;
+        const frameAdvanced = current.renderedFrame?.renderedAt !== previous.renderedFrame?.renderedAt;
+        // A repeated snapshot may mean the CI GPU has not rendered a frame.
+        // Count only fresh rendered frames after OrbitControls reports that
+        // its damped motion has actually stopped; retain the geometry check.
+        if (current.renderedFrame?.cameraMoving || movement > 0.003) stableSamples = 0;
+        else if (frameAdvanced && current.renderedFrame) stableSamples += 1;
+        if (stableSamples >= 4) return current;
         previous = current;
       }
       throw new Error(`Kamera nie ustabilizowała się po ${timeoutMs} ms.`);
