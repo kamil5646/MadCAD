@@ -7996,10 +7996,10 @@ export default function ModelingWorkspace() {
                 ) : (
                   <>
                 <RibbonGroup label="UTWÓRZ">
-                  <ToolButton icon={SketchLineCadIcon} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} />
-                  <ToolButton icon={SketchPolylineCadIcon} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} />
-                  <ToolButton icon={SketchRectangleCadIcon} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} />
-                  <ToolButton icon={SketchCircleCadIcon} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} />
+                  <ToolButton icon={SketchLineCadIcon} label="Linia" onClick={() => openSketchPath('line')} primary={!command} active={command?.type === 'line'} disabled={readOnly} />
+                  <ToolButton icon={SketchPolylineCadIcon} label="Polilinia" onClick={() => openSketchPath('polyline')} active={command?.type === 'polyline'} disabled={readOnly} />
+                  <ToolButton icon={SketchRectangleCadIcon} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} active={command?.type === 'rectangle'} disabled={readOnly} />
+                  <ToolButton icon={SketchCircleCadIcon} label="Okrąg" onClick={() => openProfileCommand('circle')} active={command?.type === 'circle'} disabled={readOnly} />
                   {expandedSketchRibbon && <ToolButton icon={SketchArcCadIcon} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} />}
                   <ToolMenuButton icon={SketchShapesCadIcon} label="Więcej kształtów" description="Łuki, wielokąty, elipsy i pozostałe kształty szkicu." items={[
                     ...(!expandedSketchRibbon ? [{ icon: Rotate3d, label: 'Łuk', onClick: () => openMechanicalShape('arc'), disabled: readOnly }] : []),
@@ -8011,14 +8011,6 @@ export default function ModelingWorkspace() {
                     { icon: ScanSearch, label: 'Conic', displayLabel: 'Krzywa stożkowa', onClick: () => openMechanicalShape('conic'), disabled: readOnly },
                     { icon: CircleDotDashed, label: 'Punkt', onClick: () => openMechanicalShape('point'), disabled: readOnly },
                   ]} />
-                  {Boolean(document.sketches.find((sketch) => sketch.id === activeSketchId)?.entities?.length) && <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii aktywnego szkicu." items={[
-                    { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !canExtrudeOpenChain || !sweepPathOptions(activeSketchId).length, disabledReason: 'Zaznacz profil i przygotuj osobny szkic ścieżki.' },
-                    { icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
-                    { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
-                  ]} />}
                 </RibbonGroup>
                 <RibbonGroup label="ZMIEŃ">
                   <ToolButton icon={SketchTrimCadIcon} label="Trim" displayLabel="Przytnij" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} />
@@ -8047,7 +8039,7 @@ export default function ModelingWorkspace() {
                     { icon: Frame, label: 'Symetria', onClick: () => addSelectedSketchConstraint('symmetry'), disabled: readOnly || !canAddSymmetry, disabledReason: 'Zaznacz geometrię i oś symetrii.' },
                     { icon: CircleDotDashed, label: 'Krzywizna G2', onClick: () => addSelectedSketchConstraint('curvature'), disabled: readOnly || !canAddCurvature, disabledReason: 'Zaznacz dwie zgodne krzywe.' },
                   ]} />
-                  <ToolMenuButton icon={SketchDimensionCadIcon} label="Wymiary" description="Sterujące wymiary między punktami, współrzędne i długość łuku." items={[
+                  <ToolMenuButton icon={SketchDimensionCadIcon} label="Wymiary" description="Sterujące wymiary między punktami, współrzędne i długość łuku. Skrót D wymiaruje od razu zaznaczony odcinek albo dwa punkty." shortcutAction={() => { if (readOnly || !canAddLinearDimension) return false; openSketchDimension('aligned'); return true; }} items={[
                     { icon: Ruler, label: 'Wymiar poziomy', onClick: () => openSketchDimension('horizontal'), disabled: readOnly || !canAddLinearDimension, disabledReason: 'Zaznacz dwa punkty albo jeden odcinek szkicu.' },
                     { icon: Ruler, label: 'Wymiar pionowy', onClick: () => openSketchDimension('vertical'), disabled: readOnly || !canAddLinearDimension, disabledReason: 'Zaznacz dwa punkty albo jeden odcinek szkicu.' },
                     { icon: Ruler, label: 'Wymiar odcinka', onClick: () => openSketchDimension('aligned'), disabled: readOnly || !canAddLinearDimension, disabledReason: 'Zaznacz dwa punkty albo jeden odcinek szkicu.' },
@@ -8062,6 +8054,18 @@ export default function ModelingWorkspace() {
                     { icon: Blocks, label: 'Bloki', onClick: () => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); } },
                   ]} />
                 </RibbonGroup>
+                {Boolean(document.sketches.find((sketch) => sketch.id === activeSketchId)?.entities?.length) && (
+                  <RibbonGroup label="BRYŁA ZE SZKICU">
+                  <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii aktywnego szkicu." items={[
+                    { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !canExtrudeOpenChain || !sweepPathOptions(activeSketchId).length, disabledReason: 'Zaznacz profil i przygotuj osobny szkic ścieżki.' },
+                    { icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
+                    { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
+                  ]} />
+                  </RibbonGroup>
+                )}
                 <RibbonGroup label="ZAKOŃCZ SZKIC" end><ToolButton icon={FinishSketchCadIcon} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
                   </>
                 )}
@@ -8319,7 +8323,7 @@ export default function ModelingWorkspace() {
           '--print-column': printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
         }}
       >
-        {showProjectBrowser && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onToggleSketchVisibility={toggleSketchVisibility} onToggleBodyVisibility={toggleBodyVisibility} onClose={() => setBrowserOpen(false)} />}
+        {showProjectBrowser && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onToggleSketchVisibility={toggleSketchVisibility} onToggleBodyVisibility={toggleBodyVisibility} onEditSketch={(sketchId) => (readOnly ? readOnlyNotice() : editSketch(sketchId))} onClose={() => setBrowserOpen(false)} />}
         <CommandDialog
           command={command}
           profileName={command?.type === 'pipe' ? `Otwarta ścieżka (${command.previewFeature?.pathEntityIds?.length || command.pathEntityIds?.length || 0})` : command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : commandProfileName}

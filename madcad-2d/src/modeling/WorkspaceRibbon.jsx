@@ -243,7 +243,7 @@ function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
   );
 }
 
-export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClick, disabled = false, primary = false, compact = false, title, description, disabledReason }) {
+export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClick, disabled = false, primary = false, active = false, compact = false, title, description, disabledReason }) {
   const featured = FEATURED_TOOL_LABELS.has(label);
   const operational = typeof onClick === 'function';
   const effectiveDisabled = disabled || !operational;
@@ -274,9 +274,10 @@ export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClic
     <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''} ${effectiveDisabled ? 'disabled' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
       <button
         id={id}
-        className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+        className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${active ? 'active' : ''} ${compact ? 'compact' : ''}`}
         style={toolColorStyle(label)}
         type="button"
+        aria-pressed={active || undefined}
         onClick={onClick}
         disabled={effectiveDisabled}
         data-tool-label={label}
@@ -291,7 +292,11 @@ export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClic
   );
 }
 
-export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items, disabled = false, description, disabledReason }) {
+export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items, disabled = false, description, disabledReason, shortcutAction = null }) {
+  // Optional direct action for the menu's own shortcut (e.g. D dimensions the selection);
+  // when it returns false the menu opens as usual.
+  const shortcutActionRef = useRef(shortcutAction);
+  shortcutActionRef.current = shortcutAction;
   const [open, setOpen] = useState(false);
   const featured = FEATURED_TOOL_LABELS.has(label);
   const menuRef = useRef(null);
@@ -313,7 +318,7 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
   ].join('|');
   useEffect(() => {
     const cleanups = [
-      ...triggerShortcuts.map((value) => toolHelp?.registerShortcut(value, { label, disabled, onClick: () => setOpen(true) })),
+      ...triggerShortcuts.map((value) => toolHelp?.registerShortcut(value, { label, disabled, onClick: () => { if (shortcutActionRef.current?.()) return; setOpen(true); } })),
       ...shortcutEntries.map((entry) => toolHelp?.registerShortcut(entry.shortcut, {
       label: entry.label,
       disabled: entry.disabled,

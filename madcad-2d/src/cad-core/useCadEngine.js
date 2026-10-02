@@ -150,6 +150,10 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
         if (active && canceledRevisionRef.current !== revision && result.revision === revision && latestGeometrySignatureRef.current === geometrySignature) {
           evaluatedGeometrySignatureRef.current = geometrySignature;
           setState((current) => ({ ...current, status: 'ready', error: '', ...result, evaluatedDocument: latestDocumentRef.current }));
+        } else if (canceledRevisionRef.current === revision) {
+          // The worker finished before it received the cancel; the result is discarded all the same.
+          canceledRevisionsRef.current += 1;
+          if (active) setState((current) => ({ ...current }));
         }
       } catch (error) {
         if (error.code === 'STALE_REVISION') {

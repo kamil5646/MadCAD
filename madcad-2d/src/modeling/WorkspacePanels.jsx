@@ -16,7 +16,7 @@ export function Field({ label, ariaLabel, value, onChange, suffix = '', type = '
     <label className="command-field">
       <span>{label}</span>
       <div className="command-input-wrap">
-        <input aria-label={ariaLabel} autoFocus={autoFocus} type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
+        <input aria-label={ariaLabel} autoFocus={autoFocus} data-dialog-initial-focus={autoFocus || undefined} type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
         {suffix && <em>{suffix}</em>}
       </div>
     </label>

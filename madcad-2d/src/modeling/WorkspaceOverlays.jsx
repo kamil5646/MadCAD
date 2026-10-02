@@ -350,7 +350,7 @@ export function ProjectSearchPalette({ index = [], language = 'pl', commands = [
   );
 }
 
-export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onToggleSketchVisibility = () => {}, onToggleBodyVisibility = () => {}, onClose }) {
+export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onToggleSketchVisibility = () => {}, onToggleBodyVisibility = () => {}, onEditSketch = () => {}, onClose }) {
   const [expanded, setExpanded] = useState({ origin: false, construction: false, components: false, joints: false, motionLinks: false, contactSets: false, configurations: false, sketches: true, surfaces: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis', 'construction-point'].includes(reference.kind));
@@ -456,8 +456,9 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
           <button
             className={`tree-row tree-grandchild ${selection?.kind === 'sketch' && selection.id === sketch.id ? 'selected' : ''} ${activeSketchId === sketch.id ? 'editing' : ''} ${sketch.visible === false ? 'hidden-object' : ''}`}
             type="button"
-            title={`Zaznacz ${sketch.name}; użyj Edytuj, aby wrócić do szkicu.`}
+            title={`Zaznacz ${sketch.name}; kliknij dwukrotnie albo użyj Edytuj, aby wrócić do szkicu.`}
             onClick={() => onSelect({ kind: 'sketch', id: sketch.id })}
+            onDoubleClick={() => onEditSketch(sketch.id)}
           >
             <span /><PencilRuler size={13} /><span>{sketch.name}</span><small>{sketch.space === '3d' ? '3D' : sketch.frame ? 'UCS' : sketch.plane}</small>
           </button>

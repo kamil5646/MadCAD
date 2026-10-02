@@ -6659,6 +6659,13 @@
   background: color-mix(in srgb, var(--tool-accent) 14%, #343941);
 }
 
+/* The tool whose command is running, distinct from the merely recommended (primary) one. */
+.ribbon-tool.active {
+  border-color: var(--tool-accent);
+  background: color-mix(in srgb, var(--tool-accent) 20%, #2c333b);
+  box-shadow: inset 0 -2px var(--tool-accent);
+}
+
 .ribbon-overflow-menu,
 .ribbon-tool-submenu,
 .app-help-menu > div {
