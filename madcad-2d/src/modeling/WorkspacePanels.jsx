@@ -12,11 +12,16 @@ import { multipleSelectionLabel } from './platform-shortcuts.js';
 import { useDialogFocus } from './use-dialog-focus.js';
 
 export function Field({ label, ariaLabel, value, onChange, suffix = '', type = 'text', disabled = false, autoFocus = false }) {
+  const inputRef = React.useRef(null);
+  // Like Fusion: the value in the first field is selected, so typing replaces it instead of appending.
+  React.useEffect(() => {
+    if (autoFocus) inputRef.current?.select();
+  }, [autoFocus]);
   return (
     <label className="command-field">
       <span>{label}</span>
       <div className="command-input-wrap">
-        <input aria-label={ariaLabel} autoFocus={autoFocus} data-dialog-initial-focus={autoFocus || undefined} type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
+        <input ref={inputRef} aria-label={ariaLabel} autoFocus={autoFocus} data-dialog-initial-focus={autoFocus || undefined} type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
         {suffix && <em>{suffix}</em>}
       </div>
     </label>

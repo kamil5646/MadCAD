@@ -7547,6 +7547,7 @@ export default function ModelingWorkspace() {
     else if (command.type === 'cornerSketch') confirmSketchCorner();
     else if (command.type === 'transformSketch') confirmSketchTransform();
     else if (command.type === 'patternSketch') confirmSketchPattern();
+    else if (command.type === 'sketchDimension') confirmSketchDimension();
     else return false;
     return true;
   };

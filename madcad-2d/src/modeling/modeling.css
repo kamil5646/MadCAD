@@ -1968,7 +1968,8 @@
 .crash-recovery-banner {
   position: absolute;
   z-index: 9;
-  top: 10px;
+  /* Below the step guide bar (top-left of the viewport) instead of on top of its action button. */
+  top: 60px;
   left: 50%;
   display: flex;
   width: min(660px, calc(100% - 32px));
