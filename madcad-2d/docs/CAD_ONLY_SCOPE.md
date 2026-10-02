@@ -49,6 +49,8 @@ obrotów, pozycji, skali ani kopii zapisanych dla drukowania.
   zapis/otwarcie, zależne szkice na ścianach i naprawa referencji.
 - Electron: czytelność interfejsu, menu Plik bez funkcji produkcyjnych,
   kompaktowe okno, panele poleceń i dostępność strony startowej.
+- Eksport PNG sceny: kontrola obecności geometrii zamiast liczby kolorów,
+  która nie jest miarodajna dla płaskich ścian prostego modelu CAD.
 
 Wyniki lokalne dotyczą kodu tej zmiany. Przed wydaniem wymagane są również
 CI Windows/macOS i kontrola paczek opisane w `CI_DESKTOP_VERIFICATION.md`.

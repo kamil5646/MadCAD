@@ -84,6 +84,26 @@ app.whenReady().then(async () => {
     for (let offset = 0; offset + 3 < renderBitmap.length; offset += sampleStride) {
       sampledColors.add(renderBitmap.readUInt32LE(offset));
     }
+    // Flat CAD faces can legitimately use very few colors. Check visible
+    // geometry against the uniform scene background, not palette complexity.
+    const background = [...renderBitmap.subarray(0, 3)];
+    let foregroundPixels = 0;
+    let minX = renderSize.width;
+    let minY = renderSize.height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let offset = 0; offset + 3 < renderBitmap.length; offset += 4) {
+      if (!background.some((channel, index) => Math.abs(renderBitmap[offset + index] - channel) > 16)) continue;
+      const pixel = offset / 4;
+      const x = pixel % renderSize.width;
+      const y = Math.floor(pixel / renderSize.width);
+      foregroundPixels += 1;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+    const foregroundBounds = { width: maxX - minX + 1, height: maxY - minY + 1 };
     const result = await window.webContents.executeJavaScript(`(() => {
       const panel = document.querySelector('.render-scene-panel').getBoundingClientRect();
       return {
@@ -96,9 +116,9 @@ app.whenReady().then(async () => {
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    const renderValid = renderBytes > 5_000 && renderBuffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) && renderSize.width >= 1000 && renderSize.height >= 400 && sampledColors.size >= 16;
+    const renderValid = renderBytes > 5_000 && renderBuffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) && renderSize.width >= 1000 && renderSize.height >= 400 && foregroundPixels >= 1000 && foregroundBounds.width >= 80 && foregroundBounds.height >= 40;
     if (result.preset !== 'daylight' || result.appliedPreset !== 'daylight' || result.decals !== 1 || result.renderedDecals !== 1 || !result.insideViewport || result.horizontalOverflow || !renderValid) throw new Error(`Niepoprawna lub pusta scena renderu: ${JSON.stringify({ ...result, renderBytes, renderSize, sampledColors: sampledColors.size })}`);
-    process.stdout.write(`${JSON.stringify({ screenshotPath, renderPath, renderBytes, renderSize, sampledColors: sampledColors.size, ...result }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, renderPath, renderBytes, renderSize, sampledColors: sampledColors.size, foregroundPixels, foregroundBounds, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     try {

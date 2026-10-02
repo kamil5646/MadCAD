@@ -7,7 +7,6 @@ const screenshotPath = path.join(artifactsDir, 'madcad-sketch-drawing.png');
 const clarityArtifactsDir = path.join(artifactsDir, 'clarity-audit-2026-08-28');
 const projectScreenshotPath = path.join(clarityArtifactsDir, '02-after-project-workspace.png');
 const cadScreenshotPath = path.join(clarityArtifactsDir, '03-file-menu.png');
-const printScreenshotPath = path.join(clarityArtifactsDir, '04-print-panel.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -49,7 +48,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSketchDrawingFixture()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState?.bodyIds?.length === 0`, 'czysty szkic 2D');
     const tabs = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim())`);
-    if (tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|WYTWARZANIE|ZARZĄDZAJ') throw new Error(`Niepoprawny podział obszarów: ${tabs.join('|')}`);
+    if (tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|ZARZĄDZAJ') throw new Error(`Niepoprawny podział obszarów: ${tabs.join('|')}`);
     if (!(await clickText(window, '.workspace-tabs button', 'ZARZĄDZAJ'))) throw new Error('Brak obszaru ZARZĄDZAJ.');
     await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'ZARZĄDZAJ' && document.querySelector('.workspace-guidebar')?.textContent.includes('ZARZĄDZAJ · projekt i jego historia')`, 'objaśnienie obszaru zarządzania');
     await waitForPaint();
@@ -76,7 +75,8 @@ app.whenReady().then(async () => {
         dimension: document.querySelector('.drawing-linear-dimension text')?.textContent,
         pdfEnabled: Boolean(pdf && !pdf.disabled),
         dxfEnabled: Boolean(dxf && !dxf.disabled),
-        allFileActionsPresent: ['fileImportModelBtn', 'fileImportSketchBtn', 'fileImportDwgBtn', 'fileExportStepBtn', 'fileExportStlBtn', 'fileExport3mfBtn', 'fileExportPdfBtn', 'fileExportDxfBtn', 'filePrint3dBtn'].every((id) => document.querySelector('#' + id)),
+        allFileActionsPresent: ['fileImportModelBtn', 'fileImportSketchBtn', 'fileImportDwgBtn', 'fileExportStepBtn', 'fileExportStlBtn', 'fileExport3mfBtn', 'fileExportPdfBtn', 'fileExportDxfBtn'].every((id) => document.querySelector('#' + id)),
+        productionActionsAbsent: !document.querySelector('#filePrint3dBtn, .print-panel'),
       };
     })()`);
     await waitFor(window, `document.querySelector('.drawing-sheet-list button small')?.textContent.includes('1 wid.')`, 'odświeżony licznik widoków');
@@ -84,11 +84,8 @@ app.whenReady().then(async () => {
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     await fs.writeFile(cadScreenshotPath, (await window.webContents.capturePage()).toPNG());
     if (state.bodies !== 0 || state.viewType !== 'sketch' || !state.sketchId || state.lineCount !== 4 || state.association !== 'Aktualizowane z widokiem źródłowym' || !state.dimension?.startsWith('80.00') || !state.pdfEnabled || !state.dxfEnabled || !state.allFileActionsPresent) throw new Error(`Niepoprawny wydruk szkicu 2D: ${JSON.stringify(state)}`);
-    await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
-    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'PROJEKTUJ' && document.querySelector('.print-panel') && ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['PLIKI CAD', 'DRUK 3D'].includes(item.textContent.trim()))`, 'panel druku 3D z menu Plik');
-    await waitForPaint();
-    await fs.writeFile(printScreenshotPath, (await window.webContents.capturePage()).toPNG());
-    process.stdout.write(`${JSON.stringify({ screenshotPath, projectScreenshotPath, cadScreenshotPath, printScreenshotPath, tabs, centralFileMenu: true, ...state }, null, 2)}\n`);
+    if (!state.productionActionsAbsent) throw new Error('Pozostały funkcje przygotowania druku 3D.');
+    process.stdout.write(`${JSON.stringify({ screenshotPath, projectScreenshotPath, cadScreenshotPath, tabs, centralFileMenu: true, ...state }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

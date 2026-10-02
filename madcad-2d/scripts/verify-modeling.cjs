@@ -475,6 +475,7 @@ async function runUiFlow(window) {
     button[key].onClick();
   })()`);
   const pickPlane = async (plane, { forceNew = false } = {}) => {
+    await waitForUi(window, `[...document.querySelectorAll('.plane-options button')].some((item) => item.textContent.includes(${JSON.stringify(plane)}))`, `dostępna płaszczyzna ${plane}`);
     if (forceNew) {
       await window.webContents.executeJavaScript(`(() => {
         const input = document.querySelector('.plane-new-sketch-option input');
