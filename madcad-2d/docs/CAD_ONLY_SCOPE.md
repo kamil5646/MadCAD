@@ -115,3 +115,18 @@ klatki bez ruchu zgłaszanego przez `OrbitControls.update()` i nadal sprawdza
 wektor oraz środek kamery. Nie zwiększono limitu czasu ani tolerancji geometrii.
 Diagnostyka klatek działa tylko w trybie `verify`, nie w produkcyjnym pakiecie.
 Po zmianie przeszedł test nawigacji i cały shard interfejsu: 12 scenariuszy.
+
+## Wyrażenia wymiarów i diagnostyka CI
+
+Odtworzono błąd parsera: `2*-3` zwracało −3, a `10/-2` zgłaszało dzielenie
+przez zero. Parser używa teraz osobnych operatorów jednoargumentowych,
+z wyższym pierwszeństwem i prawostronnym wiązaniem. Testy obejmują znaki
+zagnieżdżone, nawiasy, zależne parametry, niepełne wyrażenia i rzeczywiste
+dzielenie przez zero. Pełne 238 testów rdzenia wraz z bramką pokrycia przeszły.
+
+Przebieg CI `36989142656` potwierdził poprawioną nawigację na Windows/macOS,
+ale scenariusz szkicu na ścianie na macOS zakończył się ogólnym wyjątkiem IPC
+bez nazwy akcji. Lokalnie cały scenariusz ponownie przeszedł. Do testu dodano
+zachowanie treści wywołania, błędów renderera oraz JSON i zrzutu ekranu
+z chwili awarii. Przyczyna tego błędu CI pozostaje niepotwierdzona; nie
+zwiększono limitów czasu ani nie wyłączono scenariusza.

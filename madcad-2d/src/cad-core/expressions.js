@@ -1,6 +1,6 @@
 const NUMBER = /^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/i;
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*/;
-const PRECEDENCE = { '+': 1, '-': 1, '*': 2, '/': 2 };
+const PRECEDENCE = { '+': 1, '-': 1, '*': 2, '/': 2, 'u+': 3, 'u-': 3 };
 
 function tokenize(source) {
   const tokens = [];
@@ -48,16 +48,17 @@ function toRpn(tokens) {
     if (token.type === 'number' || token.type === 'identifier') {
       output.push(token);
     } else if (token.type in PRECEDENCE) {
-      const unary = token.type === '-' && (!previous || previous.type in PRECEDENCE || previous.type === '(');
-      if (unary) output.push({ type: 'number', value: 0 });
+      const unary = (token.type === '-' || token.type === '+') && (!previous || previous.type in PRECEDENCE || previous.type === '(');
+      const operator = unary ? { type: `u${token.type}` } : token;
       while (
         operators.length
         && operators.at(-1).type in PRECEDENCE
-        && PRECEDENCE[operators.at(-1).type] >= PRECEDENCE[token.type]
+        && (PRECEDENCE[operators.at(-1).type] > PRECEDENCE[operator.type]
+          || (!unary && PRECEDENCE[operators.at(-1).type] === PRECEDENCE[operator.type]))
       ) {
         output.push(operators.pop());
       }
-      operators.push(token);
+      operators.push(operator);
     } else if (token.type === '(') {
       operators.push(token);
     } else if (token.type === ')') {
@@ -88,6 +89,11 @@ export function evaluateExpression(expression, parameters = {}) {
       if (!(token.value in parameters)) throw new Error(`Nieznany parametr: ${token.value}`);
       stack.push(Number(parameters[token.value]));
     } else {
+      if (token.type === 'u-' || token.type === 'u+') {
+        if (!stack.length) throw new Error('Niepełne wyrażenie.');
+        stack.push((token.type === 'u-' ? -1 : 1) * stack.pop());
+        continue;
+      }
       if (stack.length < 2) throw new Error('Niepełne wyrażenie.');
       const right = stack.pop();
       const left = stack.pop();

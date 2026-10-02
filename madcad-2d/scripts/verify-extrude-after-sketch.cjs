@@ -58,6 +58,19 @@ app.whenReady().then(async () => {
       partition: `madcad-extrude-sketch-${Date.now()}`,
     },
   });
+  // Electron otherwise replaces renderer exceptions with a generic IPC error,
+  // losing the failing action on CI. Keep the original message and expression.
+  const executeJavaScript = window.webContents.executeJavaScript.bind(window.webContents);
+  window.webContents.executeJavaScript = async (expression, ...args) => {
+    try {
+      return await executeJavaScript(expression, ...args);
+    } catch (error) {
+      throw new Error(`Renderer action failed: ${expression}\n${error.message}`, { cause: error });
+    }
+  };
+  window.webContents.on('console-message', (details) => {
+    if (details.level === 'error') process.stderr.write(`[renderer] ${details.message}\n`);
+  });
   let exitCode = 0;
   try {
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
@@ -679,6 +692,19 @@ app.whenReady().then(async () => {
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;
+    try {
+      const state = await executeJavaScript(`({
+        engine: { status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision },
+        document: window.__madcadVerifyDocumentState,
+        dialog: document.querySelector('.command-dialog')?.textContent,
+        notice: document.querySelector('.workspace-notice')?.textContent,
+      })`);
+      await fs.writeFile(path.join(path.dirname(artifactPath), 'extrude-after-sketch-failure.json'), JSON.stringify(state, null, 2));
+      const image = await window.webContents.capturePage();
+      await fs.writeFile(path.join(path.dirname(artifactPath), 'extrude-after-sketch-failure.png'), image.toPNG());
+    } catch (diagnosticError) {
+      process.stderr.write(`[verify] Failure diagnostics unavailable: ${diagnosticError.message}\n`);
+    }
   } finally {
     // Do the awaited cleanup first and never destroy the last window before
     // app.exit(): the default window-all-closed quit would win the race and

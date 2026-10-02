@@ -674,6 +674,25 @@ test('bezpiecznie oblicza wyrażenia parametryczne', () => {
   assert.throws(() => evaluateExpression('10 / 0', {}), /Dzielenie przez zero/);
 });
 
+test('znaki jednoargumentowe zachowują pierwszeństwo w wymiarach i parametrach', () => {
+  for (const [expression, expected] of [
+    ['2*-3', -6], ['10/-2', -5], ['-2*3', -6], ['2*(-3)', -6],
+    ['2*--3', 6], ['2+-3', -1], ['2--3', 5], ['-(2+3)*4', -20],
+    ['-(-(-2))', -2], ['+2*+3', 6], ['2/-(-4)', 0.5],
+  ]) assert.equal(evaluateExpression(expression), expected, expression);
+  assert.equal(evaluateExpression('2*-offset', { offset: 3 }), -6);
+  assert.deepEqual(listExpressionIdentifiers('-offset + +width'), ['offset', 'width']);
+  const result = resolveParameters([
+    { name: 'offset', expression: 'width/-2' },
+    { name: 'width', expression: '40' },
+  ]);
+  assert.deepEqual(result, { values: { width: 40, offset: -20 }, errors: {}, valid: true });
+  for (const expression of ['-', '+', '2*-', '2/+']) {
+    assert.throws(() => evaluateExpression(expression), /Niepełne wyrażenie/);
+  }
+  assert.throws(() => evaluateExpression('10/-0'), /Dzielenie przez zero/);
+});
+
 test('wykrywa identyfikatory wyrażeń i stosuje jedną politykę tolerancji', () => {
   assert.deepEqual(listExpressionIdentifiers('szerokosc / 2 + luz + szerokosc'), ['szerokosc', 'luz']);
   assert.equal(isPositiveLength(GEOMETRY_POLICY.linearTolerance / 2), false);

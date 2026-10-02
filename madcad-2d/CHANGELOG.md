@@ -10,6 +10,7 @@
 - dwuklik operacji w historii otwiera wskazaną operację także przed odświeżeniem zaznaczenia; test regresji obejmuje anulowanie, edycję, Cofnij/Ponów i zapis/otwarcie bryły.
 - anulowanie edycji operacji przywraca jej zaznaczenie zamiast zostawiać profil z nieaktywnym uchwytem wyciągania;
 - biblioteki interfejsu i kernela są pakowane jako gotowy kod JS/WASM, bez dodatkowych kopii źródeł w `node_modules`; wersje bibliotek pozostają bez zmian.
+- poprawiono pierwszeństwo znaków jednoargumentowych w wymiarach i parametrach: `2*-3` daje −6, a `10/-2` daje −5; działają też zagnieżdżone znaki i parametry.
 
 ## 6.5.28 (2026-10-02)
 
