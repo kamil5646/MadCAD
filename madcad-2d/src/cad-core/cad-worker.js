@@ -43,6 +43,7 @@ import { evaluateFeatureHistoryCooperatively } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
 import { DRAWING_PROJECTION_CAMERAS, removeHiddenOverlaps } from './drawing-sheets.js';
 import { drawingProjectionGroupKey, uniqueDrawingSegments } from './drawing-projections.js';
+import { projectExactSections } from './drawing-sections.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
@@ -3191,10 +3192,11 @@ async function handleMessage(data) {
   if (type === 'project-drawing') {
     const evaluated = await resolveRevision(document, revision, 'display');
     const cache = evaluated.drawingProjectionCache ||= new Map();
-    const key = JSON.stringify([data.orientations || [], data.groups || []]);
+    const key = JSON.stringify([data.orientations || [], data.groups || [], data.sections || []]);
     let projections = cache.get(key);
     if (!projections) {
       projections = projectDrawingBodies(evaluated.kernelBodies, data.orientations, data.groups);
+      projections.__sections = projectExactSections(evaluated.kernelBodies, data.sections || []);
       cache.set(key, projections);
       // Bound variants of body selections; this cache dies with the model revision.
       if (cache.size > 4) cache.delete(cache.keys().next().value);

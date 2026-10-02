@@ -9,6 +9,7 @@ const files = [
   'package.json', 'package-lock.json', 'README.md', 'FIRST_PART.md',
   'src/App.test.jsx', 'src/modeling/AppDialogs.jsx', 'src/modeling/i18n.js',
   'server/seohost/madcad-site/index.html', '../README.md', '../docs/index.html',
+  '../.github/workflows/release.yml',
 ];
 // Only current product metadata: historical changelogs and audit evidence stay intact.
 const updates = files.map((file) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { attachDrawingProjections, drawingProjectionGroups, drawingProjectionGroupKey, prepareDrawingExport, uniqueDrawingSegments } from './drawing-projections.js';
+import { attachDrawingProjections, drawingProjectionGroups, drawingProjectionGroupKey, drawingSectionKey, prepareDrawingExport, uniqueDrawingSegments } from './drawing-projections.js';
 import { projectDrawingView } from './drawing-sheets.js';
 
 const bodies = [{ id: 'a' }, { id: 'b' }];
@@ -34,6 +34,21 @@ describe('exact drawing exports', () => {
     expect(projectDrawingView({ orientation: 'front' }, attached).segments).toHaveLength(1);
     expect(projectDrawingView({ orientation: 'front', bodyIds: ['a'] }, attached).segments).toHaveLength(1);
     expect(projectDrawingView({ orientation: 'front' }, attached).hiddenSegments).toEqual(projection.hidden);
+  });
+  it('rejects a pending revision before requesting projections and checks again after awaiting', async () => {
+    let revision = null;
+    const project = vi.fn(async () => { revision = 2; return { a: orientations }; });
+    const options = { bodies: [bodies[0]], revision: 1, getCurrentRevision: () => revision, project, groups: [] };
+    await expect(prepareDrawingExport(options)).rejects.toThrow('przebudowa');
+    expect(project).not.toHaveBeenCalled();
+    revision = 1;
+    await expect(prepareDrawingExport(options)).rejects.toThrow('Model zmienił się');
+  });
+  it('requires exact section data instead of accepting an ordinary projection', async () => {
+    const view = { type: 'section', orientation: 'front', sectionPosition: 0.5, bodyIds: ['a'] };
+    const options = { bodies: [bodies[0]], revision: 1, getCurrentRevision: () => 1, project: async () => ({ a: orientations }), groups: [], sections: [view] };
+    await expect(prepareDrawingExport(options)).rejects.toThrow('przekroju B-Rep');
+    await expect(prepareDrawingExport({ ...options, project: async () => ({ a: orientations, __sections: { [drawingSectionKey(view)]: { segments: [] } } }) })).resolves.toHaveLength(1);
   });
   it('does not let an unused mesh block a B-Rep sheet, but rejects a mesh source', async () => {
     const options = { bodies: [{ id: 'a' }, { id: 'mesh', representation: 'mesh-import' }], revision: 1, getCurrentRevision: () => 1, project: async () => ({ a: orientations }), groups: [], requiredBodyIds: ['a'] };

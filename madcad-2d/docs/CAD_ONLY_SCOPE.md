@@ -120,6 +120,21 @@ są lokalnymi artefaktami testowymi, nie nowym wydaniem 6.5.28.
 Pełny scenariusz CAD w zainstalowanej aplikacji Windows nadal wymaga osobnego
 potwierdzenia. CI desktopowe i test startu NSIS nie są jego zastępstwem.
 
+Decyzja odbioru 2026-10-02: użytkownik polecił opublikować 6.5.29 bez tego
+ręcznego scenariusza Windows. Pozostaje on niezweryfikowany; automatyczne
+bramki Windows/NSIS nadal obowiązują.
+
+Przegląd przed wydaniem wykrył dodatkowe błędy. Przekroje teraz pochodzą
+z `BRepAlgoAPI_Section`, z próbkowaniem krzywych niezależnym od siatki ekranu
+(docelowa tolerancja 0,001 mm, ograniczenie rozmiaru). Test rzeczywistego
+kernela i produkcyjnego eksportu PDF kuli R10 zwrócił 256 segmentów,
+z błędem promienia w granicach błędu numerycznego. Eksport wymaga zgodności
+zarówno sygnatury dokumentu, jak i ostatniej obliczonej rewizji, również
+w czasie 120 ms debounce. Test hooka odtwarza ten wyścig.
+Wyciągnięcie szkicu na ścianie rozpoznaje znak wyrażeń `-depth` i `0-depth`,
+automatycznie wybiera Wytnij/Połącz i zachowuje zależność parametryczną.
+Test Electron potwierdza dalszą przebudowę, Cofnij/Ponów i zapis/otwarcie.
+
 ## Migracja w produkcyjnym pakiecie i nawigacja
 
 Przez natywne okno otwarto kopię fixture v26 w produkcyjnym pakiecie macOS

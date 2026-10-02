@@ -1593,14 +1593,12 @@ export default function ModelingWorkspace() {
   const [drawingProjections, setDrawingProjections] = useState({ revision: -1, groupsKey: '', data: {} });
   const projectionGroups = useMemo(() => drawingProjectionGroups(document.drawings, engine.bodies), [document.drawings, engine.bodies]);
   const projectionGroupsKey = JSON.stringify(projectionGroups);
-  const drawingExportRevisionRef = useRef(engine.revision);
-  useEffect(() => { drawingExportRevisionRef.current = engine.revision; }, [engine.revision]);
   const projectDrawingViews = engine.projectDrawingViews;
   useEffect(() => {
     if (workspace !== 'drawing' || engine.status !== 'ready' || !engine.bodies.length || (drawingProjections.revision === engine.revision && drawingProjections.groupsKey === projectionGroupsKey)) return undefined;
     let active = true;
     const revision = engine.revision;
-    projectDrawingViews(['front', 'top', 'right', 'isometric'], projectionGroups)
+    projectDrawingViews(['front', 'top', 'right', 'isometric'], projectionGroups, document.drawings.flatMap((sheet) => sheet.views.filter((view) => view.type === 'section')))
       .then((data) => {
         if (!active) return;
         setDrawingProjections({ revision, groupsKey: projectionGroupsKey, data });
@@ -1608,7 +1606,7 @@ export default function ModelingWorkspace() {
       })
       .catch((error) => { if (active) setNotice(`Nie udało się obliczyć dokładnego rzutu: ${error.message}. Podgląd jest uproszczony; eksport wymaga poprawnego rzutu.`); });
     return () => { active = false; };
-  }, [workspace, engine.status, engine.revision, engine.bodies.length, drawingProjections.revision, drawingProjections.groupsKey, projectDrawingViews, projectionGroups, projectionGroupsKey]);
+  }, [workspace, engine.status, engine.revision, engine.bodies.length, drawingProjections.revision, drawingProjections.groupsKey, projectDrawingViews, projectionGroups, projectionGroupsKey, document.drawings]);
   const withDrawingProjections = useCallback((bodies) => (drawingProjections.revision === engine.revision
     ? attachDrawingProjections(bodies, drawingProjections.data)
     : bodies), [drawingProjections, engine.revision]);
@@ -2127,9 +2125,10 @@ export default function ModelingWorkspace() {
         if (Object.hasOwn(patch, 'operation')) next.operationAuto = false;
         const extrudeSketchId = current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id;
         const onFace = document.sketches.find((sketch) => sketch.id === extrudeSketchId)?.support?.kind === 'face';
-        const signedDistance = Number(String(next.distance ?? '').replace(',', '.'));
+        let signedDistance = NaN;
+        try { signedDistance = evaluateExpression(String(next.distance ?? '').replace(',', '.'), resolveParameters(document.parameters).values); } catch { /* Incomplete input remains editable; preview validation reports it. */ }
         // Only a one-sided extrude has a direction sign; other extents keep the length.
-        if (next.extent !== 'one-side' && Number.isFinite(signedDistance) && signedDistance < 0) next.distance = String(-signedDistance);
+        if (next.extent !== 'one-side' && Number.isFinite(signedDistance) && signedDistance < 0) next.distance = Number.isFinite(Number(String(next.distance).replace(',', '.'))) ? String(-signedDistance) : `-(${next.distance})`;
         if (onFace && next.extent === 'one-side' && next.operationAuto !== false && Number.isFinite(signedDistance)) {
           if (signedDistance < 0 && next.operation === 'join') { next.operation = 'cut'; next.operationAuto = true; }
           else if (signedDistance > 0 && next.operation === 'cut' && next.operationAuto === true) next.operation = 'join';
@@ -6367,7 +6366,7 @@ export default function ModelingWorkspace() {
   };
 
   const prepareActiveDrawingBodies = async () => {
-    if (engine.status !== 'ready') {
+    if (engine.status !== 'ready' || !engine.isCurrent) {
       setNotice('Poczekaj na ukończenie przebudowy modelu przed eksportem rysunku.');
       return null;
     }
@@ -6377,8 +6376,9 @@ export default function ModelingWorkspace() {
       return await prepareDrawingExport({
         bodies: engine.bodies,
         revision: engine.revision,
-        getCurrentRevision: () => drawingExportRevisionRef.current,
+        getCurrentRevision: engine.getCurrentRevision,
         project: projectDrawingViews,
+        sections: activeDrawingSheet.views.filter((view) => view.type === 'section'),
         groups: drawingProjectionGroups([activeDrawingSheet], engine.bodies),
         requiredBodyIds: engine.bodies.filter((body) => activeDrawingSheet.views.some((view) => view.type !== 'sketch' && (!view.bodyIds?.length || view.bodyIds.includes(body.id)))).map((body) => body.id),
       });

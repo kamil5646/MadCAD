@@ -1,4 +1,5 @@
 export const drawingProjectionGroupKey = (ids) => JSON.stringify([...new Set(ids)].sort());
+export const drawingSectionKey = (view) => JSON.stringify([view.orientation || 'front', Number(view.sectionPosition) || 0.5, [...(view.bodyIds || [])].sort()]);
 
 export function uniqueDrawingSegments(segments) {
   const seen = new Set();
@@ -23,12 +24,13 @@ export function drawingProjectionGroups(sheets, bodies) {
 }
 
 export function attachDrawingProjections(bodies, data) {
-  return bodies.map((body) => ({ ...body, drawingProjections: data[body.id], drawingGroupProjections: data.__groups }));
+  return bodies.map((body) => ({ ...body, drawingProjections: data[body.id], drawingGroupProjections: data.__groups, drawingSectionProjections: data.__sections }));
 }
 
 // Never export the transient tessellation fallback or a projection of an older model.
-export async function prepareDrawingExport({ bodies, revision, getCurrentRevision, project, groups, requiredBodyIds }) {
-  const data = await project(['front', 'top', 'right', 'isometric'], groups);
+export async function prepareDrawingExport({ bodies, revision, getCurrentRevision, project, groups, requiredBodyIds, sections = [] }) {
+  if (getCurrentRevision() !== revision) throw new Error('Model zmienił się lub trwa jego przebudowa. Ponów eksport po jej ukończeniu.');
+  const data = await project(['front', 'top', 'right', 'isometric'], groups, sections);
   if (getCurrentRevision() !== revision) throw new Error('Model zmienił się podczas przygotowania rysunku. Ponów eksport.');
   for (const body of bodies) {
     if (requiredBodyIds && !requiredBodyIds.includes(body.id)) continue;
@@ -37,6 +39,9 @@ export async function prepareDrawingExport({ bodies, revision, getCurrentRevisio
   }
   for (const ids of groups || []) {
     if (['front', 'top', 'right', 'isometric'].some((orientation) => !data.__groups?.[drawingProjectionGroupKey(ids)]?.[orientation])) throw new Error('Nie udało się obliczyć wspólnego rzutu brył. Eksport został zatrzymany.');
+  }
+  for (const view of sections) {
+    if (!data.__sections?.[drawingSectionKey(view)]) throw new Error('Nie udało się obliczyć dokładnego przekroju B-Rep. Eksport został zatrzymany.');
   }
   return attachDrawingProjections(bodies, data);
 }

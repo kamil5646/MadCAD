@@ -404,7 +404,8 @@ app.whenReady().then(async () => {
 
     process.stdout.write('[verify] side-face dependent cut\n');
     const sideLoadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
-    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(savedProject))})`);
+    const sideProject = { ...savedProject, parameters: [...savedProject.parameters, { id: 'parameter-depth-regression', name: 'depth', expression: '5', unit: 'mm', label: 'Głębokość' }] };
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(sideProject))})`);
     await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${sideLoadRevision}
       && window.__madcadVerifyEngineState?.status === 'ready'
       && window.__madcadVerifyDocumentState?.features === 1
@@ -429,8 +430,12 @@ app.whenReady().then(async () => {
     await clickTool(window, 'Wyciągnij');
     await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wycięcie od ściany bocznej');
     // A negative distance on a face sketch goes into the body and switches Join to Cut by itself.
-    await setCommandField(window, 'Odległość', '-5');
+    await setCommandField(window, 'Odległość', '-depth');
     await waitFor(window, `[...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.firstElementChild?.textContent.trim() === 'Operacja')?.querySelector('select')?.value === 'cut'`, 'automatyczne Wytnij dla ujemnej odległości');
+    await setCommandField(window, 'Odległość', 'depth');
+    await waitFor(window, `[...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.firstElementChild?.textContent.trim() === 'Operacja')?.querySelector('select')?.value === 'join'`, 'automatyczne Połącz dla dodatniego parametru');
+    await setCommandField(window, 'Odległość', '0-depth');
+    await waitFor(window, `[...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.firstElementChild?.textContent.trim() === 'Operacja')?.querySelector('select')?.value === 'cut'`, 'automatyczne Wytnij dla wyrażenia parametrycznego');
     await setCommandField(window, 'Kierunek', 'through-all');
     const sideCutRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);

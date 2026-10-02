@@ -1,7 +1,7 @@
 import { createId } from './ids.js';
 import { componentBomEntries } from './components.js';
 import { sketchDrawingSegments } from './sketch-topology.js';
-import { drawingProjectionGroupKey } from './drawing-projections.js';
+import { drawingProjectionGroupKey, drawingSectionKey } from './drawing-projections.js';
 
 export const DRAWING_PAGE_SIZES = Object.freeze({
   A4: Object.freeze({ width: 297, height: 210 }),
@@ -308,7 +308,7 @@ export function ensureDocumentDrawings(document) {
   return document;
 }
 
-function viewCoordinates(point, orientation) {
+export function viewCoordinates(point, orientation) {
   const [x, y, z] = point;
   if (orientation === 'top') return [x, -y, z];
   if (orientation === 'right') return [y, -z, x];
@@ -592,6 +592,8 @@ function projectionBounds(segments) {
 function projectionForView(view, bodies, { sketches = [], parameters = [], layers = [] } = {}) {
   if (view.type === 'sketch') return projectSketchDrawingView(view, sketches, parameters, layers);
   if (view.type === 'section') {
+    const exact = bodies.find((body) => body.drawingSectionProjections)?.drawingSectionProjections?.[drawingSectionKey(view)];
+    if (exact) return projectionBounds(exact.segments);
     const section = sectionSegments(view, bodies);
     if (section.length) return projectionBounds(section);
   }

@@ -267,6 +267,27 @@ app.whenReady().then(async () => {
     })()`);
     if (occlusion.visible !== 4 || occlusion.hidden !== 4) throw new Error('Niepoprawne zasłanianie brył: ' + JSON.stringify(occlusion));
     state.compoundOcclusion = occlusion;
+    const sectionFixture = core.createDocument('Dokładny przekrój kuli');
+    sectionFixture.features.push(core.createFeature('primitive', { primitiveType: 'sphere', radius: '10', x: '0', y: '0', z: '0' }));
+    const sectionSheet = drawing.createDrawingSheet();
+    const sphereView = drawing.createBaseDrawingView({ bodyIds: [`body-${sectionFixture.features[0].id}`], orientation: 'front', scale: 1, sheet: sectionSheet });
+    sectionSheet.views.push(sphereView, drawing.createSectionDrawingView({ parentView: sphereView, sectionPosition: 0.5 }));
+    sectionFixture.drawings.push(sectionSheet);
+    await window.webContents.executeJavaScript(`window.__drawingExportHtml = null; window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(sectionFixture))}); true;`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.evaluatedFeatureData?.[0]?.id === ${JSON.stringify(sectionFixture.features[0].id)}`, 'dokładna kula do przekroju');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn').click()`);
+    await waitFor(window, `Boolean(document.querySelector('#fileExportPdfBtn'))`, 'eksport przekroju');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileExportPdfBtn').click()`);
+    await waitFor(window, `Boolean(window.__drawingExportHtml)`, 'dokładny przekrój B-Rep przed PDF');
+    const exactSection = await window.webContents.executeJavaScript(`(() => {
+      const html = new DOMParser().parseFromString(window.__drawingExportHtml, 'text/html');
+      const lines = [...html.querySelectorAll('g.geometry.section > line:not(.hatch):not(.hidden)')];
+      const points = lines.flatMap((line) => [[Number(line.getAttribute('x1')), Number(line.getAttribute('y1'))], [Number(line.getAttribute('x2')), Number(line.getAttribute('y2'))]]);
+      const center = [Math.min(...points.map(p => p[0])) + 10, Math.min(...points.map(p => p[1])) + 10];
+      return { count: lines.length, radiusError: Math.max(...points.map(p => Math.abs(Math.hypot(p[0] - center[0], p[1] - center[1]) - 10))) };
+    })()`);
+    if (exactSection.count < 100 || exactSection.radiusError > 0.002) throw new Error('Niepoprawny dokładny przekrój kuli: ' + JSON.stringify(exactSection));
+    state.exactSphereSection = exactSection;
     // Windows pipes stdout asynchronously. Exiting Electron before the write
     // callback can leave its completion handle invalid despite passing checks.
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`, () => app.exit(0));

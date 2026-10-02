@@ -28,6 +28,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
   const latestDocumentRef = useRef(document);
   const latestGeometrySignatureRef = useRef(geometrySignature);
   const evaluatedGeometrySignatureRef = useRef(null);
+  const evaluatedRevisionRef = useRef(null);
   latestDocumentRef.current = document;
   latestGeometrySignatureRef.current = geometrySignature;
   const [workerGeneration, setWorkerGeneration] = useState(0);
@@ -149,6 +150,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
         const result = await send({ type: 'evaluate', document: evaluationDocument, revision, quality });
         if (active && canceledRevisionRef.current !== revision && result.revision === revision && latestGeometrySignatureRef.current === geometrySignature) {
           evaluatedGeometrySignatureRef.current = geometrySignature;
+          evaluatedRevisionRef.current = revision;
           setState((current) => ({ ...current, status: 'ready', error: '', ...result, evaluatedDocument: latestDocumentRef.current }));
         } else if (canceledRevisionRef.current === revision) {
           // The worker finished before it received the cancel; the result is discarded all the same.
@@ -222,12 +224,17 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     return result.descriptor;
   }, [document, send]);
 
-  const projectDrawingViews = useCallback(async (orientations, groups = []) => {
+  const getCurrentRevision = useCallback(() => (
+    evaluatedGeometrySignatureRef.current === latestGeometrySignatureRef.current && evaluatedRevisionRef.current === revisionRef.current ? revisionRef.current : null
+  ), []);
+
+  const projectDrawingViews = useCallback(async (orientations, groups = [], sections = []) => {
     const revision = revisionRef.current;
-    const result = await send({ type: 'project-drawing', document, revision, orientations, groups });
-    if (result.revision !== revision || revisionRef.current !== revision) throw engineError('Silnik zwrócił rzut arkusza z innej rewizji dokumentu.', 'PROJECTION_REVISION_MISMATCH');
+    if (getCurrentRevision() !== revision) throw engineError('Poczekaj na ukończenie przebudowy modelu przed eksportem rysunku.', 'PROJECTION_MODEL_PENDING');
+    const result = await send({ type: 'project-drawing', document, revision, orientations, groups, sections });
+    if (result.revision !== revision || getCurrentRevision() !== revision) throw engineError('Silnik zwrócił rzut arkusza z innej rewizji dokumentu.', 'PROJECTION_REVISION_MISMATCH');
     return result.projections;
-  }, [document, send]);
+  }, [document, send, getCurrentRevision]);
 
   const restartWorkerForTest = useCallback(() => {
     if (!workerRef.current) throw engineError('Silnik CAD nie jest gotowy do testu odtwarzania.', 'WORKER_NOT_READY');
@@ -243,5 +250,5 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     setWorkerGeneration((generation) => generation + 1);
   }, [rejectPending]);
 
-  return { ...state, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, cancelRebuild, exportExternalDocument, exportModel, projectDrawingViews, projectPointsToSurface, restartWorkerForTest };
+  return { ...state, isCurrent: evaluatedGeometrySignatureRef.current === geometrySignature && state.revision === revisionRef.current, getCurrentRevision, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, cancelRebuild, exportExternalDocument, exportModel, projectDrawingViews, projectPointsToSurface, restartWorkerForTest };
 }
