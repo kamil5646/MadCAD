@@ -28,7 +28,7 @@ function formatDecimal(value, precision, style) {
 export const DRAWING_VIEW_ORIENTATIONS = Object.freeze(['front', 'top', 'right', 'isometric']);
 export const DRAWING_VIEW_TYPES = Object.freeze(['base', 'sketch', 'projected', 'section', 'detail']);
 export const DRAWING_VIEW_ALIGNMENTS = Object.freeze(['horizontal', 'vertical', 'free']);
-export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame', 'balloon']);
+export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'point-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame', 'balloon']);
 export const DRAWING_TABLE_TYPES = Object.freeze(['bom', 'hole-table', 'bend-table']);
 
 const PAGE_MARGIN = 10;
@@ -81,6 +81,46 @@ export function createLinearDrawingDimension({ viewId, axis = 'horizontal', offs
     upperTolerance: Math.max(0, Math.min(100, Number(upperTolerance) || 0)),
     lowerTolerance: Math.max(0, Math.min(100, Number(lowerTolerance) || 0)),
   };
+}
+
+// Dimension between two picked view points. Points are stored in the view's own
+// projection coordinates (model mm), so the dimension follows the view when it is
+// moved or rescaled, and re-snaps to the nearest projected vertex when the model changes.
+export function createPointDrawingDimension({ viewId, points, axis = 'auto', offset = 10, precision = 2 } = {}) {
+  const [first, second] = (points || []).map((point) => [Number(point?.[0]) || 0, Number(point?.[1]) || 0]);
+  if (!first || !second) throw new Error('Wymiar między punktami wymaga dwóch punktów.');
+  const dx = Math.abs(second[0] - first[0]);
+  const dy = Math.abs(second[1] - first[1]);
+  const resolvedAxis = axis === 'auto'
+    ? (dy <= 1e-9 * Math.max(1, dx) ? 'horizontal' : dx <= 1e-9 * Math.max(1, dy) ? 'vertical' : 'aligned')
+    : ['horizontal', 'vertical', 'aligned'].includes(axis) ? axis : 'aligned';
+  return {
+    id: createId('drawing-annotation'),
+    type: 'point-dimension',
+    viewId,
+    points: [first, second],
+    axis: resolvedAxis,
+    offset: Math.max(-100, Math.min(100, Number(offset) || 10)),
+    precision: Math.max(0, Math.min(4, Math.trunc(Number(precision) || 0))),
+    toleranceMode: 'none',
+    upperTolerance: 0,
+    lowerTolerance: 0,
+  };
+}
+
+// Nearest projected vertex of a rendered view to a sheet point, in projection coordinates.
+export function drawingViewSnapPoint(view, sheetPoint, toleranceSheetMm = 4) {
+  if (!view?.vertices?.length || !view.projectionCenter) return null;
+  const scale = Math.max(0.001, Number(view.scale) || 1);
+  const toSheet = ([u, v]) => [view.x + (u - view.projectionCenter[0]) * scale, view.y + (v - view.projectionCenter[1]) * scale];
+  let best = null;
+  let bestDistance = Infinity;
+  for (const vertex of view.vertices) {
+    const [x, y] = toSheet(vertex);
+    const distance = Math.hypot(x - sheetPoint[0], y - sheetPoint[1]);
+    if (distance < bestDistance) { bestDistance = distance; best = vertex; }
+  }
+  return bestDistance <= toleranceSheetMm ? [...best] : null;
 }
 
 export function createCenterlineDrawingAnnotation({ viewId, axis = 'horizontal', offset = 0 } = {}) {
@@ -536,12 +576,86 @@ function arrowSegments(point, direction, size = 2.4) {
   ];
 }
 
+function uniqueVertices(segments) {
+  const seen = new Map();
+  for (const segment of segments || []) {
+    for (const point of segment) {
+      const key = `${Math.round(point[0] * 1e4)}:${Math.round(point[1] * 1e4)}`;
+      if (!seen.has(key)) seen.set(key, [point[0], point[1]]);
+    }
+  }
+  return [...seen.values()];
+}
+
+function snapToVertex(point, vertices, tolerance) {
+  let best = point;
+  let bestDistance = tolerance;
+  for (const vertex of vertices || []) {
+    const distance = Math.hypot(vertex[0] - point[0], vertex[1] - point[1]);
+    if (distance <= bestDistance) { bestDistance = distance; best = vertex; }
+  }
+  return best;
+}
+
+function renderedPointDimension(source, view, style) {
+  const scale = Math.max(0.001, Number(view.scale) || 1);
+  const tolerance = Math.max(0.05, Math.max(view.modelWidth, view.modelHeight) * 0.01);
+  const [first, second] = (source.points || []).map((point) => snapToVertex(point, view.vertices, tolerance));
+  if (!first || !second || !view.projectionCenter) return null;
+  const toSheet = ([u, v]) => [view.x + (u - view.projectionCenter[0]) * scale, view.y + (v - view.projectionCenter[1]) * scale];
+  const a = toSheet(first);
+  const b = toSheet(second);
+  const offset = Math.max(-100, Math.min(100, Number(source.offset) || 10));
+  const arrow = style.textHeight * 0.75;
+  const textGap = style.textHeight * 0.45;
+  const overshoot = 1.5;
+  if (source.axis === 'horizontal') {
+    const y = Math.min(a[1], b[1]) - offset;
+    const left = [Math.min(a[0], b[0]), y];
+    const right = [Math.max(a[0], b[0]), y];
+    const value = Math.abs(second[0] - first[0]);
+    const sign = offset >= 0 ? -1 : 1;
+    return { ...source, value, text: dimensionText(value, source, style), textHeight: style.textHeight, textX: (left[0] + right[0]) / 2, textY: y - textGap, textRotation: 0, segments: [
+      [a, [a[0], y + sign * overshoot]], [b, [b[0], y + sign * overshoot]], [left, right],
+      ...arrowSegments(left, [1, 0], arrow), ...arrowSegments(right, [-1, 0], arrow),
+    ] };
+  }
+  if (source.axis === 'vertical') {
+    const x = Math.max(a[0], b[0]) + offset;
+    const top = [x, Math.min(a[1], b[1])];
+    const bottom = [x, Math.max(a[1], b[1])];
+    const value = Math.abs(second[1] - first[1]);
+    const sign = offset >= 0 ? 1 : -1;
+    return { ...source, value, text: dimensionText(value, source, style), textHeight: style.textHeight, textX: x + textGap + style.textHeight * 0.35, textY: (top[1] + bottom[1]) / 2, textRotation: -90, segments: [
+      [a, [x + sign * overshoot, a[1]]], [b, [x + sign * overshoot, b[1]]], [top, bottom],
+      ...arrowSegments(top, [0, 1], arrow), ...arrowSegments(bottom, [0, -1], arrow),
+    ] };
+  }
+  const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (length < 1e-9) return null;
+  const direction = [(b[0] - a[0]) / length, (b[1] - a[1]) / length];
+  const normal = [direction[1], -direction[0]];
+  const p = [a[0] + normal[0] * offset, a[1] + normal[1] * offset];
+  const q = [b[0] + normal[0] * offset, b[1] + normal[1] * offset];
+  const value = Math.hypot(second[0] - first[0], second[1] - first[1]);
+  let angle = Math.atan2(direction[1], direction[0]) * 180 / Math.PI;
+  if (angle > 90) angle -= 180;
+  if (angle < -90) angle += 180;
+  const sideSign = Math.sign(offset || 1);
+  const extension = (point) => [point[0] + normal[0] * sideSign * overshoot, point[1] + normal[1] * sideSign * overshoot];
+  return { ...source, value, text: dimensionText(value, source, style), textHeight: style.textHeight, textX: (p[0] + q[0]) / 2 + normal[0] * textGap, textY: (p[1] + q[1]) / 2 + normal[1] * textGap, textRotation: angle, segments: [
+    [a, extension(p)], [b, extension(q)], [p, q],
+    ...arrowSegments(p, direction, arrow), ...arrowSegments(q, [-direction[0], -direction[1]], arrow),
+  ] };
+}
+
 function renderedAnnotation(source, view, bodies, style = DEFAULT_DIMENSION_STYLE) {
   if (!view) return null;
   const arrow = style.textHeight * 0.75;
   const textGap = style.textHeight * 0.45;
   const halfWidth = Math.max(0.01, view.modelWidth * view.scale / 2);
   const halfHeight = Math.max(0.01, view.modelHeight * view.scale / 2);
+  if (source.type === 'point-dimension') return renderedPointDimension(source, view, style);
   if (source.type === 'linear-dimension') {
     const vertical = source.axis === 'vertical';
     const offset = Math.max(-100, Math.min(100, Number(source.offset) || 10));
@@ -758,6 +872,8 @@ export function drawingSheetScene(sheet, bodies = [], { components = [], compone
       hatchSegments: view.type === 'section' ? sectionHatchSegments(projection, Number(view.hatchSpacing) || 4).map(transformSegment) : [],
       modelWidth: projection.width,
       modelHeight: projection.height,
+      projectionCenter: center,
+      vertices: uniqueVertices(projection.segments),
       detailRadiusSheet: view.type === 'detail' ? Math.max(5, Number(projection.detailRadiusModel || 0) * scale) : 0,
     };
     resolved.set(view.id, rendered);

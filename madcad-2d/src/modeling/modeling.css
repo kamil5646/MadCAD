@@ -1738,7 +1738,10 @@
 .drawing-centerline line,
 .drawing-center-mark line { stroke-dasharray: 3 1; }
 .drawing-linear-dimension line,
+.drawing-point-dimension line,
 .drawing-hole-note line { stroke-width: .2; }
+.drawing-paper.picking { cursor: crosshair; }
+.drawing-pick-marker { fill: #e8502e; }
 .drawing-user-annotation { outline: none; }
 .drawing-annotation text { fill: #111; font-size: 3px; font-weight: 700; }
 .drawing-annotation:hover line,

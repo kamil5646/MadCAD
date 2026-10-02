@@ -142,6 +142,8 @@ import {
   drawingSheetHtml,
   drawingSheetDxf,
   drawingSheetScene,
+  createPointDrawingDimension,
+  drawingViewSnapPoint,
   drawingPageDimensions,
   ensureDocumentDrawings,
   projectDrawingView,
@@ -6877,4 +6879,49 @@ test('stare arkusze bez stylu wymiarów dostają domyślny styl, a błędne wart
   ensureDocumentDrawings(document);
   assert.deepEqual(document.drawings[0].dimensionStyle, { decimalSeparator: '.', textHeight: 3.5 });
   assert.deepEqual(document.drawings[1].dimensionStyle, { decimalSeparator: '.', textHeight: 3.5 });
+});
+
+test('wymiar między punktami przyciąga wierzchołki widoku i mierzy w jednostkach modelu', () => {
+  const sheet = createDrawingSheet({ pageSize: 'A3' });
+  const body = { id: 'b1', name: 'Płyta', bounds: [[0, 0, 0], [40, 20, 10]], mesh: { positions: [], indices: [] } };
+  const view = createBaseDrawingView({ bodyIds: ['b1'], orientation: 'front', scale: 2, sheet });
+  sheet.views.push(view);
+  const rendered = drawingSheetScene(sheet, [body]).views[0];
+  assert.ok(rendered.vertices.length >= 4);
+  // Pick near two opposite corners in sheet coordinates.
+  const toSheet = ([u, v]) => [rendered.x + (u - rendered.projectionCenter[0]) * rendered.scale, rendered.y + (v - rendered.projectionCenter[1]) * rendered.scale];
+  const corners = rendered.vertices;
+  const left = corners.reduce((best, item) => (item[0] < best[0] || (item[0] === best[0] && item[1] < best[1]) ? item : best));
+  const right = corners.reduce((best, item) => (item[0] > best[0] || (item[0] === best[0] && item[1] < best[1]) ? item : best));
+  const near = (point) => { const [x, y] = toSheet(point); return [x + 1, y - 1]; };
+  const a = drawingViewSnapPoint(rendered, near(left));
+  const b = drawingViewSnapPoint(rendered, near(right));
+  assert.deepEqual(a, left);
+  assert.equal(drawingViewSnapPoint(rendered, [0, 0]), null, 'daleko od widoku nic nie jest przyciągane');
+  const horizontal = createPointDrawingDimension({ viewId: view.id, points: [a, b] });
+  assert.equal(horizontal.axis, 'horizontal');
+  sheet.annotations.push(horizontal);
+  const diagonal = createPointDrawingDimension({ viewId: view.id, points: [left, corners.find((item) => item[0] !== left[0] && item[1] !== left[1])] });
+  assert.equal(diagonal.axis, 'aligned');
+  sheet.annotations.push(diagonal);
+  const scene = drawingSheetScene(sheet, [body]);
+  const [h, d] = scene.annotations.filter((item) => item.type === 'point-dimension');
+  assert.equal(h.value, 40);
+  assert.equal(h.text, '40.00');
+  assert.ok(Math.abs(d.value - Math.hypot(40, 10)) < 1e-9);
+  assert.equal(h.segments.length, 7);
+  // The dimension follows the view when it is moved and rescaled.
+  sheet.views[0] = { ...sheet.views[0], x: sheet.views[0].x + 30, scale: 1 };
+  const moved = drawingSheetScene(sheet, [body]).annotations.find((item) => item.type === 'point-dimension');
+  assert.equal(moved.value, 40);
+  assert.ok(Math.abs((moved.segments[2][1][0] - moved.segments[2][0][0]) - 40) < 1e-9);
+  // Validation accepts the new type and rejects malformed points.
+  const document = createDocument('Wymiary');
+  document.drawings = [sheet];
+  const annotationIssues = (result) => result.issues.filter((issue) => /annotations/.test(issue.path));
+  assert.deepEqual(annotationIssues(validateDocument(document)), []);
+  document.drawings[0].annotations[0] = { ...document.drawings[0].annotations[0], points: [[0, 0]], axis: 'skos' };
+  const broken = annotationIssues(validateDocument(document)).map((issue) => issue.path);
+  assert.ok(broken.some((path) => path.endsWith('.points')) && broken.some((path) => path.endsWith('.axis')));
+  assert.throws(() => createPointDrawingDimension({ viewId: view.id, points: [[0, 0]] }), /dwóch punktów/);
 });
