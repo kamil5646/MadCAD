@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { builtinModules } = require('node:module');
 
 const appRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(appRoot, '..');
@@ -97,8 +98,24 @@ expectText(main, /verifyBufferChecksum[\s\S]*?moveVerifiedUpdateToDownloads[\s\S
 expectText(main, /handoff:\s*true[\s\S]*?downloadedPath:\s*packagePath/, 'wynik przekazania paczki do instalatora systemu');
 
 const notices = read('madcad-2d/THIRD_PARTY_NOTICES.md');
-for (const dependency of Object.keys(packageJson.dependencies || {})) {
+// These libraries are included in Vite's JS/WASM output, not loaded by Node
+// in the installed app. Keep their license notices even as build dependencies.
+const bundledRendererDependencies = ['lucide-react', 'manifold-3d', 'react', 'react-dom', 'replicad', 'replicad-opencascadejs', 'three'];
+for (const dependency of bundledRendererDependencies) {
+  if (!packageJson.devDependencies?.[dependency] || packageJson.dependencies?.[dependency]) throw new Error(`Biblioteka bundlowana ${dependency} musi być zależnością builda, nie paczki desktopowej.`);
+}
+for (const dependency of new Set([...Object.keys(packageJson.dependencies || {}), ...bundledRendererDependencies])) {
   if (!notices.includes(`\`${dependency}\``)) throw new Error(`Brak informacji o zależności ${dependency}.`);
+}
+const nativeModules = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`), 'electron']);
+for (const file of fs.readdirSync(path.join(appRoot, 'electron'))) {
+  if (!/\.(cjs|js)$/.test(file) || file.includes('.test.')) continue;
+  const source = fs.readFileSync(path.join(appRoot, 'electron', file), 'utf8');
+  for (const [, moduleName] of source.matchAll(/require\(['"]([^'"]+)['"]\)/g)) {
+    if (moduleName.startsWith('.') || nativeModules.has(moduleName)) continue;
+    const dependency = moduleName.startsWith('@') ? moduleName.split('/').slice(0, 2).join('/') : moduleName.split('/')[0];
+    if (!packageJson.dependencies?.[dependency]) throw new Error(`Moduł desktopowy ${file} wymaga niezapakowanej zależności ${dependency}.`);
+  }
 }
 
 const releaseWorkflow = read('.github/workflows/release.yml');

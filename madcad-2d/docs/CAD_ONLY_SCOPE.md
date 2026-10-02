@@ -68,3 +68,33 @@ klikniętej operacji przeszedł test, a Escape zachował wolumen 11520 mm³.
 Cały dalszy scenariusz wymiarów, edycji, Cofnij/Ponów, zapisu/otwarcia i
 szkiców zależnych od ścian także przeszedł lokalnie. Istniejąca lokalna
 poprawka dwukliku została zachowana i włączona do zmiany wraz z tym testem.
+
+## Pakiet macOS i anulowanie edycji
+
+Zbudowano rzeczywisty pakiet arm64 z produkcyjnym `app.asar`, bez hooków
+`__madcadVerify`. Uruchomiono go z osobnym katalogiem danych i kopią już
+istniejącego, zaszyfrowanego stanu logowania. Kopię stanu logowania usunięto
+po teście; oryginalne dane użytkownika nie były zastępowane.
+
+Przez interfejs aplikacji wykonano szkic XY, prostokąt 40 × 24 mm, wyciągnięcie
+12 mm zatwierdzone Enterem, edycję do 15 mm, Cofnij (12 mm) i Ponów (15 mm).
+Natywne okno zapisania utworzyło plik `.madcad`; drugi zapis utworzył `.bak`.
+Odczyt pliku potwierdził schemat v27, jeden szkic, profil 40 × 24 mm, odległość
+15 mm i brak aktywnych pól CAM/druku. Kopia `.bak` miała odległość 12 mm.
+Po utworzeniu pustego projektu i ponownym otwarciu pliku przez systemowy
+dialog aplikacja przebudowała jedną bryłę; edytor historii pokazał 15 mm.
+
+Ten test ujawnił, że anulowanie edycji pozostawiało zaznaczony profil i mylący
+stan „profil gotowy do wyciągnięcia”. Poprawka przywraca zaznaczenie edytowanej
+operacji. Rozszerzony test `verify-extrude-after-sketch.cjs` odtworzył błąd,
+a po poprawce przeszedł anulowanie bez zmiany bryły i dalszy pełny scenariusz.
+
+Pakowanie nie potrzebuje źródeł bibliotek React/Three/OpenCascade:
+Vite umieszcza ich wymagany kod i WASM w `dist`. Przeniesiono siedem bibliotek
+do `devDependencies` bez zmiany wersji lub integrity w lockfile. `verify:repository`
+pilnuje ich licencji oraz tego, by każdy zewnętrzny import Electron miał
+zadeklarowaną zależność runtime. `app.asar` ma 14 833 982 bajty. Paczki ZIP/DMG
+są lokalnymi artefaktami testowymi, nie nowym wydaniem 6.5.28.
+
+Pełny scenariusz CAD w zainstalowanej aplikacji Windows nadal wymaga osobnego
+potwierdzenia. CI desktopowe i test startu NSIS nie są jego zastępstwem.

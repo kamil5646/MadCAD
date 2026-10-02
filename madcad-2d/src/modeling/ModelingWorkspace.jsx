@@ -7135,6 +7135,11 @@ export default function ModelingWorkspace() {
         setActiveSketchId(command.sourceSketchId);
         setWorkspace('sketch');
       }
+      // Editing selects the source profile for the preview. On cancellation
+      // return to the existing history operation, not an idle extrusion handle.
+      if (command.editId && document.features.some((feature) => feature.id === command.editId)) {
+        setSelection({ kind: 'feature', id: command.editId });
+      }
       setCommand(null);
       setNotice('Anulowano polecenie.');
     }

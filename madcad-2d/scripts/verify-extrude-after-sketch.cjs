@@ -150,7 +150,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'extrude' && window.__madcadVerifyDocumentState?.command?.distance === '12'`, 'dwuklik otwiera wskazane wyciągnięcie', 3000);
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
-    await waitFor(window, `!document.querySelector('.command-dialog') && window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 11520) < 0.01`, 'anulowanie dwukliku zachowuje bryłę');
+    await waitFor(window, `!document.querySelector('.command-dialog') && window.__madcadVerifyDocumentState?.selection?.kind === 'feature' && window.__madcadVerifyDocumentState?.selection?.id === window.__madcadVerifyDocumentState?.featureData?.[0]?.id && window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 11520) < 0.01`, 'anulowanie dwukliku zachowuje bryłę i zaznaczenie operacji', 3000);
     result.timelineDoubleClick = true;
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(window.__madcadVerifyDocumentState.sketches[0].id)`);

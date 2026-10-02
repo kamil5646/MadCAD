@@ -8,6 +8,8 @@
 - schemat `.madcad` v27 zachowuje model ze starszych plików; dawne dane produkcyjne są archiwizowane w nieaktywnym `legacyProduction`;
 - interfejs, samouczek i plan rozwoju skupiają się na szkicach, modelowaniu brył, historii i dokumentacji 2D.
 - dwuklik operacji w historii otwiera wskazaną operację także przed odświeżeniem zaznaczenia; test regresji obejmuje anulowanie, edycję, Cofnij/Ponów i zapis/otwarcie bryły.
+- anulowanie edycji operacji przywraca jej zaznaczenie zamiast zostawiać profil z nieaktywnym uchwytem wyciągania;
+- biblioteki interfejsu i kernela są pakowane jako gotowy kod JS/WASM, bez dodatkowych kopii źródeł w `node_modules`; wersje bibliotek pozostają bez zmian.
 
 ## 6.5.28 (2026-10-02)
 

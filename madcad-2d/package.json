@@ -111,6 +111,13 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "17.11.0",
     "jsdom": "^30.0.1",
+    "lucide-react": "^0.468.0",
+    "manifold-3d": "3.5.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "replicad": "^0.23.1",
+    "replicad-opencascadejs": "^0.23.0",
+    "three": "^0.185.1",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
   },
@@ -182,14 +189,5 @@
       "deleteAppDataOnUninstall": false
     },
     "afterSign": "scripts/notarize.js"
-  },
-  "dependencies": {
-    "lucide-react": "^0.468.0",
-    "manifold-3d": "3.5.3",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "replicad": "^0.23.1",
-    "replicad-opencascadejs": "^0.23.0",
-    "three": "^0.185.1"
   }
 }

@@ -20,7 +20,8 @@ z produktu. Dalszych funkcji wytwarzania nie rozwijamy.
   naprawę utraconej referencji.
 - [x] Potwierdzić czytelność podstawowych poleceń i wymiarów na typowym
   oraz małym oknie, również przy skali 150%.
-- [ ] Zweryfikować wersję instalowaną na Windows i macOS przed wydaniem.
+- [x] Przejść podstawowy scenariusz w zbudowanym pakiecie macOS bez hooków testowych.
+- [ ] Przejść podstawowy scenariusz po zalogowaniu w zainstalowanej aplikacji Windows przed wydaniem.
 
 ## Co jest podstawą produktu
 
@@ -45,6 +46,13 @@ Dwuklik historii: lokalnie odtworzono brak edytora przy pustym zaznaczeniu.
 Poprawka przekazuje ID klikniętej operacji bez czekania na odświeżenie
 zaznaczenia. Test regresji sprawdza otwarcie wyciągnięcia i anulowanie bez
 zmiany bryły; dalej przechodzi edycję, przebudowę, Cofnij/Ponów i zapis/otwarcie.
+
+Pakiet macOS arm64: zwykłe logowanie z izolowaną kopią istniejącego profilu,
+bez hooków testowych. Przez rzeczywisty interfejs utworzono prostokąt 40 × 24 mm,
+wyciągnięcie 12 mm, edytowano do 15 mm, sprawdzono Cofnij/Ponów i natywne
+okna zapisu/otwarcia. Plik v27 zachował 15 mm, kopia `.bak` 12 mm, ponowne
+otwarcie odtworzyło jedną bryłę i historię. Oryginalnych projektów nie zmieniano.
+Szczegóły: `docs/CAD_ONLY_SCOPE.md`.
 
 `verify:extrude-after-sketch` sprawdza wymiary przez interfejs, wyciągnięcie,
 edycję szkicu/operacji, przebudowę, Cofnij/Ponów i zapis/otwarcie przez
