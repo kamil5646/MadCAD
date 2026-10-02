@@ -130,12 +130,17 @@ export const CAM_POST_PROCESSORS = Object.freeze({
   grbl: Object.freeze({ id: 'grbl', name: 'GRBL 1.1', extension: 'nc', commentStyle: 'semicolon', toolChange: false }),
   linuxcnc: Object.freeze({ id: 'linuxcnc', name: 'LinuxCNC', extension: 'ngc', commentStyle: 'parentheses', toolChange: true }),
   mach3: Object.freeze({ id: 'mach3', name: 'Mach3 / Mach4', extension: 'tap', commentStyle: 'parentheses', toolChange: true }),
+  fanuc: Object.freeze({ id: 'fanuc', name: 'Fanuc / Haas', extension: 'nc', commentStyle: 'parentheses', toolChange: true }),
   'grbl-laser': Object.freeze({ id: 'grbl-laser', name: 'GRBL Laser', extension: 'nc', commentStyle: 'semicolon', toolChange: false }),
   'linuxcnc-plasma': Object.freeze({ id: 'linuxcnc-plasma', name: 'LinuxCNC Plasma', extension: 'ngc', commentStyle: 'parentheses', toolChange: false }),
   'linuxcnc-turn': Object.freeze({ id: 'linuxcnc-turn', name: 'LinuxCNC Tokarka', extension: 'ngc', commentStyle: 'parentheses', toolChange: true }),
 });
 
 const normalizePostProcessorId = (value) => CAM_POST_PROCESSORS[value] ? value : 'grbl';
+// Controllers with G81/G82/G83 canned drilling and synchronized G84 tapping.
+const CANNED_CYCLE_POSTS = Object.freeze(['linuxcnc', 'mach3', 'fanuc']);
+// Fanuc controls reject non-ASCII characters in comments and take G82 dwell in milliseconds.
+const asciiComment = (value) => String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[łŁ]/g, (letter) => (letter === 'ł' ? 'l' : 'L')).replace(/[^\x20-\x7e]/g, ' ').toUpperCase();
 const normalizeMillingToolId = (value) => typeof value === 'string' && value ? value : 'flat-6';
 
 export function normalizeFacingOperation(operation = {}, index = 0) {
@@ -241,7 +246,7 @@ export function normalizeTappingOperation(operation = {}, index = 0) {
     retractHeight: Number.isFinite(Number(operation.retractHeight)) ? Math.max(0, Number(operation.retractHeight)) : 1,
     bottomClearance: Number.isFinite(Number(operation.bottomClearance)) ? Math.max(0, Number(operation.bottomClearance)) : 1,
     spindleRpm: Math.min(3000, Math.max(1, Math.round(Number(operation.spindleRpm) || 500))),
-    postProcessorId: ['linuxcnc', 'mach3'].includes(operation.postProcessorId) ? operation.postProcessorId : 'linuxcnc',
+    postProcessorId: CANNED_CYCLE_POSTS.includes(operation.postProcessorId) ? operation.postProcessorId : 'linuxcnc',
   };
 }
 
@@ -921,7 +926,7 @@ export function calculateTappingToolpath(setup, operation, bodies = [], document
   if (!setupResult.body || !setupResult.stockBounds || !setupResult.valid) return fail('Gwintowanie wymaga poprawnego Setupu i bryły.');
   if (!tool) return fail('Wybierz gwintownik z biblioteki projektu.');
   if (tool.type !== 'tap' || !Number.isFinite(tool.pitch) || tool.pitch <= 0) return fail('Gwintowanie wymaga gwintownika z prawidłowym skokiem.');
-  if (!['linuxcnc', 'mach3'].includes(normalized.postProcessorId)) return fail('Gwintowanie wymaga sterownika obsługującego synchronizowany cykl G84.');
+  if (!CANNED_CYCLE_POSTS.includes(normalized.postProcessorId)) return fail('Gwintowanie wymaga sterownika obsługującego synchronizowany cykl G84.');
   if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
   if (normalized.retractHeight > setupResult.clearancePlaneZ - setupResult.stockBounds[1][2] + 1e-7) return fail('Wysokość wycofania nie może przekraczać wysokości bezpiecznej Setupu.');
   const selectedIds = new Set(normalized.holeFeatureIds);
@@ -2116,8 +2121,8 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   const origin = toolpath.origin;
   const safeLocalZ = toolpath.clearancePlaneZ - origin[2];
   const postProcessor = CAM_POST_PROCESSORS[postProcessorId] || CAM_POST_PROCESSORS.grbl;
-  if (toolpath.operation.type === 'tap' && !['linuxcnc', 'mach3'].includes(postProcessor.id)) throw new Error('Gwintowanie wymaga postprocesora z synchronizowanym cyklem G84.');
-  const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
+  if (toolpath.operation.type === 'tap' && !CANNED_CYCLE_POSTS.includes(postProcessor.id)) throw new Error('Gwintowanie wymaga postprocesora z synchronizowanym cyklem G84.');
+  const cleanComment = (value) => (postProcessor.id === 'fanuc' ? asciiComment(value) : String(value)).replace(/[\r\n;()]/g, ' ').trim();
   const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
   if (toolpath.turning) {
     if (postProcessor.id !== 'linuxcnc-turn') throw new Error('Toczenie wymaga postprocesora LinuxCNC Tokarka.');
@@ -2191,6 +2196,10 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   );
   if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('G40', 'G49', 'G64 P0.01');
   if (!programFragment && postProcessor.id === 'mach3') lines.push('G40', 'G49', 'G80');
+  if (!programFragment && postProcessor.id === 'fanuc') {
+    lines.unshift('%', 'O1000');
+    lines.push('G40', 'G49', 'G80');
+  }
   if (includeToolChange && postProcessor.toolChange) lines.push(`T${toolNumber} M6`, `G43 H${toolNumber}`);
   else if (includeToolChange) lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
   const start = toolpath.segments[0].from;
@@ -2198,14 +2207,16 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   if (toolpath.operation.type === 'tap') {
     const retractLocalZ = toolpath.stockBounds[1][2] + toolpath.operation.retractHeight - origin[2];
     lines.push('G98');
+    // Fanuc/Haas need rigid tapping mode (M29) before a synchronized G84.
+    if (postProcessor.id === 'fanuc') lines.push(`M29 S${toolpath.operation.spindleRpm}`);
     for (const hole of toolpath.holes) lines.push(`G84 X${gcodeNumber(hole.x - origin[0])} Y${gcodeNumber(hole.y - origin[1])} Z${gcodeNumber(hole.targetZ - origin[2])} R${gcodeNumber(retractLocalZ)} F${gcodeNumber(toolpath.operation.feedRate)}`);
     lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5');
     if (!programFragment) lines.push(postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
-    if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
+    if (!programFragment && ['linuxcnc', 'fanuc'].includes(postProcessor.id)) lines.push('%');
     lines.push('');
     return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
   }
-  const supportsCannedDrilling = toolpath.operation.type === 'drill' && ['linuxcnc', 'mach3'].includes(postProcessor.id);
+  const supportsCannedDrilling = toolpath.operation.type === 'drill' && CANNED_CYCLE_POSTS.includes(postProcessor.id);
   if (supportsCannedDrilling) {
     const cycleCode = toolpath.operation.cycleType === 'peck' ? 'G83' : toolpath.operation.cycleType === 'dwell' ? 'G82' : 'G81';
     const retractLocalZ = toolpath.stockBounds[1][2] + toolpath.operation.retractHeight - origin[2];
@@ -2213,13 +2224,13 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
     for (const hole of toolpath.holes) {
       const words = [cycleCode, `X${gcodeNumber(hole.x - origin[0])}`, `Y${gcodeNumber(hole.y - origin[1])}`, `Z${gcodeNumber(hole.targetZ - origin[2])}`, `R${gcodeNumber(retractLocalZ)}`];
       if (cycleCode === 'G83') words.push(`Q${gcodeNumber(toolpath.operation.peckDepth)}`);
-      if (cycleCode === 'G82') words.push(`P${gcodeNumber(toolpath.operation.dwellSeconds)}`);
+      if (cycleCode === 'G82') words.push(postProcessor.id === 'fanuc' ? `P${Math.round(Number(toolpath.operation.dwellSeconds) * 1000)}` : `P${gcodeNumber(toolpath.operation.dwellSeconds)}`);
       words.push(`F${gcodeNumber(toolpath.operation.feedRate)}`);
       lines.push(words.join(' '));
     }
     lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5');
     if (!programFragment) lines.push(postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
-    if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
+    if (!programFragment && ['linuxcnc', 'fanuc'].includes(postProcessor.id)) lines.push('%');
     lines.push('');
     return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
   }
@@ -2237,7 +2248,7 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   }
   lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, 'M5');
   if (!programFragment) lines.push(postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
-  if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
+  if (!programFragment && ['linuxcnc', 'fanuc'].includes(postProcessor.id)) lines.push('%');
   lines.push('');
   return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
 }
@@ -2250,15 +2261,17 @@ export function createManufacturingProgramGcode(setup, bodies = [], { projectNam
   const postProcessor = CAM_POST_PROCESSORS[selectedPostId] || CAM_POST_PROCESSORS.grbl;
   const report = analyzeManufacturingProgram(normalized, bodies, document, null, { postProcessorId: postProcessor.id });
   if (!report.valid) throw new Error(`Eksport programu zablokowany: ${report.setupIssues.join(' ') || 'popraw Setup, ścieżki, bezpieczeństwo i kompletność obróbki otworów.'}`);
-  const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
+  const cleanComment = (value) => (postProcessor.id === 'fanuc' ? asciiComment(value) : String(value)).replace(/[\r\n;()]/g, ' ').trim();
   const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
   const isTurning = normalized.operationKind === 'turning-2axis';
   const isCutting = normalized.operationKind === 'cut-2d';
   if (isTurning && postProcessor.id !== 'linuxcnc-turn') throw new Error('Program tokarski wymaga postprocesora LinuxCNC Tokarka.');
   if (isCutting && !['grbl-laser', 'linuxcnc-plasma'].includes(postProcessor.id)) throw new Error('Program cięcia wymaga postprocesora laserowego albo plazmowego.');
   const linuxCncEnvelope = ['linuxcnc', 'linuxcnc-turn', 'linuxcnc-plasma'].includes(postProcessor.id);
+  const percentEnvelope = linuxCncEnvelope || postProcessor.id === 'fanuc';
   const lines = [];
-  if (linuxCncEnvelope) lines.push('%');
+  if (percentEnvelope) lines.push('%');
+  if (postProcessor.id === 'fanuc') lines.push('O1000');
   lines.push(
     comment(cleanComment(projectName) || 'MadCAD'),
     comment(`${normalized.name} | kompletny program CAM | ${normalized.operations.length} operacji`),
@@ -2267,7 +2280,7 @@ export function createManufacturingProgramGcode(setup, bodies = [], { projectNam
   );
   if (!isCutting) lines.push('G49');
   if (postProcessor.id === 'linuxcnc' || postProcessor.id === 'linuxcnc-plasma') lines.push('G64 P0.01');
-  if (postProcessor.id === 'mach3') lines.push('G80');
+  if (postProcessor.id === 'mach3' || postProcessor.id === 'fanuc') lines.push('G80');
   let previousToolId = null;
   const outputs = normalized.operations.map((operation) => {
     const output = createMachineGcode(normalized, operation, bodies, { projectName, document, postProcessorId: postProcessor.id, programFragment: true, includeToolChange: operation.toolId !== previousToolId });
@@ -2276,7 +2289,7 @@ export function createManufacturingProgramGcode(setup, bodies = [], { projectNam
   });
   for (const output of outputs) lines.push('', ...output.text.trim().split('\n'));
   lines.push('', 'M5', linuxCncEnvelope ? 'M2' : 'M30');
-  if (linuxCncEnvelope) lines.push('%');
+  if (percentEnvelope) lines.push('%');
   lines.push('');
   return {
     text: lines.join('\n'),

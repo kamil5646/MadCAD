@@ -358,6 +358,18 @@ describe('CAM contour operations', () => {
 
     const peck = createDrillingOperation({ toolId: 'drill-5', cycleType: 'peck', peckDepth: 3, postProcessorId: 'linuxcnc' });
     expect(createMachineGcode(setup, peck, [drilledBox]).text).toContain('G83 X-10 Y-5 Z-12.2 R1 Q3 F120');
+    // Fanuc / Haas: % envelope, program number, ASCII-only comments, tool length offset, dwell in milliseconds.
+    const fanucDwell = createDrillingOperation({ toolId: 'drill-5', cycleType: 'dwell', dwellSeconds: 1.25, feedRate: 120, postProcessorId: 'fanuc' });
+    const fanuc = createMachineGcode(setup, fanucDwell, [drilledBox], { projectName: 'Płyta łożyskowa' });
+    const fanucLines = fanuc.text.trim().split('\n');
+    expect(fanucLines.slice(0, 2)).toEqual(['%', 'O1000']);
+    expect(fanucLines.at(-1)).toBe('%');
+    expect(fanucLines.at(-2)).toBe('M30');
+    expect(fanuc.text).toContain('(PLYTA LOZYSKOWA)');
+    expect(fanuc.text).toMatch(/T\d+ M6\nG43 H\d+/);
+    expect(fanuc.text).toContain('G82 X-10 Y-5 Z-12.2 R1 P1250 F120');
+    expect([...fanuc.text].every((character) => character.charCodeAt(0) < 128)).toBe(true);
+    expect(fanuc.extension).toBe('nc');
   });
 
   it('stores project tools, uses a custom drill, and protects tapping from a drilling cycle', () => {
@@ -398,6 +410,8 @@ describe('CAM contour operations', () => {
     const output = createMachineGcode(setup, operation, [pilotBody], { document });
     expect(output.text).toMatch(/T100 M6\nG43 H100\nG0 Z/);
     expect(output.text).toContain('G84 X-10 Y-5 Z-11 R1 F625');
+    const fanucTap = createMachineGcode(setup, { ...operation, postProcessorId: 'fanuc' }, [pilotBody], { document, postProcessorId: 'fanuc' });
+    expect(fanucTap.text).toMatch(/G98\nM29 S500\nG84 X-10 Y-5 Z-11 R1 F625/);
     expect(output.text).toContain('G80');
     expect(() => createMachineGcode(setup, operation, [pilotBody], { document, postProcessorId: 'grbl' })).toThrow(/G84/);
     const wrongPilot = calculateTappingToolpath(setup, operation, [drilledBox], document);
