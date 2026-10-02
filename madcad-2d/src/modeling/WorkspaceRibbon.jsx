@@ -447,7 +447,7 @@ export function collectRibbonCommands(children) {
 
 export function calculateVisibleRibbonGroups(widths, availableWidth, stickyIndices = [], overflowWidth = 78) {
   const sticky = new Set(stickyIndices);
-  const normalIndices = widths.map((_, index) => index).filter((index) => !sticky.has(index));
+  const normalIndices = Array.from({ length: widths.length }, (_, index) => index).filter((index) => !sticky.has(index));
   const stickyWidth = stickyIndices.reduce((total, index) => total + (widths[index] || 0), 0);
   const fullWidth = widths.reduce((total, width) => total + width, 0);
   if (fullWidth <= availableWidth) return { visible: normalIndices, hidden: [] };
@@ -587,7 +587,9 @@ export function ResponsiveRibbon({ children, language = 'pl', commandRegistry = 
         );
         if (width > 0) measuredWidths.current[index] = width;
       });
-      if (measuredWidths.current.length < groupCount || measuredWidths.current.some((width) => !width)) return;
+      // A group hidden at measurement time leaves a hole in the array; .some() skips holes,
+      // so check every index explicitly and wait until all groups have been measured.
+      if (Array.from({ length: groupCount }, (_, index) => measuredWidths.current[index]).some((width) => !width)) return;
       const stickyIndices = stickyKey ? stickyKey.split(',').map(Number) : [];
       const containerStyle = getComputedStyle(container);
       const horizontalPadding = (Number.parseFloat(containerStyle.paddingLeft) || 0)

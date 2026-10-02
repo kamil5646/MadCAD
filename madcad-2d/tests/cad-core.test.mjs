@@ -5841,3 +5841,19 @@ test('migracja v27 → v28 archiwizuje usunięte dane renderu, animacji i ruchu 
   plain.contactSets = [];
   assert.equal(openDocument(plain).document.legacyRemovedFeatures, undefined);
 });
+
+test('jednostronne wyciągnięcie przyjmuje ujemną odległość jako przeciwny kierunek', () => {
+  const document = createStarterDocument();
+  document.features[0].distance = '-8';
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(prepareDocument(document).features[0].distanceValue, -8);
+  const zero = createStarterDocument();
+  zero.features[0].distance = '0';
+  const preparedZero = (() => { try { return prepareDocument(zero).features[0]; } catch (error) { return { status: 'error', error: error.message }; } })();
+  assert.notEqual(preparedZero.status, 'ready');
+  const symmetric = createStarterDocument();
+  symmetric.features[0].distance = '-8';
+  symmetric.features[0].extent = 'symmetric';
+  const preparedSymmetric = (() => { try { return prepareDocument(symmetric).features[0]; } catch (error) { return { status: 'error', error: error.message }; } })();
+  assert.notEqual(preparedSymmetric.status, 'ready');
+});

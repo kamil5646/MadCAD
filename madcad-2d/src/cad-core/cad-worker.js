@@ -638,6 +638,7 @@ function extrusionSpan(feature, bodyMap) {
   if (feature.extent === 'two-sides') return { startDelta: startOffset - feature.secondDistanceValue, distance: feature.distanceValue + feature.secondDistanceValue };
   if (feature.extent === 'symmetric') return { startDelta: startOffset - feature.distanceValue / 2, distance: feature.distanceValue };
   if (feature.extent === 'through-all') return { startDelta: startOffset - THROUGH_ALL_DISTANCE / 2, distance: THROUGH_ALL_DISTANCE };
+  if (feature.distanceValue < 0) return { startDelta: startOffset + feature.distanceValue, distance: -feature.distanceValue };
   return { startDelta: startOffset, distance: feature.distanceValue };
 }
 

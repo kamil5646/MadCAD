@@ -1840,10 +1840,20 @@ export default function ModelViewport({
     const direction = VIEW_DIRECTIONS[activeSketch ? sketchView : view] || VIEW_DIRECTIONS.iso;
     camera.up.set(0, 0, 1);
     if ((activeSketch ? sketchView : view) === 'top') camera.up.set(0, 1, 0);
-    camera.position.set(center.x + direction[0] * radius * 1.7 * zoomScale, center.y + direction[1] * radius * 1.7 * zoomScale, center.z + direction[2] * radius * 1.7 * zoomScale);
+    // Fit: place the camera so the model's bounding sphere fills the view with a small margin,
+    // using the narrower of the vertical and horizontal fields of view.
+    const viewAspect = Math.max(0.2, (host.clientWidth || 1) / (host.clientHeight || 1));
+    const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * viewAspect);
+    // An empty scene keeps the previous framing of the origin and grid.
+    const fitDistance = modelBox
+      ? (Math.max(4, size.length() / 2) / Math.sin(Math.min(verticalFov, horizontalFov) / 2)) * 1.08
+      : radius * 1.7 * Math.hypot(...direction);
+    const viewDirection = new THREE.Vector3(...direction).normalize();
+    camera.position.copy(center).addScaledVector(viewDirection, fitDistance * zoomScale);
     if (activeUsesFrame) {
       camera.up.set(...activeFrame.v);
-      camera.position.copy(center).addScaledVector(new THREE.Vector3(...activeFrame.normal), radius * 3.4 * zoomScale);
+      camera.position.copy(center).addScaledVector(new THREE.Vector3(...activeFrame.normal), fitDistance * zoomScale);
     }
     controls.target.copy(center);
     const savedCamera = activeSketch
@@ -2058,6 +2068,16 @@ export default function ModelViewport({
         if (!key || keys.has(key)) continue;
         keys.add(key);
         unique.push(hit);
+      }
+      // Like Fusion: with no filter, a vertex or edge under the cursor wins over the face it borders.
+      // Hits are depth-sorted, so only promote topology lying on (not behind) the nearest surface.
+      if (selectionFilter !== 'body' && selectionFilter !== 'face' && unique.length > 1) {
+        const nearest = unique[0].distance;
+        const tolerance = Math.max(0.5, nearest * 0.01);
+        const rank = (hit) => ({ vertex: 0, edge: 1 })[topologySelectionFromIntersection(hit)?.kind] ?? 2;
+        const front = unique.filter((hit) => hit.distance <= nearest + tolerance);
+        const preferred = front.reduce((best, hit) => (rank(hit) < rank(best) ? hit : best), front[0]);
+        if (preferred !== unique[0]) unique.splice(unique.indexOf(preferred), 1).forEach((hit) => unique.unshift(hit));
       }
       const samePoint = Math.hypot(event.clientX - modelPickCycle.x, event.clientY - modelPickCycle.y) <= 3;
       const index = cycle && samePoint ? (modelPickCycle.index + 1) % Math.max(1, unique.length) : 0;

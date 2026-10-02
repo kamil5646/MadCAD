@@ -2077,6 +2077,17 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'extrude') {
         if (next.extent === 'through-all' && !['cut', 'intersect'].includes(next.operation)) next.extent = 'one-side';
+        // Like Fusion: pulling a face sketch into the body switches Join to Cut until the user picks an operation.
+        if (Object.hasOwn(patch, 'operation')) next.operationAuto = false;
+        const extrudeSketchId = current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id;
+        const onFace = document.sketches.find((sketch) => sketch.id === extrudeSketchId)?.support?.kind === 'face';
+        const signedDistance = Number(String(next.distance ?? '').replace(',', '.'));
+        // Only a one-sided extrude has a direction sign; other extents keep the length.
+        if (next.extent !== 'one-side' && Number.isFinite(signedDistance) && signedDistance < 0) next.distance = String(-signedDistance);
+        if (onFace && next.extent === 'one-side' && next.operationAuto !== false && Number.isFinite(signedDistance)) {
+          if (signedDistance < 0 && next.operation === 'join') { next.operation = 'cut'; next.operationAuto = true; }
+          else if (signedDistance > 0 && next.operation === 'cut' && next.operationAuto === true) next.operation = 'join';
+        }
         if (next.extent === 'to-object' && !next.targetReferenceId) next.targetReferenceId = next.targetOptions[0]?.id;
         const targetOption = next.targetOptions.find((option) => option.id === next.targetReferenceId);
         next.topologyReferences = next.extent === 'to-object' && targetOption?.reference ? [targetOption.reference] : [];
@@ -3090,8 +3101,17 @@ export default function ModelingWorkspace() {
       if (!items.length) return { kind: 'document', id: document.id };
       return { ...items.at(-1), items };
     });
-    const label = topology.kind === 'face' ? 'Ściana' : topology.kind === 'edge' ? 'Krawędź' : topology.kind === 'vertex' ? 'Wierzchołek' : 'Bryła';
-    setNotice(`${label} zaznaczona przez trwałe ID: ${topology.id}.${mode === 'replace' ? '' : ` ${multipleSelectionLabel(DESKTOP_PLATFORM)} utrzymuje wybór wielokrotny.`}`);
+    // Describe what was picked in user terms (size), not by its internal topology ID.
+    const body = engine.bodies.find((candidate) => candidate.id === topology.bodyId);
+    const descriptor = topology.kind === 'face'
+      ? body?.topology?.faces?.find((face) => face.id === topology.id)?.descriptor
+      : topology.kind === 'edge' ? body?.topology?.edges?.find((edge) => edge.id === topology.id)?.descriptor : null;
+    const formatMm = (value) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: 2 });
+    const size = topology.kind === 'edge' && Number(descriptor?.length) > 0
+      ? ` · długość ${formatMm(descriptor.length)} mm`
+      : topology.kind === 'face' && Number(descriptor?.area) > 0 ? ` · pole ${formatMm(descriptor.area)} mm²` : '';
+    const label = { face: 'Zaznaczono ścianę', edge: 'Zaznaczono krawędź', vertex: 'Zaznaczono wierzchołek' }[topology.kind] || 'Zaznaczono bryłę';
+    setNotice(`${label}${size}.${mode === 'replace' ? '' : ` ${multipleSelectionLabel(DESKTOP_PLATFORM)} utrzymuje wybór wielokrotny.`}`);
   };
 
   const repairTopologyReference = (referenceId, topology, descriptor = null) => {

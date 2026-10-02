@@ -22,6 +22,12 @@ function positive(value, label) {
   return value;
 }
 
+// One-sided extrudes accept a negative distance: it extrudes the other way (as in Fusion).
+function nonZeroLength(value, label) {
+  if (!Number.isFinite(value) || Math.abs(value) <= GEOMETRY_POLICY.linearTolerance) throw new Error(`${label} musi być różna od zera.`);
+  return value;
+}
+
 function extrudeToObjectDistance(document, profiles, startOffsetValue, targetReferenceId, parameters) {
   const target = document.references.find((reference) => reference.id === targetReferenceId);
   if (!target) throw new Error('Nie znaleziono obiektu docelowego wyciągnięcia.');
@@ -586,7 +592,11 @@ export function prepareDocument(document) {
       const startOffsetValue = evaluateExpression(feature.startOffset ?? 0, parameterResult.values);
       const distanceValue = extent === 'to-object'
         ? extrudeToObjectDistance(document, profiles, startOffsetValue, feature.targetReferenceId, parameterResult.values)
-        : positive(evaluateExpression(feature.distance, parameterResult.values), 'Odległość wyciągnięcia');
+        : extent === 'through-all'
+          ? Math.abs(evaluateExpression(feature.distance, parameterResult.values)) || 1
+          : extent === 'one-side'
+          ? nonZeroLength(evaluateExpression(feature.distance, parameterResult.values), 'Odległość wyciągnięcia')
+          : positive(evaluateExpression(feature.distance, parameterResult.values), 'Odległość wyciągnięcia');
       return {
         ...feature,
         status: 'ready',

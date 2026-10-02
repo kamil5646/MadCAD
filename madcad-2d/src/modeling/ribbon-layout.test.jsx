@@ -22,4 +22,13 @@ describe('responsive ribbon layout', () => {
       hidden: [0, 1],
     });
   });
+
+  it('never drops a group whose width was not measured yet (hidden when measured)', () => {
+    const widths = [351, 228];
+    widths[4] = 109;
+    expect(calculateVisibleRibbonGroups(widths, 1258, [4], 78)).toEqual({
+      visible: [0, 1, 2, 3],
+      hidden: [],
+    });
+  });
 });
