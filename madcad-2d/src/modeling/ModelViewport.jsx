@@ -675,8 +675,6 @@ export default function ModelViewport({
   sectionAnalysis = null,
   draftAnalysis = null,
   surfaceAnalysis = null,
-  beamFeaVisualization = null,
-  solidFeaVisualization = null,
   parameters = [],
   showGrid = true,
   selectedBodyId,
@@ -1012,129 +1010,6 @@ export default function ModelViewport({
     grid.visible = showGrid;
     scene.add(grid);
 
-    const beamFeaVisualState = { visible: false };
-    if (beamFeaVisualization?.nodalDeflections?.length > 1) {
-      const analyzedBody = bodies.find((body) => body.id === beamFeaVisualization.bodyId);
-      const bounds = analyzedBody?.metrics?.bounds;
-      const spanIndex = { x: 0, y: 1, z: 2 }[beamFeaVisualization.spanAxis];
-      const loadIndex = { x: 0, y: 1, z: 2 }[beamFeaVisualization.loadAxis];
-      if (bounds && Number.isInteger(spanIndex) && Number.isInteger(loadIndex)) {
-        const center = bounds[0].map((value, index) => (value + bounds[1][index]) / 2);
-        const maximum = Math.max(...beamFeaVisualization.nodalDeflections.map((node) => Math.abs(node.displacement)), 0);
-        const scale = maximum > 0 ? Math.min(500, Math.max(1, beamFeaVisualization.length * 0.2 / maximum)) : 1;
-        const points = beamFeaVisualization.nodalDeflections.map((node) => {
-          const point = [...center];
-          point[spanIndex] = bounds[0][spanIndex] + node.x;
-          point[loadIndex] += node.displacement * scale;
-          return new THREE.Vector3(...point);
-        });
-        const colors = new Float32Array(points.length * 3);
-        beamFeaVisualization.nodalDeflections.forEach((node, index) => {
-          const ratio = maximum > 0 ? Math.abs(node.displacement) / maximum : 0;
-          const color = new THREE.Color().lerpColors(new THREE.Color(0x52d3ef), new THREE.Color(0xf2aa4c), ratio);
-          color.toArray(colors, index * 3);
-        });
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false }));
-        line.renderOrder = 15;
-        scene.add(line);
-        points.forEach((point, index) => {
-          const marker = new THREE.Mesh(new THREE.SphereGeometry(index === points.length - 1 ? 1.7 : 1.1, 10, 8), new THREE.MeshBasicMaterial({ color: index === points.length - 1 ? 0xf2aa4c : 0x52d3ef, depthTest: false }));
-          marker.position.copy(point);
-          marker.renderOrder = 16;
-          scene.add(marker);
-        });
-        if (beamFeaVisualization.loadType !== 'distributed' && Number.isFinite(beamFeaVisualization.loadPosition)) {
-          const normalized = beamFeaVisualization.loadPosition / beamFeaVisualization.length * (points.length - 1);
-          const leftIndex = Math.min(points.length - 2, Math.max(0, Math.floor(normalized)));
-          const loadPoint = points[leftIndex].clone().lerp(points[leftIndex + 1], normalized - leftIndex);
-          const loadMarker = new THREE.Mesh(new THREE.SphereGeometry(2.25, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff7a45, depthTest: false }));
-          loadMarker.position.copy(loadPoint);
-          loadMarker.renderOrder = 17;
-          scene.add(loadMarker);
-          beamFeaVisualState.loadPoint = loadPoint.toArray();
-          beamFeaVisualState.loadPosition = beamFeaVisualization.loadPosition;
-        }
-        const supportSize = [0, 1, 2].map((index) => index === spanIndex ? 0.5 : Math.max(2, bounds[1][index] - bounds[0][index]));
-        const support = new THREE.Mesh(new THREE.BoxGeometry(...supportSize), new THREE.MeshBasicMaterial({ color: 0xe85d75, transparent: true, opacity: 0.42, depthTest: false }));
-        support.position.fromArray(center);
-        support.position.setComponent(spanIndex, bounds[0][spanIndex]);
-        support.renderOrder = 18;
-        scene.add(support);
-        const forceDirection = new THREE.Vector3(...[0, 1, 2].map((index) => index === loadIndex ? -1 : 0));
-        const arrowLength = Math.max(6, Math.min(20, beamFeaVisualization.length * 0.16));
-        const arrowPositions = [
-          ...(beamFeaVisualization.distributedForce > 0 ? Array.from({ length: 6 }, (_, index) => beamFeaVisualization.length * (index + 0.5) / 6) : []),
-          ...(beamFeaVisualization.loadType !== 'distributed' ? [beamFeaVisualization.loadPosition] : []),
-        ];
-        arrowPositions.filter(Number.isFinite).forEach((position) => {
-          const origin = new THREE.Vector3(...center);
-          origin.setComponent(spanIndex, bounds[0][spanIndex] + position);
-          origin.setComponent(loadIndex, bounds[1][loadIndex] + arrowLength);
-          const arrow = new THREE.ArrowHelper(forceDirection, origin, arrowLength, 0xff7a45, Math.min(4, arrowLength * 0.35), Math.min(2.4, arrowLength * 0.22));
-          arrow.line.material.depthTest = false;
-          arrow.cone.material.depthTest = false;
-          arrow.line.renderOrder = 19;
-          arrow.cone.renderOrder = 19;
-          scene.add(arrow);
-        });
-        beamFeaVisualState.support = { position: bounds[0][spanIndex], axis: beamFeaVisualization.spanAxis };
-        beamFeaVisualState.loadArrowCount = arrowPositions.length;
-        beamFeaVisualState.loadType = beamFeaVisualization.loadType;
-        beamFeaVisualState.visible = true;
-        beamFeaVisualState.nodeCount = points.length;
-        beamFeaVisualState.scale = scale;
-        beamFeaVisualState.tip = points.at(-1).toArray();
-      }
-    }
-    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadBeamFeaVisualState = beamFeaVisualState;
-    const solidFeaVisualState = { visible: false };
-    if (solidFeaVisualization?.nodes?.length && solidFeaVisualization?.tetrahedra?.length) {
-      const maximumDisplacement = Math.max(solidFeaVisualization.maximumDisplacement || 0, 1e-12);
-      const maximumStress = Math.max(solidFeaVisualization.maximumStress || 0, 1e-12);
-      const analyzedBody = bodies.find((body) => body.id === solidFeaVisualization.bodyId);
-      const bounds = analyzedBody?.metrics?.bounds;
-      const diagonal = bounds ? Math.hypot(...bounds[1].map((value, axis) => value - bounds[0][axis])) : 100;
-      const deformationScale = Math.min(500, Math.max(1, diagonal * 0.12 / maximumDisplacement));
-      const positions = new Float32Array(solidFeaVisualization.nodes.length * 3);
-      const colors = new Float32Array(solidFeaVisualization.nodes.length * 3);
-      solidFeaVisualization.nodes.forEach((node, index) => {
-        node.position.map((value, axis) => value + node.displacement[axis] * deformationScale).forEach((value, axis) => { positions[index * 3 + axis] = value; });
-        const ratio = Math.min(1, node.stress / maximumStress);
-        const color = node.fixed ? new THREE.Color(0xe85d75) : node.loaded ? new THREE.Color(0xffa53d) : new THREE.Color().lerpColors(new THREE.Color(0x3cbbf1), new THREE.Color(0xff563f), ratio);
-        color.toArray(colors, index * 3);
-      });
-      const nodeGeometry = new THREE.BufferGeometry();
-      nodeGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      nodeGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-      const nodeCloud = new THREE.Points(nodeGeometry, new THREE.PointsMaterial({ size: Math.max(1.4, diagonal * 0.012), vertexColors: true, sizeAttenuation: true, depthTest: false }));
-      nodeCloud.renderOrder = 22;
-      scene.add(nodeCloud);
-      const edgePositions = [];
-      const seenEdges = new Set();
-      solidFeaVisualization.tetrahedra.forEach((tetrahedron) => {
-        [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]].forEach(([first, second]) => {
-          const pair = [tetrahedron[first], tetrahedron[second]].sort((a, b) => a - b);
-          const key = `${pair[0]}:${pair[1]}`;
-          if (seenEdges.has(key)) return;
-          seenEdges.add(key);
-          pair.forEach((nodeIndex) => edgePositions.push(positions[nodeIndex * 3], positions[nodeIndex * 3 + 1], positions[nodeIndex * 3 + 2]));
-        });
-      });
-      const edgeGeometry = new THREE.BufferGeometry();
-      edgeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(edgePositions, 3));
-      const edges = new THREE.LineSegments(edgeGeometry, new THREE.LineBasicMaterial({ color: 0x8ddbf2, transparent: true, opacity: 0.26, depthTest: false }));
-      edges.renderOrder = 21;
-      scene.add(edges);
-      solidFeaVisualState.visible = true;
-      solidFeaVisualState.nodeCount = solidFeaVisualization.nodes.length;
-      solidFeaVisualState.elementCount = solidFeaVisualization.tetrahedra.length;
-      solidFeaVisualState.fixedNodeCount = solidFeaVisualization.fixedNodeCount;
-      solidFeaVisualState.loadedNodeCount = solidFeaVisualization.loadedNodeCount;
-      solidFeaVisualState.deformationScale = deformationScale;
-    }
-    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadSolidFeaVisualState = solidFeaVisualState;
     const modelGroup = new THREE.Group();
     const sketchSlicePlane = activeSketch && !activeSketchIs3D && sliceModel
       ? activeUsesFrame
@@ -3258,7 +3133,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeUsesFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, sceneSelectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, selectedSketchConstraintId, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, solidFeaVisualization, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeUsesFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, sceneSelectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, selectedSketchConstraintId, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

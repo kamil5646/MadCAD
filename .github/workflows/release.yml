@@ -75,7 +75,6 @@ jobs:
         working-directory: madcad-2d
         run: |
           npm run test:core
-          npm run verify:solid-fea-benchmarks
 
       - name: Build UI
         working-directory: madcad-2d
