@@ -76,6 +76,7 @@ function DrawingSheetPreview({ documentName, sheet, bodies, components, componen
         {scene.views.map((view) => <g key={view.id} className={`drawing-view drawing-view-${view.type} ${selectedViewId === view.id ? 'selected' : ''}`} role="button" tabIndex="0" aria-label={`${view.name}, ${ORIENTATION_LABELS[view.orientation]}, skala ${formatDrawingScale(view.scale)}`} onClick={() => onSelectView(view.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectView(view.id); } }}>
           {selectedViewId === view.id && <rect className="drawing-view-selection" x={view.x - Math.max(4, view.modelWidth * view.scale + 6) / 2} y={view.y - Math.max(4, view.modelHeight * view.scale + 6) / 2} width={Math.max(4, view.modelWidth * view.scale + 6)} height={Math.max(4, view.modelHeight * view.scale + 6)} />}
           {view.segments.map(([first, second], index) => <line key={`edge-${index}`} x1={first[0]} y1={first[1]} x2={second[0]} y2={second[1]} />)}
+          {view.hiddenSegments.map(([first, second], index) => <line className="drawing-hidden" key={`hidden-${index}`} x1={first[0]} y1={first[1]} x2={second[0]} y2={second[1]} />)}
           {view.hatchSegments.map(([first, second], index) => <line className="drawing-hatch" key={`hatch-${index}`} x1={first[0]} y1={first[1]} x2={second[0]} y2={second[1]} />)}
           {view.type === 'detail' && <circle className="drawing-detail-border" cx={view.x} cy={view.y} r={Math.max(5, view.detailRadiusSheet)} />}
           <text x={view.x} y={Math.min(titleTop - 3, view.y + (view.modelHeight * view.scale) / 2 + 6)} textAnchor="middle">{view.name} · {ORIENTATION_LABELS[view.orientation]} · {formatDrawingScale(view.scale)}</text>
@@ -187,7 +188,7 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
       <FileText size={46} />
       <h2>Utwórz pierwszy arkusz techniczny</h2>
       <p>Arkusz jest zapisany w projekcie i aktualizuje widoki po każdej zmianie modelu albo szkicu 2D.</p>
-      <div className="drawing-empty-features" aria-label="Możliwości arkusza"><span>A4 / A3</span><span>Rzuty, przekroje i detale</span><span>Wymiary i GD&amp;T</span><span>Tabliczka, rewizje i BOM</span></div>
+      <div className="drawing-empty-features" aria-label="Możliwości arkusza"><span>A4 – A0</span><span>Rzuty, przekroje i detale</span><span>Wymiary i GD&amp;T</span><span>Tabliczka, rewizje i BOM</span></div>
       <button type="button" onClick={onCreateSheet} disabled={readOnly}><FilePlus2 size={17} /> Nowy arkusz A4</button>
     </section>;
   }

@@ -112,4 +112,24 @@ describe('CommandDialog confirmation', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onConfirm.mock.calls[0]).toEqual([]);
   });
+
+  it('starts a rectangle from a corner with width and height first', () => {
+    const onChange = vi.fn();
+    render(<CommandDialog
+      command={{ type: 'rectangle', name: 'Prostokąt', definition: 'corner', width: '40', height: '30', x1: '-20', y1: '-15', x2: '20', y2: '15', gesturePoints: [] }}
+      collapsed={false}
+      dock="right"
+      onChange={onChange}
+      onConfirm={vi.fn()}
+      onCancel={vi.fn()}
+      onToggleCollapsed={vi.fn()}
+      onToggleDock={vi.fn()}
+    />);
+    const labels = [...document.querySelectorAll('.command-field > span')].map((label) => label.textContent);
+    expect(labels).toEqual(expect.arrayContaining(['Szerokość', 'Wysokość', 'Narożnik X', 'Narożnik Y']));
+    expect(labels.indexOf('Szerokość')).toBeLessThan(labels.indexOf('Narożnik X'));
+    expect(screen.getByRole('combobox').value).toBe('corner');
+    fireEvent.change(screen.getAllByRole('textbox').find((input) => input.value === '-20'), { target: { value: '5' } });
+    expect(onChange).toHaveBeenCalledWith({ x1: '5' });
+  });
 });

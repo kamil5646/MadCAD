@@ -63,7 +63,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.plane-options')`, 'wybór płaszczyzny');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.plane-options button')].find((button) => button.textContent.includes('XY')).click()`);
     await clickTool(window, 'Prostokąt');
-    await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([0, 0])`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([-20, -12])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.gesturePoints === 1`, 'środek prostokąta');
     await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([20, 12])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.profiles === 1`, 'zamknięty profil');

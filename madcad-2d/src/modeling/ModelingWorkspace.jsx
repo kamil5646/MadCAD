@@ -255,6 +255,7 @@ function pointerPromptForCommand(command) {
   const step = command.gesturePoints?.length || 0;
   if (command.type === 'rectangle') {
     if (command.definition === 'center') return step ? 'Wskaż narożnik wyznaczający rozmiar' : 'Wskaż środek prostokąta';
+    if (command.definition === 'corner') return step ? 'Wskaż przeciwległy narożnik' : 'Wskaż pierwszy narożnik';
     if (command.definition === 'threePoints') return ['Wskaż początek pierwszego boku', 'Wskaż koniec pierwszego boku', 'Wskaż punkt wysokości'][step] || 'Wskaż punkt wysokości';
     return step ? 'Wskaż przeciwległy narożnik' : 'Wskaż pierwszy narożnik';
   }
@@ -1586,6 +1587,26 @@ export default function ModelingWorkspace() {
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   // Stable identities matter: the viewport rebuilds its whole scene (and orbit controls)
   // whenever these change, which used to interrupt a drag on any unrelated re-render.
+  // 2D sheets use the kernel's hidden-line removal (visible + dashed hidden edges). Until the
+  // projection for the current model revision arrives, views fall back to all tessellation edges.
+  const [drawingProjections, setDrawingProjections] = useState({ revision: -1, data: {} });
+  const projectDrawingViews = engine.projectDrawingViews;
+  useEffect(() => {
+    if (workspace !== 'drawing' || engine.status !== 'ready' || !engine.bodies.length || drawingProjections.revision === engine.revision) return undefined;
+    let active = true;
+    const revision = engine.revision;
+    projectDrawingViews(['front', 'top', 'right', 'isometric'])
+      .then((data) => {
+        if (!active) return;
+        setDrawingProjections({ revision, data });
+        if (new URLSearchParams(window.location.search).has('verify')) window.__madcadDrawingProjectionState = { revision, bodies: Object.keys(data).length };
+      })
+      .catch(() => { /* Stale revision or kernel error: keep the edge fallback. */ });
+    return () => { active = false; };
+  }, [workspace, engine.status, engine.revision, engine.bodies.length, drawingProjections.revision, projectDrawingViews]);
+  const withDrawingProjections = useCallback((bodies) => (drawingProjections.revision === engine.revision
+    ? bodies.map((body) => (drawingProjections.data[body.id] ? { ...body, drawingProjections: drawingProjections.data[body.id] } : body))
+    : bodies), [drawingProjections, engine.revision]);
   const visibleViewportBodies = useMemo(
     () => engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false),
     [engine.bodies, document.features],
@@ -1882,13 +1903,20 @@ export default function ModelingWorkspace() {
     return () => { delete window.__madcadVerifyEngineState; delete window.__madcadVerifyProjectPointsToSurface; };
   }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance, engine.canceledRevisions, engine.evaluatedDocument, engine.projectPointsToSurface]);
 
+  // Number features per kind like Fusion ("Zaokrąglenie 1" after "Wyciągnięcie 1"), using the first free number.
+  const nextFeatureName = (prefix) => {
+    const used = new Set(document.features.map((feature) => feature.name));
+    let index = 1;
+    while (used.has(`${prefix} ${index}`)) index += 1;
+    return `${prefix} ${index}`;
+  };
   const updateCommand = (patch) => {
     if (Object.hasOwn(patch, 'dynamicLength')) sketchDynamicLengthRef.current = patch.dynamicLength;
     setCommand((current) => {
       const next = { ...current, ...patch };
       if (next.type === 'surfacePatch') {
         next.previewFeature = createFeature('surfacePatch', {
-          name: current.previewFeature?.name || `Patch ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Patch'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
         });
@@ -1896,7 +1924,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceExtrude') {
         next.previewFeature = createFeature('surfaceExtrude', {
-          name: current.previewFeature?.name || `Powierzchnia wyciągnięta ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Powierzchnia wyciągnięta'),
           sketchId: current.previewFeature?.sketchId || next.sourceSketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (next.openChain ? [] : (selectedProfile ? [selectedProfile.id] : [])),
           openEntityIds: current.previewFeature?.openEntityIds || (next.openChain ? next.openEntityIds : undefined),
@@ -1906,7 +1934,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceRevolve') {
         next.previewFeature = createFeature('surfaceRevolve', {
-          name: current.previewFeature?.name || `Powierzchnia obrotowa ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Powierzchnia obrotowa'),
           sketchId: current.previewFeature?.sketchId || next.sourceSketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (next.openChain ? [] : (selectedProfile ? [selectedProfile.id] : [])),
           openEntityIds: current.previewFeature?.openEntityIds || (next.openChain ? next.openEntityIds : undefined),
@@ -1917,7 +1945,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceSweep') {
         next.previewFeature = createFeature('surfaceSweep', {
-          name: current.previewFeature?.name || `Powierzchnia po ścieżce ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Powierzchnia po ścieżce'),
           sketchId: current.previewFeature?.sketchId || next.sourceSketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (next.openChain ? [] : (selectedProfile ? [selectedProfile.id] : [])),
           openEntityIds: current.previewFeature?.openEntityIds || (next.openChain ? next.openEntityIds : undefined),
@@ -1930,7 +1958,7 @@ export default function ModelingWorkspace() {
         const sourceSketchId = current.previewFeature?.sketchIds?.[0] || selectedProfileMatch?.sketch.id;
         const sourceProfileId = current.previewFeature?.profileIds?.[0] || selectedProfile?.id;
         next.previewFeature = createFeature('surfaceLoft', {
-          name: current.previewFeature?.name || `Powierzchnia przejściowa ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Powierzchnia przejściowa'),
           sketchId: sourceSketchId,
           sketchIds: [sourceSketchId, next.endSketchId],
           profileIds: [sourceProfileId, next.endProfileId],
@@ -1940,7 +1968,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceOffset') {
         next.previewFeature = createFeature('surfaceOffset', {
-          name: current.previewFeature?.name || `Odsunięcie powierzchni ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Odsunięcie powierzchni'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           distance: next.distance,
         });
@@ -1948,7 +1976,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceStitch') {
         next.previewFeature = createFeature('surfaceStitch', {
-          name: current.previewFeature?.name || `Zszycie powierzchni ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Zszycie powierzchni'),
           targetBodyIds: current.previewFeature?.targetBodyIds || next.targetBodyIds,
           tolerance: next.tolerance,
         });
@@ -1956,7 +1984,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceTrim') {
         next.previewFeature = createFeature('surfaceTrim', {
-          name: current.previewFeature?.name || `Przycięcie powierzchni ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Przycięcie powierzchni'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           toolBodyId: current.previewFeature?.toolBodyId || next.toolBodyId,
           keepTool: next.keepTool !== false,
@@ -1965,7 +1993,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'surfaceExtend') {
         next.previewFeature = createFeature('surfaceExtend', {
-          name: current.previewFeature?.name || `Przedłużenie powierzchni ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Przedłużenie powierzchni'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           distance: next.distance,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
@@ -1974,7 +2002,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'thickenSurface') {
         next.previewFeature = createFeature('thickenSurface', {
-          name: current.previewFeature?.name || `Pogrubienie ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Pogrubienie'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           thickness: next.thickness,
           side: next.side,
@@ -1984,7 +2012,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sheetBase') {
         next.previewFeature = createFeature('sheetBase', {
-          name: current.previewFeature?.name || `Baza blachowa ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Baza blachowa'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
           thickness: next.thickness,
@@ -1997,7 +2025,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sheetFlange') {
         next.previewFeature = createFeature('sheetFlange', {
-          name: current.previewFeature?.name || `Kołnierz blachy ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Kołnierz blachy'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           length: next.length,
@@ -2009,7 +2037,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sheetHem') {
         next.previewFeature = createFeature('sheetHem', {
-          name: current.previewFeature?.name || `Zawinięcie blachy ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Zawinięcie blachy'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           length: next.length,
@@ -2020,7 +2048,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sheetRip') {
         next.previewFeature = createFeature('sheetRip', {
-          name: current.previewFeature?.name || `Szczelina blachy ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Szczelina blachy'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           gap: next.gap,
@@ -2029,7 +2057,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'plasticBoss') {
         next.previewFeature = createFeature('plasticBoss', {
-          name: current.previewFeature?.name || `Boss ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Boss'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           outerDiameter: next.outerDiameter,
@@ -2044,7 +2072,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'plasticSnapFit') {
         next.previewFeature = createFeature('plasticSnapFit', {
-          name: current.previewFeature?.name || `Snap-fit ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Snap-fit'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           length: next.length,
@@ -2061,7 +2089,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'plasticGrille') {
         next.previewFeature = createFeature('plasticGrille', {
-          name: current.previewFeature?.name || `Grille ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Grille'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           ribCount: next.ribCount,
@@ -2074,6 +2102,19 @@ export default function ModelingWorkspace() {
           reverse: Boolean(next.reverse),
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
+      if (next.type === 'rectangle' && next.definition === 'corner') {
+        // Typed width/height keep the rectangle centred on the origin until a corner is clicked
+        // or typed; the opposite corner always follows the signed width and height.
+        if (Object.hasOwn(patch, 'x1') || Object.hasOwn(patch, 'y1')) next.cornerManual = true;
+        const width = Number(String(next.width ?? '').replace(',', '.'));
+        const height = Number(String(next.height ?? '').replace(',', '.'));
+        if (Number.isFinite(width) && Number.isFinite(height)) {
+          if (!next.cornerManual) Object.assign(next, { x1: String(-width / 2), y1: String(-height / 2) });
+          const x1 = Number(next.x1);
+          const y1 = Number(next.y1);
+          if (Number.isFinite(x1) && Number.isFinite(y1) && !Object.hasOwn(patch, 'gesturePoints')) Object.assign(next, { x2: String(x1 + width), y2: String(y1 + height) });
+        }
       }
       if (next.type === 'extrude') {
         if (next.extent === 'through-all' && !['cut', 'intersect'].includes(next.operation)) next.extent = 'one-side';
@@ -2092,7 +2133,7 @@ export default function ModelingWorkspace() {
         const targetOption = next.targetOptions.find((option) => option.id === next.targetReferenceId);
         next.topologyReferences = next.extent === 'to-object' && targetOption?.reference ? [targetOption.reference] : [];
         next.previewFeature = createFeature('extrude', {
-          name: current.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Wyciągnięcie'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
           openEntityIds: current.previewFeature?.openEntityIds,
@@ -2112,7 +2153,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'revolve') {
         next.previewFeature = createFeature('revolve', {
-          name: current.previewFeature?.name || `Revolve ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Revolve'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
           axisId: next.axisId,
@@ -2124,7 +2165,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'sweep') {
         next.previewFeature = createFeature('sweep', {
-          name: current.previewFeature?.name || `Sweep ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Sweep'),
           sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
           profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
           pathSketchId: next.pathSketchId,
@@ -2138,7 +2179,7 @@ export default function ModelingWorkspace() {
         const sourceSketchId = current.previewFeature?.sketchIds?.[0] || selectedProfileMatch?.sketch.id;
         const sourceProfileId = current.previewFeature?.profileIds?.[0] || selectedProfile?.id;
         next.previewFeature = createFeature('loft', {
-          name: current.previewFeature?.name || `Loft ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Loft'),
           sketchId: sourceSketchId,
           sketchIds: [sourceSketchId, next.endSketchId],
           profileIds: [sourceProfileId, next.endProfileId],
@@ -2150,7 +2191,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'rib') {
         next.previewFeature = createFeature('rib', {
-          name: current.previewFeature?.name || `Rib/Web ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Rib/Web'),
           sketchId: current.previewFeature?.sketchId || next.sourceSketchId,
           openEntityIds: current.previewFeature?.openEntityIds || next.openEntityIds,
           targetBodyId: current.previewFeature?.targetBodyId || targetBodyId,
@@ -2164,7 +2205,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'coil') {
         next.previewFeature = createFeature('coil', {
-          name: current.previewFeature?.name || `Coil ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Coil'),
           axisId: next.axisId,
           coilDiameter: next.coilDiameter,
           wireDiameter: next.wireDiameter,
@@ -2178,7 +2219,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'pipe') {
         next.previewFeature = createFeature('pipe', {
-          name: current.previewFeature?.name || `Pipe ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Pipe'),
           pathSketchId: current.previewFeature?.pathSketchId || next.pathSketchId,
           pathEntityIds: current.previewFeature?.pathEntityIds || next.pathEntityIds,
           outsideDiameter: next.outsideDiameter,
@@ -2189,13 +2230,13 @@ export default function ModelingWorkspace() {
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
       if (next.type === 'pattern') {
-        next.previewFeature = createFeature('pattern', { name: current.previewFeature?.name || `Pattern ${document.features.length + 1}`, targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId, patternType: next.patternType, countX: next.countX, countY: next.countY, spacingX: next.spacingX, spacingY: next.spacingY, axisId: next.axisId, occurrences: next.occurrences, totalAngle: next.totalAngle, pathSketchId: next.pathSketchId, pathEntityIds: next.pathEntityIds });
+        next.previewFeature = createFeature('pattern', { name: current.previewFeature?.name || nextFeatureName('Pattern'), targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId, patternType: next.patternType, countX: next.countX, countY: next.countY, spacingX: next.spacingX, spacingY: next.spacingY, axisId: next.axisId, occurrences: next.occurrences, totalAngle: next.totalAngle, pathSketchId: next.pathSketchId, pathEntityIds: next.pathEntityIds });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
       if (next.type === 'hole') {
         next.previewFeature = next.placement === 'face-edges'
           ? createFeature('hole', {
-            name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
+            name: current.previewFeature?.name || nextFeatureName('Otwór'),
             placement: 'face-edges',
             targetBodyId: next.targetBodyId,
             referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
@@ -2210,7 +2251,7 @@ export default function ModelingWorkspace() {
             clearanceProfile: next.clearanceProfile, clearance: next.clearance,
           })
           : createFeature('hole', {
-            name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
+            name: current.previewFeature?.name || nextFeatureName('Otwór'),
             targetBodyId,
             sketchId: selectedSketchPointMatch?.sketch.id || selectedProfileMatch?.sketch.id,
             ...(selectedSketchPointMatch ? { pointId: selectedSketchPointMatch.point.id } : { profileId: selectedProfile.id }),
@@ -2226,7 +2267,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'boolean') {
         next.previewFeature = createFeature('boolean', {
-          name: current.previewFeature?.name || `Boolean ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Boolean'),
           targetBodyId: next.targetBodyId,
           toolBodyId: next.toolBodyId,
           operation: next.operation,
@@ -2271,7 +2312,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'textSolid') {
         next.previewFeature = createFeature('textSolid', {
-          name: current.previewFeature?.name || `Tekst 3D ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Tekst 3D'),
           text: next.text,
           fontSize: next.fontSize,
           depth: next.depth,
@@ -2285,7 +2326,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'transform') {
         next.previewFeature = createFeature('transform', {
-          name: current.previewFeature?.name || `${next.mode === 'rotate' ? 'Obrót' : 'Przesunięcie'} ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName(next.mode === 'rotate' ? 'Obrót' : 'Przesunięcie'),
           targetBodyId: next.targetBodyId || targetBodyId,
           mode: next.mode,
           x: next.x, y: next.y, z: next.z,
@@ -2296,7 +2337,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'offsetFace') {
         next.previewFeature = createFeature('offsetFace', {
-          name: current.previewFeature?.name || `Offset Face ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Offset Face'),
           targetBodyId: next.targetBodyId || targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           distance: next.distance,
@@ -2305,7 +2346,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'fillet' || next.type === 'chamfer') {
         next.previewFeature = createFeature(next.type, {
-          name: current.previewFeature?.name || `${next.type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName(next.type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'),
           targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           ...(next.type === 'fillet' ? { radius: next.size } : { distance: next.size }),
@@ -2314,7 +2355,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'shell') {
         next.previewFeature = createFeature('shell', {
-          name: current.previewFeature?.name || `Shell ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Shell'),
           targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           thickness: next.thickness,
@@ -2323,7 +2364,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'draft') {
         next.previewFeature = createFeature('draft', {
-          name: current.previewFeature?.name || `Draft ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Draft'),
           targetBodyId: next.targetBodyId || targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           neutralPlaneId: next.neutralPlaneId,
@@ -2333,7 +2374,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'splitBody') {
         next.previewFeature = createFeature('splitBody', {
-          name: current.previewFeature?.name || `Split Body ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Split Body'),
           targetBodyId: next.targetBodyId || targetBodyId,
           planeId: next.planeId,
         });
@@ -2341,7 +2382,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'splitFace') {
         next.previewFeature = createFeature('splitFace', {
-          name: current.previewFeature?.name || `Split Face ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Split Face'),
           targetBodyId: next.targetBodyId,
           sketchId: next.sketchId,
           profileId: next.profileId,
@@ -2351,7 +2392,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'deleteFace') {
         next.previewFeature = createFeature('deleteFace', {
-          name: current.previewFeature?.name || `Delete Face + Heal ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Delete Face + Heal'),
           targetBodyId: next.targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
         });
@@ -2359,7 +2400,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'replaceFace') {
         next.previewFeature = createFeature('replaceFace', {
-          name: current.previewFeature?.name || `Replace Face ${document.features.length + 1}`,
+          name: current.previewFeature?.name || nextFeatureName('Replace Face'),
           targetBodyId: next.targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
         });
@@ -2804,7 +2845,7 @@ export default function ModelingWorkspace() {
       return;
     }
     if (type === 'rectangle') {
-      setCommand({ type, definition: 'center', gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', rotation: '0', x1: '-20', y1: '-15', x2: '20', y2: '15', x3: '20', y3: '15' });
+      setCommand({ type, definition: profile ? 'center' : 'corner', cornerManual: false, gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', rotation: '0', x1: '-20', y1: '-15', x2: '20', y2: '15', x3: '20', y3: '15' });
     } else {
       setCommand({ type, definition: 'centerRadius', gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Okrąg ${document.sketches.flatMap((item) => item.profiles).length + 1}`, diameter: profile?.geometry.diameter || '10', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', x1: '-5', y1: '0', x2: '5', y2: '0', x3: '0', y3: '5' });
     }
@@ -4202,7 +4243,7 @@ export default function ModelingWorkspace() {
     let shape;
     try {
       if (sourceCommand.type === 'rectangle') {
-        if (sourceCommand.definition === 'twoPoints') shape = rectangleTwoPoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2));
+        if (sourceCommand.definition === 'twoPoints' || sourceCommand.definition === 'corner') shape = rectangleTwoPoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2));
         else if (sourceCommand.definition === 'threePoints') shape = rectangleThreePoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), coordinate(sourceCommand.x3, sourceCommand.y3));
         else shape = rectangleFromCenter(coordinate(sourceCommand.x, sourceCommand.y), sourceCommand.width, sourceCommand.height, sourceCommand.rotation);
       } else if (sourceCommand.type === 'circle') {
@@ -4244,7 +4285,7 @@ export default function ModelingWorkspace() {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
       sketch.entities.push(...shape.entities);
       if (sourceCommand.type === 'rectangle' && sketchOptions.autoConstraints
-        && (sourceCommand.definition === 'twoPoints' || (sourceCommand.definition === 'center' && Number(sourceCommand.rotation || 0) === 0))) {
+        && (['twoPoints', 'corner'].includes(sourceCommand.definition) || (sourceCommand.definition === 'center' && Number(sourceCommand.rotation || 0) === 0))) {
         sketch.constraints.push(...shape.curves.map((line, index) => createSketchConstraint(index % 2 ? 'vertical' : 'horizontal', [line.id], { automatic: true })));
       }
       const result = refreshDetectedSketchProfiles(sketch, next.parameters);
@@ -4299,6 +4340,10 @@ export default function ModelingWorkspace() {
         if (first) Object.assign(patch, { x1: String(first[0]), y1: String(first[1]) });
         if (second) Object.assign(patch, { x2: String(second[0]), y2: String(second[1]) });
         if (third) Object.assign(patch, { x3: String(third[0]), y3: String(third[1]) });
+        if (sourceCommand.definition === 'corner' && first) {
+          patch.cornerManual = true;
+          if (second) Object.assign(patch, { width: String(second[0] - first[0]), height: String(second[1] - first[1]) });
+        }
       }
     } else if (sourceCommand.type === 'circle') {
       if (sourceCommand.definition === 'centerRadius') {
@@ -4403,7 +4448,7 @@ export default function ModelingWorkspace() {
       const operation = engine.bodies.length ? 'join' : 'new';
       const targetOptions = createExtrudeTargetOptions();
       const previewFeature = createFeature('extrude', {
-        name: `Wyciągnięcie ${document.features.length + 1}`,
+        name: nextFeatureName('Wyciągnięcie'),
         sketchId: activeSketchId,
         profileIds: [],
         openEntityIds: [...selectedSketchEntityIds],
@@ -4563,7 +4608,7 @@ export default function ModelingWorkspace() {
     if (type === 'sheetUnfold' && !canUnfoldSheet) return setNotice(activeSheetBody.sheetMetal.unfolded ? 'Blacha jest już rozwinięta.' : 'Rozwinięcie wymaga co najmniej jednego gięcia albo zawinięcia.');
     if (type === 'sheetRefold' && !canRefoldSheet) return setNotice('Ponowne zagięcie wymaga wcześniej rozwiniętej blachy.');
     const feature = createFeature(type, {
-      name: `${type === 'sheetUnfold' ? 'Rozwinięcie blachy' : 'Ponowne zagięcie blachy'} ${document.features.length + 1}`,
+      name: nextFeatureName(type === 'sheetUnfold' ? 'Rozwinięcie blachy' : 'Ponowne zagięcie blachy'),
       targetBodyId: activeSheetBody.id,
     });
     commit((next) => insertTimelineFeature(next, feature));
@@ -4699,7 +4744,7 @@ export default function ModelingWorkspace() {
     const operation = engine.bodies.length ? 'join' : 'new';
     const targetOptions = createExtrudeTargetOptions();
     const previewFeature = createFeature('extrude', {
-      name: `Wyciągnięcie ${document.features.length + 1}`,
+      name: nextFeatureName('Wyciągnięcie'),
       sketchId,
       profileIds: [],
       openEntityIds: [...entityIds],
@@ -4920,7 +4965,7 @@ export default function ModelingWorkspace() {
         targetReferenceId: editing?.targetReferenceId || targetOptions[0]?.id,
       };
       next.previewFeature = createFeature('extrude', {
-        name: editing?.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
+        name: editing?.previewFeature?.name || nextFeatureName('Wyciągnięcie'),
         sketchId: profileMatch.sketch.id,
         profileIds: [profile.id],
         distance: next.distance,
@@ -5072,7 +5117,7 @@ export default function ModelingWorkspace() {
     }
     const [targetBodyId, toolBodyId] = selectedBodyIds;
     const bodyName = (bodyId) => engine.bodies.find((body) => body.id === bodyId)?.name || bodyId;
-    const previewFeature = createFeature('boolean', { name: `Boolean ${document.features.length + 1}`, targetBodyId, toolBodyId, operation: 'union' });
+    const previewFeature = createFeature('boolean', { name: nextFeatureName('Boolean'), targetBodyId, toolBodyId, operation: 'union' });
     setCommand({ type: 'boolean', operation: 'union', targetBodyId, toolBodyId, targetName: bodyName(targetBodyId), toolName: bodyName(toolBodyId), previewFeature });
     setNotice('Wybierz Union, Subtract albo Intersect i zatwierdź operację Boolean.');
   };
@@ -6318,14 +6363,14 @@ export default function ModelingWorkspace() {
 
   const exportActiveDrawingDxf = () => {
     if (!activeDrawingSheet?.views.length) return;
-    const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies, { components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
+    const dxf = drawingSheetDxf(activeDrawingSheet, withDrawingProjections(engine.bodies), { components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
     downloadBlob(new Blob([dxf], { type: 'application/dxf;charset=utf-8' }), `${safeName(document.name)}-${safeName(activeDrawingSheet.name)}.dxf`);
     setNotice('Wyeksportowano arkusz DXF w jednostkach mm.');
   };
 
   const exportActiveDrawingPdf = async () => {
     if (!activeDrawingSheet?.views.length) return;
-    const html = drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
+    const html = drawingSheetHtml(activeDrawingSheet, withDrawingProjections(engine.bodies), { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
     setNotice(`Przygotowywanie ${activeDrawingSheet.pageSize} PDF…`);
     if (window.desktopApp?.saveDrawingPdf) {
       const result = await window.desktopApp.saveDrawingPdf({
@@ -6349,7 +6394,7 @@ export default function ModelingWorkspace() {
 
   const previewActiveDrawing = async () => {
     if (!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow) return;
-    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers }), title: `${document.name} · ${activeDrawingSheet.name}` });
+    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, withDrawingProjections(engine.bodies), { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers }), title: `${document.name} · ${activeDrawingSheet.name}` });
     setNotice(result?.ok ? 'Otworzono podgląd arkusza 1:1.' : `Podgląd nie powiódł się: ${result?.error || 'nieznany błąd'}`);
   };
 
@@ -7420,7 +7465,7 @@ export default function ModelingWorkspace() {
         <main className="modeling-stage">
           {workspace === 'drawing' ? <DrawingWorkspace
             document={document}
-            bodies={visibleViewportBodies}
+            bodies={withDrawingProjections(visibleViewportBodies)}
             activeSheetId={activeDrawingSheetId}
             selectedViewId={selectedDrawingViewId}
             selectedAnnotationId={selectedDrawingAnnotationId}
@@ -7478,7 +7523,7 @@ export default function ModelingWorkspace() {
             onDraftChange={readOnly ? undefined : updateCommand}
             sketchTool={command?.type === 'line' || command?.type === 'polyline' || directSketchTypes.includes(command?.type) ? command.type : null}
             sketchToolPrompt={sketchToolPrompt}
-            polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : directSketchTypes.includes(command?.type) ? { lastPoint: command.gesturePoints?.at(-1) || null } : null}
+            polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : directSketchTypes.includes(command?.type) ? { lastPoint: command.gesturePoints?.at(-1) || null, shape: command?.type === 'rectangle' && ['corner', 'twoPoints'].includes(command.definition) && command.gesturePoints?.length === 1 ? 'rectangle' : undefined } : null}
             onSketchPoint={readOnly ? undefined : handleSketchCanvasPoint}
             onSketchPointerMove={(point) => { sketchPointerRef.current = point; }}
             sketchDynamicLength={command?.dynamicLength || ''}

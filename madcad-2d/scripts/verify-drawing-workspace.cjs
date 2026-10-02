@@ -84,6 +84,8 @@ app.whenReady().then(async () => {
     if (!(await clickText(window, '.ribbon-tool', 'Model 3D'))) throw new Error('Brak polecenia Model 3D.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.length === 1 && document.querySelectorAll('.drawing-view line').length > 8`, 'skojarzony widok bazowy');
     await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.views?.length === 1`, 'autozapis arkusza');
+    // The view switches to the kernel's hidden-line projection once it arrives for this model revision.
+    await waitFor(window, `window.__madcadDrawingProjectionState?.bodies >= 1`, 'rzut arkusza z usuwaniem linii ukrytych', 30000);
 
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.length === 0`, 'undo widoku');

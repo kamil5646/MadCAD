@@ -84,7 +84,7 @@ app.whenReady().then(async () => {
 
     await clickTool(window, 'Prostokąt');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle'`, 'polecenie prostokata');
-    await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([0, 0])`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([-20, -12])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.gesturePoints === 1`, 'pierwszy punkt prostokata');
     await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([20, 12])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.profiles === 1`, 'zamkniety profil prostokata');

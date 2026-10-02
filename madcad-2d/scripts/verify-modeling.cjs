@@ -1408,8 +1408,8 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prostokąt')`, 'profil Revolve');
   await setCommandField('Szerokość', '5');
   await setCommandField('Wysokość', '4');
-  await setCommandField('Środek X', '7.5');
-  await setCommandField('Środek Y', '0');
+  await setCommandField('Narożnik X', '5');
+  await setCommandField('Narożnik Y', '-2');
   await confirmDialog();
   await clickTool('Zakończ szkic');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'profile'`, 'profil wskazany do Revolve');
@@ -2220,7 +2220,7 @@ async function runUiFlow(window) {
   const sketchCameraBeforeGeometry = await waitForCameraToSettle();
   await clickTool('Prostokąt');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prostokąt')`, 'polecenie prostokąta');
-  await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([0, 0])`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([-32, -21])`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle' && window.__madcadVerifyDocumentState.command.gesturePoints === 1`, 'pierwszy narożnik prostokąta z płótna');
   await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([32, 21])`);
   await waitForUi(window, `!document.querySelector('.command-dialog') && window.__madcadVerifyDocumentState?.sketches?.[0]?.profiles === 1`, 'prostokąt utworzony dwoma kliknięciami');

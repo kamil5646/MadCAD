@@ -222,6 +222,13 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     return result.descriptor;
   }, [document, send]);
 
+  const projectDrawingViews = useCallback(async (orientations) => {
+    const revision = revisionRef.current;
+    const result = await send({ type: 'project-drawing', document, revision, orientations });
+    if (result.revision !== revision || revisionRef.current !== revision) throw engineError('Silnik zwrócił rzut arkusza z innej rewizji dokumentu.', 'PROJECTION_REVISION_MISMATCH');
+    return result.projections;
+  }, [document, send]);
+
   const restartWorkerForTest = useCallback(() => {
     if (!workerRef.current) throw engineError('Silnik CAD nie jest gotowy do testu odtwarzania.', 'WORKER_NOT_READY');
     const crash = engineError('Kontrolowana awaria workera w teście desktopowym.', 'WORKER_CRASH');
@@ -236,5 +243,5 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     setWorkerGeneration((generation) => generation + 1);
   }, [rejectPending]);
 
-  return { ...state, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, cancelRebuild, exportExternalDocument, exportModel, projectPointsToSurface, restartWorkerForTest };
+  return { ...state, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, cancelRebuild, exportExternalDocument, exportModel, projectDrawingViews, projectPointsToSurface, restartWorkerForTest };
 }

@@ -137,6 +137,7 @@ import {
   drawingPageDimensions,
   ensureDocumentDrawings,
   projectDrawingView,
+  removeHiddenOverlaps,
   recommendedDrawingScale,
   recommendedSketchDrawingScale,
 } from '../src/cad-core/drawing-sheets.js';
@@ -5856,4 +5857,37 @@ test('jednostronne wyciągnięcie przyjmuje ujemną odległość jako przeciwny 
   symmetric.features[0].extent = 'symmetric';
   const preparedSymmetric = (() => { try { return prepareDocument(symmetric).features[0]; } catch (error) { return { status: 'error', error: error.message }; } })();
   assert.notEqual(preparedSymmetric.status, 'ready');
+});
+
+test('arkusz używa rzutu z usuwaniem linii ukrytych i rysuje je przerywaną linią', () => {
+  const body = {
+    id: 'body-hlr',
+    lines: new Float32Array([0, 0, 0, 10, 0, 0]),
+    metrics: { bounds: [[0, 0, 0], [10, 10, 10]] },
+    drawingProjections: {
+      front: {
+        visible: [[[0, 0], [10, 0]], [[10, 0], [10, -10]], [[10, -10], [0, -10]], [[0, -10], [0, 0]]],
+        hidden: [[[3, 0], [3, -5]], [[3, -5], [7, -5]]],
+      },
+    },
+  };
+  const projection = projectDrawingView({ orientation: 'front', bodyIds: [body.id] }, [body]);
+  assert.equal(projection.segments.length, 4);
+  assert.equal(projection.hiddenSegments.length, 2);
+  // Without a kernel projection for the orientation, every tessellation edge is drawn as visible.
+  const fallback = projectDrawingView({ orientation: 'top', bodyIds: [body.id] }, [body]);
+  assert.deepEqual(fallback.hiddenSegments, []);
+  const sheet = createDrawingSheet();
+  sheet.views.push(createBaseDrawingView({ bodyIds: [body.id], orientation: 'front', scale: 1, sheet }));
+  assert.equal(drawingSheetScene(sheet, [body]).views[0].hiddenSegments.length, 2);
+  assert.match(drawingSheetHtml(sheet, [body]), /class="hidden"/);
+  assert.match(drawingSheetDxf(sheet, [body]), /\n8\nHIDDEN\n/);
+  // A hidden back edge under a visible edge split into pieces is not drawn twice.
+  const kept = removeHiddenOverlaps([[[0, 0], [0, -6]], [[0, -6], [0, -10]]], [[[0, 0], [0, -10]], [[2, 0], [2, -10]]]);
+  assert.deepEqual(kept, [[[2, 0], [2, -10]]]);
+  // Isometric views look from the front-right-top corner: +X goes right, +Y goes back (up), +Z up.
+  const iso = projectDrawingView({ orientation: 'isometric' }, [{ id: 'axes', lines: new Float32Array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0]) }]);
+  const [xAxis, yAxis] = iso.segments.map(([start, end]) => [end[0] - start[0], end[1] - start[1]]);
+  assert.ok(xAxis[0] > 0 && xAxis[1] > 0, 'X goes right and down on the sheet');
+  assert.ok(yAxis[0] > 0 && yAxis[1] < 0, 'Y goes right and up on the sheet');
 });

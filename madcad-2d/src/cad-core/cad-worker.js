@@ -26,6 +26,7 @@ import {
   makeCylinder,
   makeLine,
   makeOffset,
+  makeProjectedEdges,
   makePolygon,
   makeSolid,
   makeSphere,
@@ -35,10 +36,12 @@ import {
   measureShapeVolumeProperties,
   setOC,
   setManifold,
+  ProjectionCamera,
 } from 'replicad';
 import { FEATURE_STATUS, prepareDocument, resolveOpenChainProfile } from './evaluator.js';
 import { evaluateFeatureHistoryCooperatively } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
+import { DRAWING_PROJECTION_CAMERAS, removeHiddenOverlaps } from './drawing-sheets.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
@@ -775,7 +778,7 @@ function pathSpine(path) {
         else if (segment.type === 'bspline3d') edges.push(makeExactBSplineEdge(segment.bspline, segment.reversed));
         else edges.push(makeLine(segment.start, segment.end));
       } catch (error) {
-        throw new Error(`Nie udało się utworzyć krzywej ${segment.type} (${segment.id}): ${error.message || error}`);
+        throw new Error(`Nie udało się utworzyć krzywej (${segment.type}): ${error.message || error}`);
       }
     }
     const wire = assembleWire(edges);
@@ -3060,6 +3063,60 @@ async function validateExportRoundTrip(kernelBodies, blobs, format) {
   return results;
 }
 
+// Hidden-line removal for 2D drawing views: visible and hidden edges per body and orientation,
+// as 2D segments in the drawing's view coordinates. Mesh imports keep the tessellation fallback.
+function projectEdgesToSegments(edges, scale) {
+  const segments = [];
+  for (const edge of edges) {
+    try {
+      const steps = edge.geomType === 'LINE' ? 1 : 24;
+      const points = [];
+      for (let index = 0; index <= steps; index += 1) {
+        const vector = edge.pointAt(index / steps);
+        points.push([vector.x * scale, -vector.y * scale]);
+        vector.delete?.();
+      }
+      // A curve seen edge-on (e.g. a fillet arc from the side) projects to a straight line: keep one segment.
+      const [start, end] = [points[0], points.at(-1)];
+      const chord = Math.hypot(end[0] - start[0], end[1] - start[1]);
+      const straight = chord > 1e-9 && points.every((point) => Math.abs(((end[0] - start[0]) * (point[1] - start[1])) - ((end[1] - start[1]) * (point[0] - start[0]))) / chord <= 1e-6 * Math.max(1, chord));
+      const path = straight ? [start, end] : points;
+      for (let index = 1; index < path.length; index += 1) {
+        if (Math.hypot(path[index][0] - path[index - 1][0], path[index][1] - path[index - 1][1]) > 1e-9) segments.push([path[index - 1], path[index]]);
+      }
+    } finally {
+      edge.delete?.();
+    }
+  }
+  return segments;
+}
+
+function projectDrawingBodies(kernelBodies, orientations = []) {
+  const projections = {};
+  for (const body of kernelBodies) {
+    if (!body?.shape || body.representation === 'mesh-import') continue;
+    for (const orientation of orientations) {
+      const settings = DRAWING_PROJECTION_CAMERAS[orientation];
+      if (!settings) continue;
+      // The kernel's projection axis points at the viewer, so it is the opposite of the view
+      // direction; that flips the 2D Y axis, undone in projectEdgesToSegments.
+      const camera = new ProjectionCamera([0, 0, 0], settings.direction.map((value) => -value), settings.xAxis);
+      try {
+        const { visible, hidden } = makeProjectedEdges(body.shape, camera);
+        projections[body.id] = projections[body.id] || {};
+        const visibleSegments = projectEdgesToSegments(visible, settings.scale);
+        projections[body.id][orientation] = {
+          visible: visibleSegments,
+          hidden: removeHiddenOverlaps(visibleSegments, projectEdgesToSegments(hidden, settings.scale)),
+        };
+      } finally {
+        camera.delete?.();
+      }
+    }
+  }
+  return projections;
+}
+
 async function exportBodies(kernelBodies, format, validateRoundTrip = false) {
   if (!kernelBodies.length) throw new Error('Brak bryły do eksportu.');
   if (!['step', 'stl', '3mf'].includes(format)) throw new Error(`Nieobsługiwany format eksportu: ${format}.`);
@@ -3113,6 +3170,12 @@ async function handleMessage(data) {
       evaluated.performance = { ...evaluated.performance, collisionMs: collisionResult.collisionMs };
     }
     self.postMessage({ id, ok: true, type, result: { revision, analysis: evaluated.analysis, performance: evaluated.performance } });
+    return;
+  }
+  if (type === 'project-drawing') {
+    const evaluated = await resolveRevision(document, revision, 'display');
+    const projections = projectDrawingBodies(evaluated.kernelBodies, data.orientations);
+    self.postMessage({ id, ok: true, type, result: { revision, projections } });
     return;
   }
   if (type === 'project-to-surface') {

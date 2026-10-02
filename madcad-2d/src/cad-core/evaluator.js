@@ -50,11 +50,11 @@ function extrudeToObjectDistance(document, profiles, startOffsetValue, targetRef
 }
 
 function resolveClosedProfile(profile, parameters, sketch) {
-  if (!sketch) throw new Error(`Profil ${profile.id} nie ma szkicu źródłowego.`);
+  if (!sketch) throw new Error(`Profil „${profile.name || 'bez nazwy'}” nie ma szkicu źródłowego.`);
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
   const readPoint = (pointId) => {
     const point = entityMap.get(pointId);
-    if (point?.type !== 'point') throw new Error(`Nie znaleziono punktu ${pointId} profilu ${profile.id}.`);
+    if (point?.type !== 'point') throw new Error(`Profil „${profile.name || 'bez nazwy'}” odwołuje się do usuniętego punktu.`);
     return [evaluateExpression(point.geometry.x, parameters), evaluateExpression(point.geometry.y, parameters)];
   };
   const resolveLoop = (loop) => (loop.entityIds || []).map((entityId, entityIndex) => {
@@ -98,7 +98,7 @@ function resolveClosedProfile(profile, parameters, sketch) {
     if (entity?.type === 'spline') {
       const splinePoints = (entity.pointIds || []).map(readPoint);
       const points = reversed ? [...splinePoints].reverse() : splinePoints;
-      if (points.length < 2) throw new Error(`Spline ${entity.id} ma za mało punktów.`);
+      if (points.length < 2) throw new Error('Splajn ma za mało punktów.');
       const mode = entity.geometry?.mode === 'control' ? 'control' : 'fit';
       const beziers = [];
       if (mode === 'control') {
@@ -123,7 +123,7 @@ function resolveClosedProfile(profile, parameters, sketch) {
     if (entity?.type === 'conic') {
       const conicPoints = (entity.pointIds || []).map(readPoint);
       const points = reversed ? [...conicPoints].reverse() : conicPoints;
-      if (points.length !== 3) throw new Error(`Krzywa conic ${entity.id} wymaga trzech punktów.`);
+      if (points.length !== 3) throw new Error('Krzywa stożkowa wymaga trzech punktów.');
       const rho = positive(evaluateExpression(entity.geometry?.rho || '1', parameters), 'Parametr rho');
       return {
         type: 'conic',
@@ -148,7 +148,7 @@ function resolveClosedProfile(profile, parameters, sketch) {
       const rotation = evaluateExpression(entity.geometry.rotation || '0', parameters);
       return { type: 'ellipse', id: entity.id, center, majorRadius, minorRadius, rotation, start: [center[0] + majorRadius, center[1]], end: [center[0] + majorRadius, center[1]] };
     }
-    throw new Error(`Nieobsługiwana encja ${entityId} w profilu ${profile.id}.`);
+    throw new Error(`Profil „${profile.name || 'bez nazwy'}” zawiera nieobsługiwany element.`);
   });
   const segments = resolveLoop(profile);
   const holes = (profile.innerLoops || []).map((loop) => ({ segments: resolveLoop(loop) }));

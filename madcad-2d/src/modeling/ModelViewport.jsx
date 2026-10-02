@@ -3,6 +3,9 @@ import { alternateModifierPressed, multipleSelectionLabel, primaryModifierPresse
 import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d, Orbit, Square, Triangle, X, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { composeSketchSnapContext, DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
@@ -1334,6 +1337,19 @@ export default function ModelViewport({
         modelGroup.add(edgeObject);
         pickables.push(edgeObject);
         edgePickables.push(edgeObject);
+        if (edgeSelected) {
+          // WebGL lines are 1 px wide; a screen-space thick overlay makes the picked edge obvious.
+          const overlayMaterial = new THREE.Color(0xffc857);
+          const thickEdge = new LineSegments2(
+            new LineSegmentsGeometry().setPositions(vertices),
+            new LineMaterial({ color: overlayMaterial.getHex(), linewidth: 4, worldUnits: false, clippingPlanes }),
+          );
+          thickEdge.material.resolution.set(host.clientWidth || 1, host.clientHeight || 1);
+          thickEdge.renderOrder = 6;
+          thickEdge.userData = { selectedEdgeOverlay: true, topologyId: edgeGroup.topologyId };
+          placeObject(thickEdge);
+          modelGroup.add(thickEdge);
+        }
         if (surfaceAnalysis?.enabled && surfaceAnalysis.mode === 'comb') {
           const combVertices = createCurvatureCombVertices(vertices, surfaceAnalysis.combScale);
           if (combVertices.length) {
@@ -1643,7 +1659,9 @@ export default function ModelViewport({
       if (sketchTool && polylineDraft?.lastPoint) {
         const previewGeometry = new THREE.BufferGeometry();
         const start = mapPlanePoint(polylineDraft.lastPoint[0], polylineDraft.lastPoint[1], activePlane, 0.09, activePlaneOffset, activeFrame);
-        previewGeometry.setAttribute('position', new THREE.Float32BufferAttribute([...start, ...start], 3));
+        // A corner-first rectangle previews its whole outline (closed loop of 5 points) instead of a single rubber line.
+        const previewPointCount = polylineDraft.shape === 'rectangle' ? 5 : 2;
+        previewGeometry.setAttribute('position', new THREE.Float32BufferAttribute(Array.from({ length: previewPointCount }, () => start).flat(), 3));
         sketchPreviewLine = new THREE.Line(
           previewGeometry,
           new THREE.LineDashedMaterial({ color: 0x5de1ff, dashSize: 3, gapSize: 1.5, transparent: true, opacity: 0.95 }),
@@ -2655,7 +2673,10 @@ export default function ModelViewport({
           });
           const position = sketchPreviewLine.geometry.getAttribute('position');
           const mapped = mapPlanePoint(point[0], point[1], activePlane, 0.09, activePlaneOffset, activeFrame);
-          position.setXYZ(1, ...mapped);
+          if (position.count === 5) {
+            const [x0, y0] = polylineDraft.lastPoint;
+            [[point[0], y0], [point[0], point[1]], [x0, point[1]]].forEach(([x, y], index) => position.setXYZ(index + 1, ...mapPlanePoint(x, y, activePlane, 0.09, activePlaneOffset, activeFrame)));
+          } else position.setXYZ(1, ...mapped);
           position.needsUpdate = true;
           sketchPreviewLine.computeLineDistances();
         }
