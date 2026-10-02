@@ -21,27 +21,12 @@ const joints = [
 
 function panelProps(overrides = {}) {
   return {
-    document: { components, componentInstances, rigidGroups: [], joints: [], motionLinks: [], contactSets: [], assemblyConfigurations: [], activeAssemblyConfigurationId: '', sketches: [], references: [] },
+    document: { components, componentInstances, rigidGroups: [], joints: [],  assemblyConfigurations: [], activeAssemblyConfigurationId: '', sketches: [], references: [] },
     bodies: [{ id: 'body-1', name: 'Bryła ramy' }, { id: 'body-2', name: 'Pokrywa' }],
     selectedComponentId: 'part-1',
     selectedBodyIds: ['body-2'],
     explodeAmount: 0,
     onExplodeAmountChange: vi.fn(),
-    onSelectStoryboard: vi.fn(),
-    onCreateStoryboard: vi.fn(),
-    onUpdateStoryboard: vi.fn(),
-    onDeleteStoryboard: vi.fn(),
-    onAddStoryboardKeyframe: vi.fn(),
-    onDeleteStoryboardKeyframe: vi.fn(),
-    onSeekStoryboard: vi.fn(),
-    onPlayStoryboard: vi.fn(),
-    onStopStoryboard: vi.fn(),
-    onExportStoryboardVideo: vi.fn(),
-    onExportStoryboardInstructions: vi.fn(),
-    onPreviewStoryboardOffset: vi.fn(),
-    onPreviewStoryboardRotation: vi.fn(),
-    onPreviewStoryboardJoint: vi.fn(),
-    onAnimationNoteChange: vi.fn(),
     onCreate: vi.fn(),
     onUpdate: vi.fn(),
     onAssignBodies: vi.fn(),
@@ -60,19 +45,11 @@ function panelProps(overrides = {}) {
     onUpdateJoint: vi.fn(),
     onSetJointValue: vi.fn(),
     onDeleteJoint: vi.fn(),
-    onSelectMotionLink: vi.fn(),
-    onCreateMotionLink: vi.fn(),
-    onUpdateMotionLink: vi.fn(),
-    onDeleteMotionLink: vi.fn(),
     onSelectConfiguration: vi.fn(),
     onCreateConfiguration: vi.fn(),
     onUpdateConfiguration: vi.fn(),
     onApplyConfiguration: vi.fn(),
     onDeleteConfiguration: vi.fn(),
-    onSelectContactSet: vi.fn(),
-    onCreateContactSet: vi.fn(),
-    onUpdateContactSet: vi.fn(),
-    onDeleteContactSet: vi.fn(),
     onClose: vi.fn(),
     ...overrides,
   };
@@ -125,30 +102,6 @@ describe('ComponentPanel', () => {
     expect(screen.getByText(/jointy i historia modelu pozostają bez zmian/i)).toBeInTheDocument();
   });
 
-  it('creates and controls a persistent exploded-view storyboard', () => {
-    const storyboard = { id: 'storyboard-1', name: 'Montaż', duration: 4, keyframes: [{ id: 'frame-1', time: 0, explodeAmount: 0 }, { id: 'frame-2', time: 4, explodeAmount: 1 }] };
-    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints: [], motionLinks: [], contactSets: [], assemblyConfigurations: [], animationStoryboards: [storyboard], activeAssemblyConfigurationId: '', sketches: [], references: [] }, selectedInstanceId: 'occurrence-part-2', activeStoryboardId: storyboard.id, animationTime: 2, explodeAmount: 0.5, animationInstanceOffsets: { 'occurrence-part-2': [12, 0, 0] }, animationInstanceRotations: { 'occurrence-part-2': [0, 0, 30] }, animationNote: 'Zdejmij ramę' });
-    render(<ComponentPanel {...props} />);
-    fireEvent.click(screen.getByRole('button', { name: /Odtwórz animację/i }));
-    expect(props.onPlayStoryboard).toHaveBeenCalledWith(storyboard);
-    fireEvent.click(screen.getByRole('button', { name: /Klatka/i }));
-    expect(props.onAddStoryboardKeyframe).toHaveBeenCalledWith(storyboard.id, 2, 0.5, { 'occurrence-part-2': [12, 0, 0] }, { 'occurrence-part-2': [0, 0, 30] }, {}, 'Zdejmij ramę');
-    fireEvent.change(screen.getByRole('spinbutton', { name: /Przesunięcie animacji X/i }), { target: { value: '25' } });
-    expect(props.onPreviewStoryboardOffset).toHaveBeenCalledWith('occurrence-part-2', [25, 0, 0]);
-    fireEvent.change(screen.getByRole('spinbutton', { name: /Obrót animacji Z/i }), { target: { value: '45' } });
-    expect(props.onPreviewStoryboardRotation).toHaveBeenCalledWith('occurrence-part-2', [0, 0, 45]);
-    fireEvent.change(screen.getByRole('slider', { name: /Czas storyboardu/i }), { target: { value: '3' } });
-    expect(props.onSeekStoryboard).toHaveBeenCalledWith(storyboard, 3);
-    fireEvent.click(screen.getByRole('button', { name: /Usuń klatkę 4.0 s/i }));
-    expect(props.onDeleteStoryboardKeyframe).toHaveBeenCalledWith(storyboard.id, 'frame-2');
-    fireEvent.change(screen.getByRole('spinbutton', { name: /Czas trwania storyboardu/i }), { target: { value: '8' } });
-    expect(props.onUpdateStoryboard).toHaveBeenCalledWith(storyboard.id, { duration: '8' });
-    fireEvent.click(screen.getByRole('button', { name: /Film WebM/i }));
-    expect(props.onExportStoryboardVideo).toHaveBeenCalledWith(storyboard);
-    fireEvent.click(screen.getByRole('button', { name: /Instrukcja HTML/i }));
-    expect(props.onExportStoryboardInstructions).toHaveBeenCalledWith(storyboard);
-  });
-
   it('creates a revolute joint between sibling occurrences', () => {
     const props = panelProps({ selectedInstanceId: 'occurrence-part-2' });
     render(<ComponentPanel {...props} />);
@@ -158,28 +111,20 @@ describe('ComponentPanel', () => {
   });
 
   it('edits joint limits and motion without obscuring it with occurrence placement', () => {
-    const storyboard = { id: 'storyboard-joint', name: 'Ruch jointa', duration: 4, keyframes: [{ id: 'frame-joint', time: 0, explodeAmount: 0 }] };
-    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints, motionLinks: [], contactSets: [], assemblyConfigurations: [], animationStoryboards: [storyboard], activeAssemblyConfigurationId: '', sketches: [], references: [] }, selectedInstanceId: 'occurrence-part-2', selectedJointId: 'joint-1', activeStoryboardId: storyboard.id, animationJointValues: { 'joint-1': 25 } });
+    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints, assemblyConfigurations: [], activeAssemblyConfigurationId: '', sketches: [], references: [] }, selectedInstanceId: 'occurrence-part-2', selectedJointId: 'joint-1' });
     render(<ComponentPanel {...props} />);
     expect(screen.queryByRole('spinbutton', { name: /Położenie X/i })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole('spinbutton', { name: /Numeryczna wartość jointa/i }), { target: { value: '35' } });
     expect(props.onSetJointValue).toHaveBeenCalledWith('joint-1', 35);
-    fireEvent.change(screen.getByRole('spinbutton', { name: /Wartość jointa w animacji/i }), { target: { value: '40' } });
-    expect(props.onPreviewStoryboardJoint).toHaveBeenCalledWith('joint-1', 40);
     fireEvent.change(screen.getByRole('spinbutton', { name: /Maksymalny limit jointa/i }), { target: { value: '90' } });
     expect(props.onUpdateJoint).toHaveBeenCalledWith('joint-1', { limits: { max: 90 } });
     fireEvent.click(screen.getByRole('button', { name: /Usuń joint/i }));
     expect(props.onDeleteJoint).toHaveBeenCalledWith('joint-1');
   });
 
-  it('creates a Motion Link and saves a configuration without duplicating component definitions', () => {
-    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints, motionLinks: [], assemblyConfigurations: [], activeAssemblyConfigurationId: '', sketches: [], references: [] } });
+  it('saves a configuration without duplicating component definitions', () => {
+    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints, assemblyConfigurations: [], activeAssemblyConfigurationId: '', sketches: [], references: [] } });
     render(<ComponentPanel {...props} />);
-    fireEvent.change(screen.getByRole('combobox', { name: /Źródłowy joint Motion Link/i }), { target: { value: 'joint-1' } });
-    fireEvent.change(screen.getByRole('combobox', { name: /Docelowy joint Motion Link/i }), { target: { value: 'joint-2' } });
-    fireEvent.change(screen.getByRole('spinbutton', { name: /^Przełożenie Motion Link$/i }), { target: { value: '-2' } });
-    fireEvent.click(screen.getByRole('button', { name: /Utwórz Motion Link/i }));
-    expect(props.onCreateMotionLink).toHaveBeenCalledWith({ sourceJointId: 'joint-1', targetJointId: 'joint-2', ratio: -2, offset: 0 });
     fireEvent.change(screen.getByRole('textbox', { name: /Nazwa nowej konfiguracji/i }), { target: { value: 'Transport' } });
     fireEvent.click(screen.getByRole('button', { name: /Zapisz nową/i }));
     expect(props.onCreateConfiguration).toHaveBeenCalledWith({ name: 'Transport' });
@@ -208,14 +153,6 @@ describe('ComponentPanel', () => {
     expect(props.onSelectInstance).toHaveBeenCalledWith('occurrence-part');
   });
 
-  it('creates a persistent Contact Set for two occurrences', () => {
-    const props = panelProps();
-    render(<ComponentPanel {...props} />);
-    fireEvent.change(screen.getByRole('combobox', { name: /Pierwsze wystąpienie Contact Set/i }), { target: { value: 'occurrence-part' } });
-    fireEvent.change(screen.getByRole('combobox', { name: /Drugie wystąpienie Contact Set/i }), { target: { value: 'occurrence-part-2' } });
-    fireEvent.click(screen.getByRole('button', { name: /Utwórz Contact Set/i }));
-    expect(props.onCreateContactSet).toHaveBeenCalledWith({ firstInstanceId: 'occurrence-part', secondInstanceId: 'occurrence-part-2' });
-  });
 });
 
 describe('NamedViewsPanel', () => {
@@ -239,7 +176,7 @@ describe('NamedViewsPanel', () => {
 describe('ProjectBrowser components', () => {
   it('labels a spatial sketch as 3D instead of a base plane', () => {
     const document = {
-      id: 'document-1', name: 'Projekt', components: [], componentInstances: [], rigidGroups: [], joints: [], motionLinks: [], contactSets: [], assemblyConfigurations: [], activeAssemblyConfigurationId: '', references: [],
+      id: 'document-1', name: 'Projekt', components: [], componentInstances: [], rigidGroups: [], joints: [],  assemblyConfigurations: [], activeAssemblyConfigurationId: '', references: [],
       sketches: [{ id: 'sketch-3d', name: 'Szkic 3D 1', space: '3d', plane: 'XY', visible: true, profiles: [] }],
     };
     render(<ProjectBrowser document={document} bodies={[]} selection={{ kind: 'document', id: 'document-1' }} onSelect={vi.fn()} onToggleReference={vi.fn()} onClose={vi.fn()} />);
@@ -250,10 +187,8 @@ describe('ProjectBrowser components', () => {
 
   it('shows the nested assembly tree and selects a component', () => {
     const onSelect = vi.fn();
-    const motionLinks = [{ id: 'motion-1', name: 'Przełożenie testowe', sourceJointId: 'joint-1', targetJointId: 'joint-2', ratio: -2, offset: 0, enabled: true }];
-    const contactSets = [{ id: 'contact-1', name: 'Kontakt ram', firstInstanceId: 'occurrence-part', secondInstanceId: 'occurrence-part-2', enabled: true }];
     const assemblyConfigurations = [{ id: 'configuration-1', name: 'Transport', description: '', instanceStates: [], jointStates: [] }];
-    render(<ProjectBrowser document={{ id: 'document-1', name: 'Projekt', components, componentInstances, rigidGroups: [], joints, motionLinks, contactSets, assemblyConfigurations, activeAssemblyConfigurationId: 'configuration-1', sketches: [], references: [] }} bodies={[]} selection={{ kind: 'document', id: 'document-1' }} onSelect={onSelect} onToggleReference={vi.fn()} onClose={vi.fn()} />);
+    render(<ProjectBrowser document={{ id: 'document-1', name: 'Projekt', components, componentInstances, rigidGroups: [], joints, assemblyConfigurations, activeAssemblyConfigurationId: 'configuration-1', sketches: [], references: [] }} bodies={[]} selection={{ kind: 'document', id: 'document-1' }} onSelect={onSelect} onToggleReference={vi.fn()} onClose={vi.fn()} />);
     fireEvent.click(screen.getByTitle(/Rozwiń strukturę części i złożeń/i));
     expect(screen.getByRole('button', { name: /Zaznacz wystąpienie złożenia Wspornik/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Zaznacz wystąpienie części Rama:1\./i }));
@@ -261,12 +196,6 @@ describe('ProjectBrowser components', () => {
     fireEvent.click(screen.getByRole('button', { name: /Jointy/i }));
     fireEvent.click(screen.getByRole('button', { name: /Obrót ramy/i }));
     expect(onSelect).toHaveBeenCalledWith({ kind: 'joint', id: 'joint-1', movingInstanceId: 'occurrence-part-2' });
-    fireEvent.click(screen.getByRole('button', { name: /Motion Links/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Przełożenie testowe/i }));
-    expect(onSelect).toHaveBeenCalledWith({ kind: 'motionLink', id: 'motion-1' });
-    fireEvent.click(screen.getByRole('button', { name: /Contact Sets/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Kontakt ram/i }));
-    expect(onSelect).toHaveBeenCalledWith({ kind: 'contactSet', id: 'contact-1' });
     fireEvent.click(screen.getByRole('button', { name: /Konfiguracje/i }));
     fireEvent.click(screen.getByRole('button', { name: /Transport/i }));
     expect(onSelect).toHaveBeenCalledWith({ kind: 'assemblyConfiguration', id: 'configuration-1' });

@@ -12,10 +12,8 @@ import { ensureDocumentBlocks } from './blocks.js';
 import { COMPONENT_TYPES, DEFAULT_INSTANCE_TRANSFORM, ensureDocumentComponents } from './components.js';
 import { JOINT_AXES, JOINT_TYPES, ensureDocumentJoints } from './assembly-joints.js';
 import { ensureDocumentAssemblyMotion } from './assembly-motion.js';
-import { ensureDocumentAssemblyAnimations, isAssemblyStoryboardsValid } from './assembly-animation.js';
 import { ensureDocumentLinkedProjects } from './linked-projects.js';
 import { MAX_NAMED_VIEWS, ensureDocumentNamedViews, normalizeNamedViewCamera } from './named-views.js';
-import { ensureDocumentRenderScene, isRenderSceneValid, normalizeRenderScene } from './render-scene.js';
 import { validateHoleStandard } from './hole-standards.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
@@ -27,7 +25,7 @@ import {
 } from './sketch-model.js';
 import { normalizeSketchFrame } from './sketch-frame.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 27;
+export const DOCUMENT_SCHEMA_VERSION = 28;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -492,6 +490,39 @@ function migrateV26ToV27(source, now) {
   return migrated;
 }
 
+// Render scenes, assembly storyboards, Motion Links and Contact Sets were removed when
+// MadCAD narrowed to 2D/3D design. Their data is kept inactive so nothing the user made is lost.
+const LEGACY_STUDIO_RENDER_SCENE = Object.freeze({ preset: 'studio', background: '#202936', ambientIntensity: 1.8, keyIntensity: 3.1, fillIntensity: 0.9, keyAzimuth: 135, keyElevation: 52, exposure: 1, shadows: true, ground: true });
+
+function isDefaultLegacyRenderScene(scene) {
+  if (!isRecord(scene)) return true;
+  if (Array.isArray(scene.decals) && scene.decals.length) return false;
+  return Object.entries(LEGACY_STUDIO_RENDER_SCENE).every(([key, value]) => scene[key] === undefined || scene[key] === value);
+}
+
+function migrateV27ToV28(source, now) {
+  const migrated = cloneDocument(source);
+  const legacy = { ...(isRecord(migrated.legacyRemovedFeatures) ? migrated.legacyRemovedFeatures : {}) };
+  if (Object.hasOwn(migrated, 'renderScene') && !isDefaultLegacyRenderScene(migrated.renderScene)) legacy.renderScene = migrated.renderScene;
+  for (const key of ['animationStoryboards', 'motionLinks', 'contactSets']) {
+    if (Array.isArray(migrated[key]) ? migrated[key].length : migrated[key] !== undefined) legacy[key] = migrated[key];
+  }
+  for (const key of ['renderScene', 'animationStoryboards', 'motionLinks', 'contactSets']) delete migrated[key];
+  if (Object.keys(legacy).length) migrated.legacyRemovedFeatures = legacy;
+  migrated.schemaVersion = 28;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 27,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 27, to: 28, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -518,6 +549,7 @@ const MIGRATIONS = new Map([
   [24, migrateV24ToV25],
   [25, migrateV25ToV26],
   [26, migrateV26ToV27],
+  [27, migrateV27ToV28],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -605,12 +637,8 @@ export function createDocument(name = 'Nowy projekt') {
     componentInstances: [],
     rigidGroups: [],
     joints: [],
-    motionLinks: [],
-    contactSets: [],
     assemblyConfigurations: [],
     activeAssemblyConfigurationId: '',
-    animationStoryboards: [],
-    renderScene: normalizeRenderScene(),
     references: [],
     blocks: [],
     drawings: [],
@@ -687,11 +715,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return preserveLegacyProduction(ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)))))))))));
+  return preserveLegacyProduction(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)))))))));
 }
 
 function projectFutureDocument(source) {
-  const projected = preserveLegacyProduction(ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))))))))))));
+  const projected = preserveLegacyProduction(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))))))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -757,9 +785,6 @@ export function validateDocument(document) {
   if (typeof document.id !== 'string' || !document.id.trim()) add('id', 'Dokument musi mieć niepuste ID.', 'REQUIRED');
   if (typeof document.name !== 'string' || !document.name.trim()) add('name', 'Projekt musi mieć nazwę.', 'REQUIRED');
   if (document.units !== 'mm') add('units', 'Bieżąca wersja obsługuje jednostkę dokumentu „mm”.', 'UNSUPPORTED');
-  if (!isRecord(document.renderScene)) add('renderScene', 'Wymagane są ustawienia sceny renderu.', 'TYPE');
-  else if (!isRenderSceneValid(document.renderScene)) add('renderScene', 'Ustawienia sceny renderu są nieprawidłowe.', 'INVALID');
-  if (!isAssemblyStoryboardsValid(document.animationStoryboards)) add('animationStoryboards', 'Storyboardy animacji złożenia są nieprawidłowe.', 'INVALID');
 
   const parameters = requireArray(document, 'parameters');
   const sketches = requireArray(document, 'sketches');
@@ -772,8 +797,6 @@ export function validateDocument(document) {
   const componentInstances = requireArray(document, 'componentInstances');
   const rigidGroups = requireArray(document, 'rigidGroups');
   const joints = requireArray(document, 'joints');
-  const motionLinks = requireArray(document, 'motionLinks');
-  const contactSets = requireArray(document, 'contactSets');
   const assemblyConfigurations = requireArray(document, 'assemblyConfigurations');
   const references = requireArray(document, 'references');
   const layers = requireArray(document, 'layers');
@@ -2044,61 +2067,6 @@ export function validateDocument(document) {
       visited.add(referenceId);
       referenceId = jointReferenceByMoving.get(referenceId);
     }
-  });
-
-  const motionLinkNames = new Set();
-  const linkedTargets = new Set();
-  const motionTargetsBySource = new Map();
-  motionLinks.forEach((link, index) => {
-    const base = `motionLinks[${index}]`;
-    if (!isRecord(link)) {
-      add(base, 'Motion Link musi być obiektem.', 'TYPE');
-      return;
-    }
-    registerId(link.id, `${base}.id`);
-    if (typeof link.name !== 'string' || !link.name.trim()) add(`${base}.name`, 'Motion Link wymaga nazwy.', 'REQUIRED');
-    else if (motionLinkNames.has(link.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa Motion Link: ${link.name}`, 'DUPLICATE');
-    else motionLinkNames.add(link.name.toLocaleLowerCase());
-    if (!joints.some((joint) => joint?.id === link.sourceJointId)) add(`${base}.sourceJointId`, 'Nie znaleziono źródłowego jointa.', 'BROKEN_REFERENCE');
-    if (!joints.some((joint) => joint?.id === link.targetJointId)) add(`${base}.targetJointId`, 'Nie znaleziono docelowego jointa.', 'BROKEN_REFERENCE');
-    if (link.sourceJointId === link.targetJointId) add(`${base}.targetJointId`, 'Motion Link nie może sterować samym sobą.', 'CYCLIC_REFERENCE');
-    if (linkedTargets.has(link.targetJointId)) add(`${base}.targetJointId`, 'Docelowy joint ma więcej niż jeden Motion Link.', 'DUPLICATE');
-    else linkedTargets.add(link.targetJointId);
-    if (!Number.isFinite(Number(link.ratio))) add(`${base}.ratio`, 'Przełożenie Motion Link musi być liczbą.', 'TYPE');
-    if (!Number.isFinite(Number(link.offset))) add(`${base}.offset`, 'Odsunięcie Motion Link musi być liczbą.', 'TYPE');
-    if (typeof link.enabled !== 'boolean') add(`${base}.enabled`, 'Stan Motion Link musi być wartością logiczną.', 'TYPE');
-    if (!motionTargetsBySource.has(link.sourceJointId)) motionTargetsBySource.set(link.sourceJointId, []);
-    motionTargetsBySource.get(link.sourceJointId).push(link.targetJointId);
-  });
-  const visitMotionLink = (jointId, path = new Set()) => {
-    if (path.has(jointId)) {
-      add('motionLinks', 'Graf Motion Link zawiera cykl sterowania.', 'CYCLIC_REFERENCE');
-      return;
-    }
-    const nextPath = new Set(path).add(jointId);
-    for (const targetId of motionTargetsBySource.get(jointId) || []) visitMotionLink(targetId, nextPath);
-  };
-  motionTargetsBySource.forEach((unused, sourceJointId) => visitMotionLink(sourceJointId));
-
-  const contactSetNames = new Set();
-  const contactPairs = new Set();
-  contactSets.forEach((contactSet, index) => {
-    const base = `contactSets[${index}]`;
-    if (!isRecord(contactSet)) {
-      add(base, 'Contact Set musi być obiektem.', 'TYPE');
-      return;
-    }
-    registerId(contactSet.id, `${base}.id`);
-    if (typeof contactSet.name !== 'string' || !contactSet.name.trim()) add(`${base}.name`, 'Contact Set wymaga nazwy.', 'REQUIRED');
-    else if (contactSetNames.has(contactSet.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa Contact Set: ${contactSet.name}`, 'DUPLICATE');
-    else contactSetNames.add(contactSet.name.toLocaleLowerCase());
-    if (!instanceIds.has(contactSet.firstInstanceId)) add(`${base}.firstInstanceId`, 'Nie znaleziono pierwszego wystąpienia Contact Set.', 'BROKEN_REFERENCE');
-    if (!instanceIds.has(contactSet.secondInstanceId)) add(`${base}.secondInstanceId`, 'Nie znaleziono drugiego wystąpienia Contact Set.', 'BROKEN_REFERENCE');
-    if (contactSet.firstInstanceId === contactSet.secondInstanceId) add(`${base}.secondInstanceId`, 'Contact Set wymaga dwóch różnych wystąpień.', 'VALUE');
-    const pairKey = [contactSet.firstInstanceId, contactSet.secondInstanceId].sort().join(':');
-    if (contactPairs.has(pairKey)) add(base, 'Para wystąpień ma więcej niż jeden Contact Set.', 'DUPLICATE');
-    else contactPairs.add(pairKey);
-    if (typeof contactSet.enabled !== 'boolean') add(`${base}.enabled`, 'Stan Contact Set musi być wartością logiczną.', 'TYPE');
   });
 
   const configurationNames = new Set();

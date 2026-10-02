@@ -46,25 +46,10 @@ function normalizedJoint(joint, index = 0) {
   };
 }
 
-function normalizedMotionLink(link, index = 0) {
-  return {
-    ...link,
-    id: typeof link?.id === 'string' && link.id ? link.id : createId('motion-link'),
-    name: String(link?.name || `Motion Link ${index + 1}`).trim().slice(0, 80) || `Motion Link ${index + 1}`,
-    sourceJointId: typeof link?.sourceJointId === 'string' ? link.sourceJointId : '',
-    targetJointId: typeof link?.targetJointId === 'string' ? link.targetJointId : '',
-    ratio: finiteNumber(link?.ratio, 1),
-    offset: finiteNumber(link?.offset),
-    enabled: link?.enabled !== false,
-  };
-}
-
 export function ensureDocumentJoints(document) {
   ensureDocumentComponents(document);
   if (!Array.isArray(document.joints)) document.joints = [];
   document.joints = document.joints.map(normalizedJoint);
-  if (!Array.isArray(document.motionLinks)) document.motionLinks = [];
-  document.motionLinks = document.motionLinks.map(normalizedMotionLink);
   return document;
 }
 
@@ -136,8 +121,7 @@ export function jointDrivenTransform(joint, value = joint?.value) {
 export function setJointValue(document, jointId, value, { clamp = false } = {}) {
   ensureDocumentJoints(document);
   const planned = new Map();
-  const plan = (plannedJointId, plannedValue, path = new Set()) => {
-    if (path.has(plannedJointId)) throw new Error('Motion Link utworzył cykl sterowania jointami.');
+  const plan = (plannedJointId, plannedValue) => {
     const joint = document.joints.find((item) => item.id === plannedJointId);
     if (!joint) throw new Error('Nie znaleziono jointa.');
     jointInstances(document, joint.referenceInstanceId, joint.movingInstanceId);
@@ -148,10 +132,6 @@ export function setJointValue(document, jointId, value, { clamp = false } = {}) 
       nextValue = Math.max(joint.limits.min, Math.min(joint.limits.max, nextValue));
     }
     planned.set(plannedJointId, nextValue);
-    const nextPath = new Set(path).add(plannedJointId);
-    for (const link of document.motionLinks.filter((item) => item.enabled && item.sourceJointId === plannedJointId)) {
-      plan(link.targetJointId, nextValue * link.ratio + link.offset, nextPath);
-    }
   };
   plan(jointId, value);
   for (const [plannedJointId, plannedValue] of planned) {
@@ -244,7 +224,6 @@ export function deleteAssemblyJoint(document, jointId) {
   const index = document.joints.findIndex((joint) => joint.id === jointId);
   if (index < 0) throw new Error('Nie znaleziono jointa.');
   const deleted = document.joints.splice(index, 1)[0];
-  document.motionLinks = document.motionLinks.filter((link) => link.sourceJointId !== jointId && link.targetJointId !== jointId);
   if (Array.isArray(document.assemblyConfigurations)) {
     document.assemblyConfigurations = document.assemblyConfigurations.map((configuration) => ({
       ...configuration,
@@ -260,63 +239,5 @@ export function removeJointsForInstances(document, instanceIds) {
   const removed = new Set(instanceIds);
   const deletedIds = document.joints.filter((joint) => removed.has(joint.referenceInstanceId) || removed.has(joint.movingInstanceId)).map((joint) => joint.id);
   document.joints = document.joints.filter((joint) => !deletedIds.includes(joint.id));
-  document.motionLinks = document.motionLinks.filter((link) => !deletedIds.includes(link.sourceJointId) && !deletedIds.includes(link.targetJointId));
   return deletedIds;
-}
-
-function assertMotionLinkGraph(document, sourceJointId, targetJointId, excludedLinkId = '') {
-  if (sourceJointId === targetJointId) throw new Error('Motion Link nie może łączyć jointa z nim samym.');
-  if (!document.joints.some((joint) => joint.id === sourceJointId) || !document.joints.some((joint) => joint.id === targetJointId)) throw new Error('Motion Link wymaga dwóch istniejących jointów.');
-  if (document.motionLinks.some((link) => link.id !== excludedLinkId && link.targetJointId === targetJointId)) throw new Error('Docelowy joint ma już Motion Link sterujący jego wartością.');
-  const targetsBySource = new Map();
-  for (const link of document.motionLinks.filter((item) => item.id !== excludedLinkId)) {
-    if (!targetsBySource.has(link.sourceJointId)) targetsBySource.set(link.sourceJointId, []);
-    targetsBySource.get(link.sourceJointId).push(link.targetJointId);
-  }
-  if (!targetsBySource.has(sourceJointId)) targetsBySource.set(sourceJointId, []);
-  targetsBySource.get(sourceJointId).push(targetJointId);
-  const visit = (jointId, path = new Set()) => {
-    if (path.has(jointId)) throw new Error('Motion Link utworzyłby cykl sterowania jointami.');
-    const nextPath = new Set(path).add(jointId);
-    for (const nextId of targetsBySource.get(jointId) || []) visit(nextId, nextPath);
-  };
-  visit(sourceJointId);
-}
-
-export function createMotionLink(document, { name = '', sourceJointId, targetJointId, ratio = 1, offset = 0 } = {}) {
-  ensureDocumentJoints(document);
-  assertMotionLinkGraph(document, sourceJointId, targetJointId);
-  if (!Number.isFinite(Number(ratio)) || !Number.isFinite(Number(offset))) throw new Error('Motion Link wymaga liczbowego przełożenia i odsunięcia.');
-  const link = normalizedMotionLink({ id: createId('motion-link'), name, sourceJointId, targetJointId, ratio, offset, enabled: true }, document.motionLinks.length);
-  if (document.motionLinks.some((item) => item.name.toLocaleLowerCase() === link.name.toLocaleLowerCase())) link.name = `${link.name} ${document.motionLinks.length + 1}`.slice(0, 80);
-  document.motionLinks.push(link);
-  setJointValue(document, sourceJointId, document.joints.find((joint) => joint.id === sourceJointId).value, { clamp: true });
-  return link;
-}
-
-export function updateMotionLink(document, linkId, patch = {}) {
-  ensureDocumentJoints(document);
-  const index = document.motionLinks.findIndex((link) => link.id === linkId);
-  if (index < 0) throw new Error('Nie znaleziono Motion Link.');
-  const current = document.motionLinks[index];
-  const sourceJointId = patch.sourceJointId === undefined ? current.sourceJointId : patch.sourceJointId;
-  const targetJointId = patch.targetJointId === undefined ? current.targetJointId : patch.targetJointId;
-  const ratio = patch.ratio === undefined ? current.ratio : Number(patch.ratio);
-  const offset = patch.offset === undefined ? current.offset : Number(patch.offset);
-  if (!Number.isFinite(ratio) || !Number.isFinite(offset)) throw new Error('Motion Link wymaga liczbowego przełożenia i odsunięcia.');
-  if (patch.enabled !== undefined && typeof patch.enabled !== 'boolean') throw new Error('Stan Motion Link musi być wartością logiczną.');
-  assertMotionLinkGraph(document, sourceJointId, targetJointId, linkId);
-  const name = patch.name === undefined ? current.name : String(patch.name || '').trim().slice(0, 80) || current.name;
-  if (document.motionLinks.some((link) => link.id !== linkId && link.name.toLocaleLowerCase() === name.toLocaleLowerCase())) throw new Error('Nazwa Motion Link musi być unikalna.');
-  const next = normalizedMotionLink({ ...current, ...patch, id: current.id, name, sourceJointId, targetJointId, ratio, offset }, index);
-  document.motionLinks[index] = next;
-  if (next.enabled) setJointValue(document, sourceJointId, document.joints.find((joint) => joint.id === sourceJointId).value, { clamp: true });
-  return next;
-}
-
-export function deleteMotionLink(document, linkId) {
-  ensureDocumentJoints(document);
-  const index = document.motionLinks.findIndex((link) => link.id === linkId);
-  if (index < 0) throw new Error('Nie znaleziono Motion Link.');
-  return document.motionLinks.splice(index, 1)[0];
 }

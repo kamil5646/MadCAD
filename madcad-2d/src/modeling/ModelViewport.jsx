@@ -3,7 +3,6 @@ import { alternateModifierPressed, multipleSelectionLabel, primaryModifierPresse
 import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d, Orbit, Square, Triangle, X, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { composeSketchSnapContext, DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
@@ -12,9 +11,7 @@ import { lineTypeDefinition, resolveEntityAppearance } from '../cad-core/layers.
 import { allowsDirectionalConstraintSuggestion, inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
 import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagnostics.js';
 import { normalizeComponentAppearance } from '../cad-core/components.js';
-import { normalizeRenderScene } from '../cad-core/render-scene.js';
 import { calculateExplodedOffsets } from '../cad-core/exploded-view.js';
-import { jointDrivenTransform } from '../cad-core/assembly-joints.js';
 import { configureCadMouseNavigation, shouldHandlePrimaryViewportPointer, VIEWPORT_NAVIGATION_MODES, viewportCursor } from './viewport-navigation.js';
 import { resolveReferenceSketchIds } from './sketch-visibility.js';
 import { createCurvatureColors, createCurvatureCombVertices } from './surface-analysis.js';
@@ -114,32 +111,6 @@ function addSketchDimensionAnnotations(group, sketch, parameters, plane, { plane
   return labels;
 }
 
-function faceDecalProjector(faceGroup, mesh, decal) {
-  const position = mesh.geometry.getAttribute('position');
-  const normalAttribute = mesh.geometry.getAttribute('normal');
-  const index = mesh.geometry.getIndex();
-  const vertexIndexes = Array.from({ length: faceGroup.count }, (_unused, offset) => index.getX(faceGroup.start + offset));
-  if (!vertexIndexes.length) return null;
-  mesh.updateMatrixWorld(true);
-  const points = vertexIndexes.map((vertexIndex) => mesh.localToWorld(new THREE.Vector3().fromBufferAttribute(position, vertexIndex)));
-  const center = points.reduce((sum, point) => sum.add(point), new THREE.Vector3()).multiplyScalar(1 / points.length);
-  const normal = vertexIndexes.reduce((sum, vertexIndex) => {
-    if (normalAttribute) sum.add(new THREE.Vector3().fromBufferAttribute(normalAttribute, vertexIndex));
-    return sum;
-  }, new THREE.Vector3());
-  if (normal.lengthSq() < 1e-8) normal.copy(new THREE.Triangle(points[0], points[1], points[2]).getNormal(new THREE.Vector3()));
-  normal.transformDirection(mesh.matrixWorld).normalize();
-  const tangent = new THREE.Vector3().crossVectors(Math.abs(normal.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0), normal).normalize();
-  const bitangent = new THREE.Vector3().crossVectors(normal, tangent).normalize();
-  const projections = points.map((point) => point.clone().sub(center));
-  const width = Math.max(0.1, ...projections.map((point) => Math.abs(point.dot(tangent)) * 2));
-  const height = Math.max(0.1, ...projections.map((point) => Math.abs(point.dot(bitangent)) * 2));
-  center.addScaledVector(tangent, width * decal.offsetU).addScaledVector(bitangent, height * decal.offsetV).addScaledVector(normal, 0.02);
-  const orientation = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal));
-  orientation.z += decal.rotation * Math.PI / 180;
-  return { position: center, orientation, size: new THREE.Vector3(width * decal.scale, height * decal.scale, Math.max(width, height) * 0.25 + 0.2) };
-}
-
 function numericValue(value, parameters) {
   const direct = Number(value);
   if (Number.isFinite(direct)) return direct;
@@ -150,6 +121,9 @@ function numericValue(value, parameters) {
     return 10;
   }
 }
+
+// Fixed studio lighting for modeling (the configurable render scene was removed).
+const VIEWPORT_LIGHTING = Object.freeze({ background: '#202936', ambientIntensity: 1.8, keyIntensity: 3.1, fillIntensity: 0.9, keyAzimuth: 135, keyElevation: 52, exposure: 1, shadows: true, ground: true });
 
 function mapPlanePoint(x, y, plane, z = 0.04, planeOffset = 0, frame = null) {
   if (frame) return mapSketchPoint(frame, x, y, z);
@@ -687,9 +661,6 @@ export default function ModelViewport({
   collisionInstanceIds = [],
   exactCollisionInstanceIds = [],
   explodeAmount = 0,
-  animationInstanceOffsets = {},
-  animationInstanceRotations = {},
-  animationJointValues = {},
   cameraRequest = null,
   fitRequest = null,
   selectionModeRequestId = 0,
@@ -723,7 +694,6 @@ export default function ModelViewport({
   snapEnabled = true,
   snapThresholdPx = DEFAULT_SNAP_THRESHOLD_PX,
   autoConstraints = true,
-  renderScene,
   renderCaptureRef,
 }) {
   const hostRef = useRef(null);
@@ -947,7 +917,7 @@ export default function ModelViewport({
       cameraSnapshotRef.current = null;
     }
 
-    const sceneSettings = normalizeRenderScene(renderScene);
+    const sceneSettings = VIEWPORT_LIGHTING;
     renderer.toneMappingExposure = sceneSettings.exposure;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(sceneSettings.background);
@@ -1056,15 +1026,12 @@ export default function ModelViewport({
     const occurrenceMatrix = (instance, visited = new Set()) => {
       if (!instance || visited.has(instance.id)) return new THREE.Matrix4();
       if (matrixCache.has(instance.id)) return matrixCache.get(instance.id).clone();
-      const controllingJoint = joints.find((joint) => joint.enabled !== false && joint.movingInstanceId === instance.id && Object.hasOwn(animationJointValues, joint.id));
-      const transform = controllingJoint ? jointDrivenTransform(controllingJoint, animationJointValues[controllingJoint.id]) : instance.transform || {};
-      const animationOffset = animationInstanceOffsets[instance.id] || [0, 0, 0];
-      const animationRotation = animationInstanceRotations[instance.id] || [0, 0, 0];
-      const position = new THREE.Vector3((Number(transform.x) || 0) + (Number(animationOffset[0]) || 0), (Number(transform.y) || 0) + (Number(animationOffset[1]) || 0), (Number(transform.z) || 0) + (Number(animationOffset[2]) || 0));
+      const transform = instance.transform || {};
+      const position = new THREE.Vector3(Number(transform.x) || 0, Number(transform.y) || 0, Number(transform.z) || 0);
       const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(
-        ((Number(transform.rotationX) || 0) + (Number(animationRotation[0]) || 0)) * Math.PI / 180,
-        ((Number(transform.rotationY) || 0) + (Number(animationRotation[1]) || 0)) * Math.PI / 180,
-        ((Number(transform.rotationZ) || 0) + (Number(animationRotation[2]) || 0)) * Math.PI / 180,
+        (Number(transform.rotationX) || 0) * Math.PI / 180,
+        (Number(transform.rotationY) || 0) * Math.PI / 180,
+        (Number(transform.rotationZ) || 0) * Math.PI / 180,
         'XYZ',
       ));
       const local = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
@@ -1094,10 +1061,6 @@ export default function ModelViewport({
         if (explodedOffset) object.position.add(new THREE.Vector3(...explodedOffset));
         object.userData.occurrenceId = placement.occurrenceId;
         object.userData.explodedOffset = explodedOffset || [0, 0, 0];
-        object.userData.animationOffset = animationInstanceOffsets[placement.occurrenceId] || [0, 0, 0];
-        object.userData.animationRotation = animationInstanceRotations[placement.occurrenceId] || [0, 0, 0];
-        const animatedJoint = joints.find((joint) => joint.movingInstanceId === placement.occurrenceId && Object.hasOwn(animationJointValues, joint.id));
-        object.userData.animationJointValue = animatedJoint ? animationJointValues[animatedJoint.id] : null;
         return object;
       };
       const geometry = new THREE.BufferGeometry();
@@ -1173,22 +1136,6 @@ export default function ModelViewport({
       modelGroup.add(mesh);
       pickables.push(mesh);
       facePickables.push(mesh);
-
-      for (const decal of sceneSettings.decals.filter((item) => item.visible && item.bodyId === body.id)) {
-        const faceGroup = (body.faceGroups || []).find((group) => group.topologyId === decal.faceId);
-        const projector = faceGroup ? faceDecalProjector(faceGroup, mesh, decal) : null;
-        if (!projector) continue;
-        const texture = new THREE.TextureLoader().load(decal.imageData, () => {
-          if (window.__madcadRenderSceneState) window.__madcadRenderSceneState.loadedDecals = (window.__madcadRenderSceneState.loadedDecals || 0) + 1;
-        });
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-        const decalMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: decal.opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, side: THREE.DoubleSide });
-        const decalMesh = new THREE.Mesh(new DecalGeometry(mesh, projector.position, projector.orientation, projector.size), decalMaterial);
-        decalMesh.renderOrder = 5;
-        decalMesh.userData = { decalId: decal.id, bodyId: body.id, occurrenceId: placement.occurrenceId };
-        modelGroup.add(decalMesh);
-      }
 
       const showFormCage = Boolean(body.form?.controlVertices?.length
         && ((activeCommand?.type === 'formBody' && body.sourceFeatureId === activeCommand.previewFeature?.id) || selected));
@@ -1417,63 +1364,6 @@ export default function ModelViewport({
       }
       }
     }
-    const animationGuideGroup = new THREE.Group();
-    const animationGuideState = [];
-    const animatedInstance = instanceById.get(selectedComponentInstanceId);
-    if (animatedInstance) {
-      const offset = new THREE.Vector3(...(animationInstanceOffsets[animatedInstance.id] || [0, 0, 0]));
-      const rotationValues = animationInstanceRotations[animatedInstance.id] || [0, 0, 0];
-      const currentOrigin = new THREE.Vector3().applyMatrix4(occurrenceMatrix(animatedInstance));
-      const animatedBounds = facePickables.filter((object) => object.userData.occurrenceId === animatedInstance.id).reduce((bounds, object) => {
-        object.updateWorldMatrix(true, false);
-        return bounds.union(new THREE.Box3().setFromObject(object));
-      }, new THREE.Box3());
-      const guideCenter = animatedBounds.isEmpty() ? currentOrigin : animatedBounds.getCenter(new THREE.Vector3());
-      const parent = animatedInstance.parentInstanceId ? instanceById.get(animatedInstance.parentInstanceId) : null;
-      const parentQuaternion = new THREE.Quaternion();
-      (parent ? occurrenceMatrix(parent) : new THREE.Matrix4()).decompose(new THREE.Vector3(), parentQuaternion, new THREE.Vector3());
-      const worldOffset = offset.clone().applyQuaternion(parentQuaternion);
-      if (worldOffset.length() > 1e-6) {
-        const start = guideCenter.clone().sub(worldOffset);
-        const arrow = new THREE.ArrowHelper(worldOffset.clone().normalize(), start, worldOffset.length(), 0x44d7ff, Math.min(5, Math.max(2.2, worldOffset.length() * 0.18)), 2.2);
-        arrow.renderOrder = 12;
-        arrow.traverse((object) => { object.renderOrder = 12; if (object.material) object.material.depthTest = false; });
-        animationGuideGroup.add(arrow);
-        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, Math.max(0.1, worldOffset.length() - 2), 10), new THREE.MeshBasicMaterial({ color: 0x44d7ff, depthTest: false }));
-        shaft.position.copy(start).add(guideCenter).multiplyScalar(0.5);
-        shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), worldOffset.clone().normalize());
-        shaft.renderOrder = 12;
-        animationGuideGroup.add(shaft);
-        animationGuideState.push({ kind: 'translation', instanceId: animatedInstance.id, length: worldOffset.length() });
-      }
-      const dominantAxis = rotationValues.reduce((best, value, index) => Math.abs(value) > Math.abs(rotationValues[best]) ? index : best, 0);
-      const degrees = Number(rotationValues[dominantAxis]) || 0;
-      if (Math.abs(degrees) > 1e-6) {
-        const axis = new THREE.Vector3(dominantAxis === 0 ? 1 : 0, dominantAxis === 1 ? 1 : 0, dominantAxis === 2 ? 1 : 0).applyQuaternion(parentQuaternion).normalize();
-        const basisA = new THREE.Vector3(0, 0, 1);
-        if (Math.abs(axis.dot(basisA)) > 0.9) basisA.set(0, 1, 0);
-        basisA.cross(axis).normalize();
-        const basisB = axis.clone().cross(basisA).normalize();
-        const radius = Math.max(10, Math.min(24, Math.max(...bodies.flatMap((body) => body.metrics?.dimensions || [0])) * 0.35));
-        const sweep = Math.sign(degrees) * Math.min(Math.PI * 1.75, Math.max(Math.PI * 0.45, Math.abs(degrees) * Math.PI / 180));
-        const points = Array.from({ length: 41 }, (_, index) => {
-          const angle = sweep * index / 40;
-          return guideCenter.clone().addScaledVector(basisA, Math.cos(angle) * radius).addScaledVector(basisB, Math.sin(angle) * radius);
-        });
-        const arc = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 40, 0.48, 8, false), new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.96, depthTest: false }));
-        arc.renderOrder = 12;
-        animationGuideGroup.add(arc);
-        const tangent = points.at(-1).clone().sub(points.at(-2)).normalize();
-        const arrowHead = new THREE.Mesh(new THREE.ConeGeometry(1.9, 5, 14), new THREE.MeshBasicMaterial({ color: 0xffc857, depthTest: false }));
-        arrowHead.position.copy(points.at(-1));
-        arrowHead.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
-        arrowHead.renderOrder = 13;
-        animationGuideGroup.add(arrowHead);
-        animationGuideState.push({ kind: 'rotation', instanceId: animatedInstance.id, axis: ['x', 'y', 'z'][dominantAxis], degrees });
-      }
-    }
-    scene.add(animationGuideGroup);
-    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadStoryboardGuideState = animationGuideState;
     const jointGroup = new THREE.Group();
     const jointVisuals = [];
     {
@@ -3030,9 +2920,6 @@ export default function ModelViewport({
           metalness: object.material.metalness,
           roughness: object.material.roughness,
           explodedOffset: object.userData.explodedOffset,
-          animationOffset: object.userData.animationOffset,
-          animationRotation: object.userData.animationRotation,
-          animationJointValue: object.userData.animationJointValue,
         }));
       }
     };
@@ -3073,10 +2960,6 @@ export default function ModelViewport({
       renderer.render(scene, camera);
       return dataUrl;
     };
-    if (new URLSearchParams(window.location.search).has('verify')) {
-      const { decals: sceneDecals, ...sceneDebug } = sceneSettings;
-      window.__madcadRenderSceneState = { ...sceneDebug, decals: sceneDecals.map(({ imageData: _imageData, ...decal }) => decal), loadedDecals: 0, keyPosition: key.position.toArray() };
-    }
 
     return () => {
       cancelAnimationFrame(frame);
@@ -3091,7 +2974,6 @@ export default function ModelViewport({
       if (cameraApiRef.current?.camera === camera) cameraApiRef.current = null;
       controls.dispose();
       disposeObject(modelGroup);
-      disposeObject(animationGuideGroup);
       disposeObject(jointGroup);
       disposeObject(sketchGroup);
       disposeObject(directGroup);
@@ -3122,18 +3004,16 @@ export default function ModelViewport({
       delete window.__madcadConstructionPointState;
       delete window.__madcadSectionViewState;
       delete window.__madcadJointVisualState;
-      delete window.__madcadStoryboardGuideState;
       delete window.__madcadCameraState;
       delete window.__madcadViewportFrameState;
       delete window.__madcadViewportNavigationState;
       delete window.__madcadFormCageState;
       delete window.__madcadFormPointerDebug;
-      delete window.__madcadRenderSceneState;
       delete window.__madcadManufacturingVisualState;
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeUsesFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, sceneSelectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, selectedSketchConstraintId, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeUsesFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, sceneSelectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, selectedSketchConstraintId, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

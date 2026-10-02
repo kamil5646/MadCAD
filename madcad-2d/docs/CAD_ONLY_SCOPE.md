@@ -13,8 +13,29 @@ modeli bryłowych/powierzchniowych i rysunków technicznych.
   aplikacji slicera. Test kompatybilności importu 3MF używa zapisanego
   pliku geometrii; nie uruchamia zewnętrznego slicera.
 
+Druga decyzja użytkownika (2026-10-02) usuwa też dodatki spoza projektowania:
+
+- Symulacje: szybka analiza statyczna, MES belki 1D, MES bryły 3D
+  i analiza cieplna (były tylko poleceniami, bez danych w pliku).
+- Scena renderu, naklejki, zapis renderu PNG, storyboardy animacji złożenia,
+  eksport filmu WebM i instrukcji montażu HTML.
+- Edycja siatek skanów: czyszczenie, orientacja, łatanie otworów, redukcja,
+  wygładzanie, remesh i grupy ścian. Diagnostyka importowanej siatki
+  i zamiana zamkniętej siatki na bryłę B-Rep zostają.
+- Motion Links i Contact Sets. Komponenty, wystąpienia, Ground, grupy
+  sztywne, jointy, konfiguracje, widok rozstrzelony i statyczna kontrola
+  kolizji (Interference) zostają.
+
 Usunięto moduły wykonujące te funkcje oraz ich testy. Testy CAD zostały
 zachowane; manifest obejmuje 51 scenariuszy desktopowych zamiast 55.
+
+## Zgodność projektów v28
+
+Migracja v27 → v28 usuwa z aktywnego dokumentu `renderScene`,
+`animationStoryboards`, `motionLinks` i `contactSets`. Niepuste dane (oraz scena
+renderu inna niż domyślna) trafiają do nieaktywnego `legacyRemovedFeatures`,
+więc otwarcie i zapis nie kasują pracy użytkownika. Test rdzenia sprawdza
+archiwizację, brak archiwum dla danych domyślnych i round-trip.
 
 ## Zachowane funkcje CAD
 

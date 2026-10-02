@@ -369,8 +369,6 @@ function cleanupAssemblyStateForInstances(document, removedIds) {
     .filter((joint) => removedIds.has(joint.referenceInstanceId) || removedIds.has(joint.movingInstanceId))
     .map((joint) => joint.id));
   if (Array.isArray(document.joints)) document.joints = document.joints.filter((joint) => !removedJointIds.has(joint.id));
-  if (Array.isArray(document.motionLinks)) document.motionLinks = document.motionLinks.filter((link) => !removedJointIds.has(link.sourceJointId) && !removedJointIds.has(link.targetJointId));
-  if (Array.isArray(document.contactSets)) document.contactSets = document.contactSets.filter((contactSet) => !removedIds.has(contactSet.firstInstanceId) && !removedIds.has(contactSet.secondInstanceId));
   if (Array.isArray(document.assemblyConfigurations)) {
     document.assemblyConfigurations = document.assemblyConfigurations.map((configuration) => ({
       ...configuration,

@@ -53,7 +53,6 @@ module.exports = Object.freeze({
     'scripts/verify-draft-analysis.cjs',
     'scripts/verify-surface-analysis.cjs',
     'scripts/verify-named-views.cjs',
-    'scripts/verify-render-scene.cjs',
     'scripts/verify-drawing-workspace.cjs',
     'scripts/verify-sketch-drawing.cjs',
   ]),

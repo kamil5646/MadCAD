@@ -49,7 +49,7 @@ import {
   updateComponent,
   updateComponentInstance,
 } from '../src/cad-core/components.js';
-import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../src/cad-core/assembly-joints.js';
+import { createAssemblyJoint, deleteAssemblyJoint, setJointValue, updateAssemblyJoint } from '../src/cad-core/assembly-joints.js';
 import { createLinkedProject, linkedProjectState } from '../src/cad-core/linked-projects.js';
 import { compareProjectDocuments } from '../src/cad-core/project-diff.js';
 import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/project-health.js';
@@ -59,8 +59,7 @@ import { aciFromHex } from '../src/cad-core/aci-colors.js';
 import { createLayer as createSketchLayer } from '../src/cad-core/layers.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
-import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
+import { applyAssemblyConfiguration, createAssemblyConfiguration, deleteAssemblyConfiguration, detectAssemblyCollisions, updateAssemblyConfiguration } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
 import { evaluateFeatureHistory, evaluateFeatureHistoryCooperatively } from '../src/cad-core/feature-history.js';
@@ -160,8 +159,6 @@ import {
   updateBlockInstanceAttributes,
 } from '../src/cad-core/blocks.js';
 import { calculateExplodedOffsets } from '../src/cad-core/exploded-view.js';
-import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboard, sampleAssemblyStoryboardState, updateAssemblyStoryboard } from '../src/cad-core/assembly-animation.js';
-import { assemblyInstructionHtml } from '../src/cad-core/assembly-instructions.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import { formatDimensionValue, sketchDimensionAnnotations } from '../src/cad-core/sketch-dimension-annotations.js';
@@ -198,48 +195,6 @@ test('widok rozstrzelony wyznacza deterministyczne przesunięcia bez zmiany poł
   assert.ok(Math.abs(Math.hypot(...coincident.a) - 25) < 1e-9);
   assert.notDeepEqual(coincident.a, coincident.b);
   assert.deepEqual(calculateExplodedOffsets([{ id: 'a' }], 0, 25), { a: [0, 0, 0] });
-});
-
-test('storyboard zapisuje klatki rozłożenia i interpoluje je bez zmiany złożenia', () => {
-  const document = createDocument('Animacja złożenia');
-  const cameraStart = { position: [10, 10, 10], target: [0, 0, 0], up: [0, 0, 1] };
-  const cameraEnd = { position: [20, 10, 10], target: [5, 0, 0], up: [0, 0, 1] };
-  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż', duration: 4, keyframes: [{ time: 0, explodeAmount: 0, instanceOffsets: { 'occurrence-a': [0, 0, 0] }, instanceRotations: { 'occurrence-a': [0, 0, 0] }, jointValues: { 'joint-a': 10 }, camera: cameraStart, note: 'Start' }] });
-  const end = addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 1, instanceOffsets: { 'occurrence-a': [20, 0, 0] }, instanceRotations: { 'occurrence-a': [0, 0, 90] }, jointValues: { 'joint-a': 50 }, camera: cameraEnd, note: 'Zdejmij osłonę' });
-  assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 0), 0);
-  assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 2), 0.5);
-  assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 4), 1);
-  const halfway = sampleAssemblyStoryboardState(document.animationStoryboards[0], 2);
-  assert.deepEqual(halfway.instanceOffsets['occurrence-a'], [10, 0, 0]);
-  assert.deepEqual(halfway.instanceRotations['occurrence-a'], [0, 0, 45]);
-  assert.equal(halfway.jointValues['joint-a'], 30);
-  assert.deepEqual(halfway.camera.position, [15, 10, 10]);
-  assert.equal(halfway.note, 'Zdejmij osłonę');
-  const reopened = openDocument(structuredClone(document)).document;
-  assert.deepEqual(reopened.animationStoryboards[0].keyframes.map((frame) => [frame.time, frame.explodeAmount]), [[0, 0], [4, 1]]);
-  deleteStoryboardKeyframe(document, storyboard.id, end.id);
-  assert.equal(document.animationStoryboards[0].keyframes.length, 1);
-  updateAssemblyStoryboard(document, storyboard.id, { name: 'Demontaż', duration: 8 });
-  assert.equal(document.animationStoryboards[0].name, 'Demontaż');
-  deleteAssemblyStoryboard(document, storyboard.id);
-  assert.equal(document.animationStoryboards.length, 0);
-});
-
-test('storyboard tworzy bezpieczną i drukowalną instrukcję montażową HTML', () => {
-  const document = createDocument('Projekt <ramy>');
-  document.componentInstances = [{ id: 'occurrence-a', name: 'Rama & osłona' }];
-  document.joints = [{ id: 'joint-a', name: 'Zawias "lewy"' }];
-  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż <A>', duration: 4, keyframes: [{ time: 0, note: 'Start' }] });
-  addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 0.75, instanceOffsets: { 'occurrence-a': [20, 0, 5] }, instanceRotations: { 'occurrence-a': [0, 0, 90] }, jointValues: { 'joint-a': 45 }, note: 'Zdejmij <osłonę>' });
-  const html = assemblyInstructionHtml(document, document.animationStoryboards[0], { frameImages: ['data:image/png;base64,aGVsbG8=', 'javascript:alert(1)'] });
-  assert.match(html, /Projekt &lt;ramy&gt;/);
-  assert.match(html, /Zdejmij &lt;osłonę&gt;/);
-  assert.match(html, /Rama &amp; osłona: X 20\.0, Y 0\.0, Z 5\.0 mm/);
-  assert.match(html, /Zawias &quot;lewy&quot;: 45\.0 °/);
-  assert.match(html, /75%/);
-  assert.match(html, /data:image\/png;base64,aGVsbG8=/);
-  assert.doesNotMatch(html, /javascript:alert/);
-  assert.doesNotMatch(html, /<osłonę>/);
 });
 
 test('komponenty budują bezpieczną hierarchię części i złożeń z własnością brył', () => {
@@ -410,25 +365,6 @@ test('migracja v11 dodaje pustą kolekcję jointów w bieżącym schemacie', () 
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 11 && entry.to === 12));
 });
 
-test('Motion Link przekazuje ruch z przełożeniem i blokuje cykle oraz wielu sterujących', () => {
-  const document = createDocument('Motion Links');
-  const assembly = createComponent(document, { name: 'Przekładnia', type: 'assembly', partNumber: 'A-ML' });
-  const parts = ['Napęd', 'Koło', 'Wskaźnik'].map((name, index) => createComponent(document, { name, partNumber: `P-ML${index + 1}`, parentId: assembly.id }));
-  const [driveOccurrence, wheelOccurrence, indicatorOccurrence] = parts.map((part) => document.componentInstances.find((instance) => instance.componentId === part.id));
-  const drive = createAssemblyJoint(document, { name: 'Napęd wejściowy', type: 'revolute', referenceInstanceId: wheelOccurrence.id, movingInstanceId: driveOccurrence.id, limits: { enabled: true, min: -180, max: 180 } });
-  const wheel = createAssemblyJoint(document, { name: 'Koło wyjściowe', type: 'revolute', referenceInstanceId: indicatorOccurrence.id, movingInstanceId: wheelOccurrence.id, limits: { enabled: true, min: -360, max: 360 } });
-  const link = createMotionLink(document, { name: 'Przełożenie 2:1', sourceJointId: drive.id, targetJointId: wheel.id, ratio: -2, offset: 10 });
-  setJointValue(document, drive.id, 25);
-  assert.equal(document.joints.find((joint) => joint.id === wheel.id).value, -40);
-  assert.equal(document.componentInstances.find((instance) => instance.id === wheelOccurrence.id).transform.rotationZ, -40);
-  assert.throws(() => createMotionLink(document, { sourceJointId: wheel.id, targetJointId: drive.id }), /cykl/);
-  assert.throws(() => createMotionLink(document, { sourceJointId: drive.id, targetJointId: wheel.id }), /już Motion Link/);
-  updateMotionLink(document, link.id, { ratio: 0.5, offset: 5 });
-  assert.equal(document.joints.find((joint) => joint.id === wheel.id).value, 17.5);
-  assert.equal(validateDocument(document).valid, true);
-  assert.equal(deleteMotionLink(document, link.id).id, link.id);
-});
-
 test('konfiguracje złożenia zapisują widoczność, położenie i ruch bez kopiowania geometrii', () => {
   const document = createDocument('Konfiguracje');
   const assembly = createComponent(document, { name: 'Zespół', type: 'assembly', partNumber: 'A-CFG' });
@@ -467,16 +403,12 @@ test('kontrola kolizji złożenia uwzględnia transformacje wystąpień i zagnie
     vertices: [0, 0, 0, 10, 0, 0, 10, 10, 0, 0, 10, 0, 0, 0, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10],
     triangles: [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7],
   }];
-  const contactSet = createContactSet(document, { name: 'Kostki robocze', firstInstanceId: first.id, secondInstanceId: second.id });
   const collision = detectAssemblyCollisions(document, bodies);
   assert.equal(collision.occurrences, 2);
   assert.equal(collision.collisions.length, 1);
   assert.equal(collision.collisions[0].overlapVolume, 500);
   assert.equal(collision.collisions[0].status, 'exact');
   assert.equal(collision.exactPairs, 1);
-  assert.equal(collision.activeContactPairs, 1);
-  assert.equal(collision.collisions[0].contactSetId, contactSet.id);
-  assert.equal(collision.contactSets[0].status, 'exact');
   const selectedCollision = detectAssemblyCollisions(document, bodies, { instanceIds: [second.id, first.id, second.id] });
   assert.deepEqual(selectedCollision.selectedInstanceIds, [second.id, first.id]);
   assert.equal(selectedCollision.checkedPairs, 1);
@@ -487,18 +419,12 @@ test('kontrola kolizji złożenia uwzględnia transformacje wystąpień i zagnie
   const boundedCollision = detectAssemblyCollisions(document, bodies, { maxExactTriangleTests: 1 });
   assert.equal(boundedCollision.status, 'partial');
   assert.equal(boundedCollision.collisions[0].status, 'broad-phase');
-  updateContactSet(document, contactSet.id, { enabled: false, name: 'Kontakt wyłączony' });
-  assert.equal(detectAssemblyCollisions(document, bodies).contactSets[0].status, 'disabled');
-  assert.throws(() => createContactSet(document, { firstInstanceId: second.id, secondInstanceId: first.id }), /już Contact Set/);
-  updateContactSet(document, contactSet.id, { enabled: true });
   updateComponentInstance(document, second.id, { transform: { x: 20 } });
   const separated = detectAssemblyCollisions(document, bodies);
   assert.equal(separated.collisions.length, 0);
-  assert.equal(separated.contactSets[0].status, 'clear');
-  assert.equal(deleteContactSet(document, contactSet.id).id, contactSet.id);
 });
 
-test('migracja v12 dodaje Motion Links i konfiguracje w bieżącym schemacie', () => {
+test('migracja v12 dodaje konfiguracje w bieżącym schemacie', () => {
   const legacy = createDocument('Migracja ruchu złożenia');
   legacy.schemaVersion = 12;
   delete legacy.motionLinks;
@@ -507,8 +433,8 @@ test('migracja v12 dodaje Motion Links i konfiguracje w bieżącym schemacie', (
   delete legacy.activeAssemblyConfigurationId;
   const opened = openDocument(legacy, { now: '2026-08-24T16:00:00.000Z' });
   assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
-  assert.deepEqual(opened.document.motionLinks, []);
-  assert.deepEqual(opened.document.contactSets, []);
+  assert.equal(opened.document.motionLinks, undefined);
+  assert.equal(opened.document.contactSets, undefined);
   assert.deepEqual(opened.document.assemblyConfigurations, []);
   assert.equal(opened.document.activeAssemblyConfigurationId, '');
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 12 && entry.to === 13));
@@ -3040,42 +2966,6 @@ test('zapisane widoki zachowują dokładną kamerę, unikalne nazwy i round-trip
   assert.throws(() => createNamedView(document, { name: 'Błędny', camera: { ...camera, target: camera.position } }), /musi różnić/);
   assert.equal(deleteNamedView(document, view.id).id, view.id);
   assert.equal(validateDocument(document).valid, true);
-});
-
-test('scena renderu ma bezpieczne presety, walidację i migrację starszego projektu', () => {
-  const document = createDocument('Render Scene');
-  assert.deepEqual(document.renderScene, normalizeRenderScene());
-  assert.equal(validateDocument(document).valid, true);
-
-  const daylight = normalizeRenderScene({ ...document.renderScene, ...renderEnvironmentPreset('daylight'), preset: 'daylight', shadows: false });
-  assert.equal(daylight.preset, 'daylight');
-  assert.equal(daylight.shadows, false);
-  assert.equal(daylight.background, '#b9cad8');
-  document.renderScene = daylight;
-  assert.equal(openDocument(JSON.parse(JSON.stringify(document))).document.renderScene.exposure, 1.05);
-
-  const legacy = JSON.parse(JSON.stringify(document));
-  delete legacy.renderScene;
-  const migrated = openDocument(legacy).document;
-  assert.deepEqual(migrated.renderScene, DEFAULT_RENDER_SCENE);
-  assert.equal(validateDocument(migrated).valid, true);
-
-  document.renderScene.exposure = 99;
-  assert.equal(validateDocument(document).valid, false);
-});
-
-test('naklejka renderu zachowuje trwałą ścianę, parametry i Undo-ready operacje', () => {
-  const document = createDocument('Decal');
-  const imageData = 'data:image/png;base64,iVBORw0KGgo=';
-  const decal = createRenderDecal(document, { name: 'Logo', bodyId: 'body-a', faceId: 'face-a', imageData });
-  assert.equal(decal.scale, 0.55);
-  assert.equal(validateDocument(document).valid, true);
-  updateRenderDecal(document, decal.id, { scale: 0.8, opacity: 0.65, rotation: 30 });
-  assert.deepEqual(document.renderScene.decals.map(({ name, bodyId, faceId, scale, opacity, rotation }) => ({ name, bodyId, faceId, scale, opacity, rotation })), [{ name: 'Logo', bodyId: 'body-a', faceId: 'face-a', scale: 0.8, opacity: 0.65, rotation: 30 }]);
-  assert.equal(openDocument(structuredClone(document)).document.renderScene.decals[0].imageData, imageData);
-  assert.equal(deleteRenderDecal(document, decal.id).id, decal.id);
-  assert.equal(document.renderScene.decals.length, 0);
-  assert.throws(() => createRenderDecal(document, { bodyId: 'body-a', faceId: 'face-a', imageData: 'data:text/plain;base64,QQ==' }), /PNG|JPEG|WebP/);
 });
 
 test('round-trip .madcad zachowuje dokument bez utraty danych', () => {
@@ -5921,4 +5811,33 @@ test('sketch dimension annotations sit outside the sketch with the driving value
   assert.equal(hole.constraintId, 'k3');
   assert.equal(formatDimensionValue(12.345), '12.35');
   assert.deepEqual(sketchDimensionAnnotations({ entities: [], dimensions: [] }), []);
+});
+
+test('migracja v27 → v28 archiwizuje usunięte dane renderu, animacji i ruchu bez utraty modelu', () => {
+  const legacy = createDocument('Projekt v27');
+  legacy.schemaVersion = 27;
+  legacy.renderScene = { preset: 'daylight', background: '#b9cad8', ambientIntensity: 2.2, keyIntensity: 3.8, fillIntensity: 1.1, keyAzimuth: 155, keyElevation: 62, exposure: 1.05, shadows: true, ground: true, decals: [] };
+  legacy.animationStoryboards = [{ id: 'storyboard-a', name: 'Montaż', duration: 4, keyframes: [] }];
+  legacy.motionLinks = [{ id: 'motion-link-a', name: 'Przełożenie', sourceJointId: 'j1', targetJointId: 'j2', ratio: 2, offset: 0, enabled: true }];
+  legacy.contactSets = [];
+  const sketchCount = legacy.sketches.length;
+  const opened = openDocument(structuredClone(legacy), { now: '2026-10-02T12:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
+  for (const key of ['renderScene', 'animationStoryboards', 'motionLinks', 'contactSets']) assert.equal(opened.document[key], undefined);
+  assert.deepEqual(opened.document.legacyRemovedFeatures, {
+    renderScene: legacy.renderScene,
+    animationStoryboards: legacy.animationStoryboards,
+    motionLinks: legacy.motionLinks,
+  });
+  assert.equal(opened.document.sketches.length, sketchCount);
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 27 && entry.to === 28));
+  const reopened = openDocument(JSON.parse(JSON.stringify(opened.document)));
+  assert.deepEqual(reopened.document.legacyRemovedFeatures, opened.document.legacyRemovedFeatures);
+  const plain = createDocument('Domyślny v27');
+  plain.schemaVersion = 27;
+  plain.renderScene = { ...legacy.renderScene, preset: 'studio', background: '#202936', ambientIntensity: 1.8, keyIntensity: 3.1, fillIntensity: 0.9, keyAzimuth: 135, keyElevation: 52, exposure: 1, decals: [] };
+  plain.animationStoryboards = [];
+  plain.motionLinks = [];
+  plain.contactSets = [];
+  assert.equal(openDocument(plain).document.legacyRemovedFeatures, undefined);
 });
