@@ -218,11 +218,11 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.') }}
           generate_release_notes: true
           body: |
-            ## CAD 2D/3D — 6.5.29
+            ## CAD 2D/3D — 6.5.30
 
-            Program skupia się na szkicach, bryłach, historii i dokumentacji 2D. Usunięto CAM, G-code, przygotowanie druku 3D, symulacje, render i animacje. Poprawiono wyrażenia wymiarów, dokładny eksport PDF/DXF i wzajemne zasłanianie brył na rysunkach. Starsze pliki zachowują dane wycofanych funkcji jako nieaktywne archiwum (schemat v28).
+            Poprawki widoku modelu: szwy walców, kul i torusów nie są już rysowane jako krawędzie części, cienie są dopasowane do rozmiaru modelu i mają ostre krawędzie, a wczytanie projektu pokazuje właściwy komunikat. Zawiera wszystkie zmiany 6.5.29 (program skupiony na szkicach, bryłach, historii i dokumentacji 2D).
 
-            Na wyraźną decyzję użytkownika pominięto ręczny test pracy CAD po zalogowaniu w zainstalowanej aplikacji Windows. Ten test nie został wykonany ani zaliczony. Automatyczne testy Windows, pełna bramka desktopowa oraz instalacja/start/deinstalacja NSIS nadal są wymagane przez workflow.
+            Ręczny test pracy CAD po zalogowaniu w zainstalowanej aplikacji Windows nie został wykonany. Automatyczne testy Windows, pełna bramka desktopowa oraz instalacja/start/deinstalacja NSIS są wymagane przez workflow.
 
             ## Ważne — wydanie bez podpisu producenta
 
