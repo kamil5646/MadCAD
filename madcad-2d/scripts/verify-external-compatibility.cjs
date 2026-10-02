@@ -90,23 +90,13 @@ app.whenReady().then(async () => {
     result.checks.freeCadStep = { status: 'downloaded', source: freeCadUrl, commit: freeCadCommit, bytes: freeCadStep.length, sha256: downloadedFreeCadSha256 };
     process.stdout.write('[external] FreeCAD STEP: pobrano przypięty fixture\n');
 
-    const bambuExecutable = process.platform === 'darwin' ? '/Applications/BambuStudio.app/Contents/MacOS/BambuStudio' : '';
     const bundledBambuBase64 = await fs.readFile(path.join(root, 'tests', 'fixtures', 'external', 'bambu-studio-2.8.2-tetrahedron.3mf.b64'), 'utf8');
-    let bambuThreeMf = Buffer.from(bundledBambuBase64.replace(/\s+/g, ''), 'base64');
-    let liveGenerated = false;
-    if (process.env.MADCAD_BAMBU_3MF_FIXTURE) {
-      bambuThreeMf = await fs.readFile(process.env.MADCAD_BAMBU_3MF_FIXTURE);
-    } else if (process.env.MADCAD_LIVE_BAMBU === '1' && bambuExecutable && await fs.access(bambuExecutable).then(() => true, () => false)) {
-      const outputName = 'bambu-studio-roundtrip.3mf';
-      await execFileAsync(bambuExecutable, ['--debug', '2', '--export-3mf', outputName, '--outputdir', temporaryRoot, path.join(root, 'tests', 'fixtures', 'external', 'slicer-tetrahedron-ascii.stl')], { timeout: 30000 });
-      bambuThreeMf = await fs.readFile(path.join(temporaryRoot, outputName));
-      liveGenerated = true;
-    }
+    const bambuThreeMf = Buffer.from(bundledBambuBase64.replace(/\s+/g, ''), 'base64');
     const inspection = inspectThreeMfArchive(bambuThreeMf);
     const bambuSha256 = crypto.createHash('sha256').update(bambuThreeMf).digest('hex');
-    if (!liveGenerated && !process.env.MADCAD_BAMBU_3MF_FIXTURE && bambuSha256 !== recordedBambuSha256) throw new Error(`Zapisany fixture Bambu Studio ma nieoczekiwany SHA-256: ${bambuSha256}.`);
+    if (bambuSha256 !== recordedBambuSha256) throw new Error(`Zapisany fixture Bambu Studio ma nieoczekiwany SHA-256: ${bambuSha256}.`);
     if (inspection.objectCount !== 1 || inspection.triangleCount !== 4 || inspection.modelFileCount < 2) throw new Error(`Niepoprawna inspekcja 3MF Bambu Studio: ${JSON.stringify(inspection)}`);
-    result.checks.bambuStudio = { status: 'passed', source: liveGenerated ? 'live-cli' : process.env.MADCAD_BAMBU_3MF_FIXTURE ? 'provided-fixture' : 'recorded-cli-output', version: '02.08.02.61', executableInstalled: Boolean(bambuExecutable && await fs.access(bambuExecutable).then(() => true, () => false)), bytes: bambuThreeMf.length, sha256: bambuSha256, ...inspection };
+    result.checks.bambuStudio = { status: 'passed', source: 'recorded-import-fixture', version: '02.08.02.61', bytes: bambuThreeMf.length, sha256: bambuSha256, ...inspection };
     process.stdout.write(`[external] Bambu Studio: ${result.checks.bambuStudio.status}\n`);
 
     await window.loadFile(path.join(root, 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });

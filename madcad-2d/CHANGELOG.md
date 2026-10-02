@@ -1,5 +1,13 @@
 # Changelog
 
+## W przygotowaniu — CAD 2D/3D (2026-10-02)
+
+- usunięto obszar CAM, frezowanie/toczenie/cięcie, ścieżki narzędzi, symulację obróbki i eksport G-code;
+- usunięto panel druku 3D, profile drukarek/materiałów, układ stołu, mapę drukowalności i uruchamianie slicerów;
+- eksport zapisuje geometrię CAD w położeniu i skali projektu, bez dawnych transformacji oraz kopii drukowania;
+- schemat `.madcad` v27 zachowuje model ze starszych plików; dawne dane produkcyjne są archiwizowane w nieaktywnym `legacyProduction`;
+- interfejs, samouczek i plan rozwoju skupiają się na szkicach, modelowaniu brył, historii i dokumentacji 2D.
+
 ## 6.5.28 (2026-10-02)
 
 - wymiary między punktami na arkuszu 2D (Wymiary → Wymiar między punktami): kliknięcia przyciągają się do wierzchołków widoku, wymiar może być poziomy, pionowy albo wyrównany, podąża za przesunięciem i skalą widoku oraz za zmianą modelu, a jego kierunek, odsunięcie, dokładność i tolerancję można edytować;

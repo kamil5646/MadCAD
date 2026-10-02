@@ -25,7 +25,7 @@ async function clickText(window, selector, label) {
 
 async function selectWorkspace(window, value) {
   await window.webContents.executeJavaScript(`(() => {
-    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' };
+    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', tools: 'ZARZĄDZAJ' };
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === labels[${JSON.stringify(value)}]);
     if (!button) throw new Error('Brak głównego obszaru programu.');
     button.click();

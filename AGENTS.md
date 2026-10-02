@@ -4,12 +4,11 @@ Ten plik jest krótkim punktem startowym dla kolejnych prac. Bieżące priorytet
 i otwarte kryteria odbioru znajdują się w `madcad-2d/ROADMAP.md`; dokument
 `AUDIT-2026-09-20.md` jest migawką audytu z podanej daty.
 
-Priorytet od 2026-09-27: najpierw pionowy przepływ podstawowego projektowania
-jak w Fusion (szkic, wymiary, bryła, historia, Cofnij/Ponów, zapis i ponowne
-otwarcie) oraz naprawa potwierdzonych różnic UX. Rozbudowa przygotowania
-ścieżek CAM jest odłożona za ten przepływ. Użytkownik nie potrzebuje zarządzania
-obrabiarką: automatyczne sondowanie/ustawianie jej zera i sterowanie maszyną są
-poza celem. Nie osłabiaj istniejących blokad niebezpiecznego eksportu NC.
+Priorytet od 2026-10-02: prosty CAD 2D/3D. Najpierw szkic, wymiary i więzy,
+bryła, historia, Cofnij/Ponów oraz zapis i ponowne otwarcie. CAM, frezowanie,
+G-code, przygotowanie druku 3D, profile drukarek i slicery są poza zakresem.
+Nie dodawaj ich ponownie. Schemat v27 zachowuje dawne dane produkcyjne
+wyłącznie w nieaktywnym `legacyProduction`, bez obliczania ścieżek lub układu.
 
 ## Układ repozytorium
 
@@ -22,7 +21,7 @@ poza celem. Nie osłabiaj istniejących blokad niebezpiecznego eksportu NC.
   IPC desktopowe. `project-file-handlers.cjs` jest wspólną ścieżką produkcyjnego
   zapisu/otwarcia oraz krótkiego testu `verify-extrude-after-sketch.cjs`; test
   podmienia tylko systemowy wybór ścieżki i sprawdza także kopię `.bak`.
-- `madcad-2d/scripts/desktop-verification-manifest.cjs` — źródło podziału 55
+- `madcad-2d/scripts/desktop-verification-manifest.cjs` — źródło podziału 51
   scenariuszy Electron na siedem shardów; czasy i sposób sprawdzania opisuje
   `madcad-2d/docs/CI_DESKTOP_VERIFICATION.md`.
 - `madcad-2d/scripts/verify-packaged-startup.cjs` — po zbudowaniu uruchamia
@@ -100,35 +99,6 @@ npm run verify:desktop-suite -- analysis
   w dokumencie i nowszą, gotową rewizję silnika.
 - `ModelingWorkspace.jsx`, `ModelViewport.jsx` i `cad-worker.js` są monolitami;
   nie dodawaj do nich kolejnej domeny bez rozważenia wydzielenia modułu.
-- Uchwyt CAM typu `body` wskazuje osobną bryłę po ID, a nie kopiuje geometrii do
-  `.madcad`. `manufacturing-fixture-mesh.js` wymaga zamkniętej powierzchni i
-  indeksuje jej trójkąty zachowawczo. Rzut trójkąta w XY odrzuca jednoznacznie
-  oddalone przejazdy, a ograniczony podział pochyłych trójkątów zawęża ich
-  lokalny zakres Z. Promień pionowy sprawdza wnętrze zamkniętej bryły dla
-  końcówek narzędzia i przekrojów oprawki. Szew triangulacji nie blokuje
-  punktu ponad wszystkimi trafionymi powierzchniami; inne niejednoznaczności
-  pozostają kolizją. Regresja skośnej szczęki jest w `tests/cad-core.test.mjs`. Brak
-  siatki lub niepewna kolizja blokuje eksport. Nie nazywaj tego dokładną
-  symulacją oprawki ani pozycji startowej obrabiarki.
-- Własne narzędzie CAM w schemacie v25 może być frezem palcowym, frezem do
-  planowania, wiertłem, nawiertakiem albo gwintownikiem. Nieznany typ musi
-  pozostać błędem walidacji projektu, a nie po cichu stać się wiertłem.
-  Opcjonalny pierwszy stopień oprawki opisują:
-  `holderNeckDiameter` i `holderNeckLength` nad wysięgiem `stickout`. Długość 0
-  zachowuje model v23; bez dalszych stopni powyżej szyjki obowiązuje
-  `holderDiameter` do góry bez skończonej granicy. Od schematu v26
-  `holderStages` może zawierać do sześciu
-  dalszych stopni `{ diameter, length }` po szyjce; nad ostatnim wciąż obowiązuje
-  `holderDiameter`. Starsze projekty migrują z pustą listą. Nie utożsamiaj tego
-  z pełną geometrią wrzeciona. Zmiany kontroli kolizji sprawdzaj przez
-  `npm run verify:manufacturing`, `verify:cam-sequence` i `verify:cutting`.
-- Nieznany typ operacji CAM nie może być normalizowany do planowania: zachowaj
-  jego typ do walidacji projektu i zwracaj nieprawidłową ścieżkę, aby eksport NC
-  był zablokowany. Dotyczy to także przyszłego `probe-wcs`, zanim powstaną jego
-  pełna walidacja, bezpieczny eksport i weryfikacja sterowania.
-- Nieznany jawnie zapisany kształt mocowania CAM zachowuje swoją wartość i
-  blokuje walidację oraz eksport NC; tylko brak pola w starszym projekcie
-  oznacza dawny prostopadłościan. Nie zmieniaj przyszłej geometrii po cichu.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie
   zwykłym bumpem zależności.
 - Konto MadCAD i okresowe sprawdzenie uprawnienia są wymagane; nie opisuj tego

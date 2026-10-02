@@ -66,6 +66,11 @@ expectText(appDialogs, new RegExp(`Wydanie ${versionPattern} nie ma podpisu prod
 
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
+rejectText(appUi, /ManufacturingPanel|createCamSetup|PrintPanel|sendToSlicer|filePrint3dBtn/, 'wycofane narzędzia CAM i druku 3D w CAD');
+rejectText(preload + main, /sendToSlicer|send-to-slicer|slicer-launch|printWorkspaceBtn/, 'wycofane integracje slicerów w desktopie');
+const cadWorker = read('madcad-2d/src/cad-core/cad-worker.js');
+rejectText(cadWorker, /preparePrintBodies|calculatePrintLayout|document\.print/, 'transformacje drukowania w eksporcie geometrii CAD');
+rejectText(site, /slicer|druk 3D|3D printing|3D-print tools/i, 'wycofany zakres na stronie');
 const licenseClient = read('madcad-2d/electron/license-client.cjs');
 const licenseApi = read('madcad-2d/server/seohost/madcad-license-api/index.php');
 const licenseAdmin = read('madcad-2d/server/seohost/madcad-license-api/admin.js');

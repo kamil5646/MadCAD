@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Blocks,
   Box,
   Check,
   ChevronDown,
-  ChevronRight,
   CircleDotDashed,
   Copy,
   Crosshair,
@@ -34,7 +32,6 @@ import {
   Move3d,
   Pencil,
   PencilRuler,
-  Printer,
   Redo2,
   Rotate3d,
   RotateCw,
@@ -138,17 +135,13 @@ import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../cad-core/
 import { calculateSolidFea } from '../cad-core/solid-fea.js';
 import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
-import { applyPrinterProfile, applyPrintMaterialProfile, PRINTER_PROFILES, PRINT_MATERIAL_PROFILES } from '../cad-core/printer-profiles.js';
 import { DEFAULT_LICENSE_STATUS, describeLicensePlan, normalizeLicenseStatus } from './license-plan.js';
-import { calculatePrintLayout, orientationForBedFace, recommendPrintOrientation } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
 import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMeshFaces, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
-import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { sketchDxf } from '../cad-core/sketch-dxf-export.js';
 import { createId } from '../cad-core/ids.js';
-import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createPointDrawingDimension, createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { DEFAULT_LAYER_ID, assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -195,7 +188,6 @@ import { analyzeSurfaceContinuity, summarizeMeshCurvature } from './surface-anal
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext, ToolMenuButton } from './WorkspaceRibbon.jsx';
-import { ManufacturingPanel } from './ManufacturingPanel.jsx';
 import {
   AnglePlaneCadIcon,
   AssemblyCadIcon,
@@ -215,7 +207,6 @@ import {
   ImportMeshCadIcon,
   LoftCadIcon,
   MassCadIcon,
-  ManufacturingSetupCadIcon,
   MeshBodyCadIcon,
   MidplaneCadIcon,
   MoveBodyCadIcon,
@@ -256,7 +247,7 @@ import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import { AdaptiveToolShelf } from './WorkspaceSketchUi.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDashboard, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BeamFeaPanel, BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, RenderScenePanel, SectionPanel, SolidFeaPanel, StaticScreeningPanel, SurfaceAnalysisPanel, ThermalScreeningPanel } from './WorkspacePanels.jsx';
+import { BeamFeaPanel, BlocksPanel, CommandCustomizationPanel, ComponentPanel, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, RenderScenePanel, SectionPanel, SolidFeaPanel, StaticScreeningPanel, SurfaceAnalysisPanel, ThermalScreeningPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -311,7 +302,6 @@ const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp
 const WORKSPACE_OPTIONS = [
   { id: 'solid', label: 'PROJEKTUJ' },
   { id: 'drawing', label: 'ARKUSZ 2D' },
-  { id: 'manufacture', label: 'WYTWARZANIE' },
   { id: 'tools', label: 'ZARZĄDZAJ' },
 ];
 
@@ -331,131 +321,6 @@ const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
 
 
-
-function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed, onSelectIssue, onExport, onSendToSlicer, onClose, onToggleCollapsed, readOnly = false }) {
-  const [automaticOrientation, setAutomaticOrientation] = useState(null);
-  const layoutResult = useMemo(() => calculatePrintLayout(bodies, document.print), [bodies, document.print]);
-  const printAnalysis = useMemo(() => analyzePrintability(bodies, document.print), [bodies, document.print]);
-  const bounds = layoutResult.dimensions;
-  const fits = printAnalysis.fitsBed;
-  const updateBed = (key, value) => commit((next) => { next.print[key] = Math.max(1, Number(value) || 1); next.print.profileId = 'custom'; });
-  const updateLayout = (key, value) => commit((next) => {
-    const parsed = Number(value);
-    if (key === 'scale') next.print[key] = Math.max(0.01, Number.isFinite(parsed) ? parsed : 1);
-    else if (key === 'copies') next.print[key] = Math.max(1, Math.min(100, Math.round(Number.isFinite(parsed) ? parsed : 1)));
-    else if (key === 'copySpacing') next.print[key] = Math.max(0, Number.isFinite(parsed) ? parsed : 0);
-    else next.print[key] = Number.isFinite(parsed) ? parsed : 0;
-  });
-  const updateAnalysis = (key, value) => commit((next) => {
-    const parsed = Number(value);
-    next.print[key] = key === 'overhangAngle'
-      ? Math.max(0, Math.min(89, Number.isFinite(parsed) ? parsed : 45))
-      : Math.max(0.05, Number.isFinite(parsed) ? parsed : 0.4);
-  });
-  const selectProfile = (profileId) => commit((next) => { next.print = applyPrinterProfile(next.print, profileId); });
-  const selectMaterialProfile = (profileId) => commit((next) => { next.print = applyPrintMaterialProfile(next.print, profileId); });
-  const materialProfile = PRINT_MATERIAL_PROFILES.find((profile) => profile.id === document.print.materialProfileId);
-  const generalMaterialProfiles = PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'general');
-  const manufacturerMaterialProfiles = Object.groupBy
-    ? Object.groupBy(PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'manufacturer'), (profile) => profile.manufacturer)
-    : PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'manufacturer').reduce((groups, profile) => ({ ...groups, [profile.manufacturer]: [...(groups[profile.manufacturer] || []), profile] }), {});
-  const orientToSelectedFace = () => commit((next) => {
-    const orientation = orientationForBedFace(selectedFace.normal);
-    const candidate = {
-      ...next.print,
-      rotationX: 0, rotationY: 0, rotationZ: 0,
-      positionZ: 0,
-      orientationAxis: orientation.axis,
-      orientationAngle: orientation.angle,
-    };
-    const result = calculatePrintLayout(bodies, candidate);
-    next.print = { ...candidate, positionZ: -result.min[2] };
-  });
-  const orientAutomatically = () => {
-    const recommendation = recommendPrintOrientation(bodies, document.print);
-    if (!recommendation) return;
-    commit((next) => { next.print = { ...next.print, ...recommendation.layout }; });
-    setAutomaticOrientation(recommendation);
-  };
-  const resetLayout = () => commit((next) => {
-    Object.assign(next.print, {
-      positionX: 0, positionY: 0, positionZ: 0,
-      rotationX: 0, rotationY: 0, rotationZ: 0,
-      scale: 1, copies: 1, copySpacing: 10,
-      orientationAxis: [0, 0, 1], orientationAngle: 0,
-    });
-  });
-  return (
-    <aside className={`print-panel print-inspector ${collapsed ? 'collapsed' : ''}`}>
-      <header>
-        <div><strong>DRUK 3D</strong>{!collapsed && <span>Ułożenie na stole, kontrola drukowalności i przekazanie do slicera.</span>}</div>
-        <div className="dock-panel-actions">
-          <button type="button" data-panel-action="collapse" onClick={onToggleCollapsed} title={collapsed ? 'Rozwiń panel druku 3D' : 'Zwiń panel druku 3D'} aria-label={collapsed ? 'Rozwiń panel druku 3D' : 'Zwiń panel druku 3D'} aria-expanded={!collapsed}>{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
-          {!collapsed && <button type="button" onClick={onClose} title="Zamknij panel druku 3D" aria-label="Zamknij panel druku 3D"><X size={16} /></button>}
-        </div>
-      </header>
-      {!collapsed && <>
-      <div className="print-section">
-        <h3>Objętość robocza</h3>
-        <label className="command-field"><span>Profil drukarki</span><select value={document.print.profileId || 'custom'} onChange={(event) => selectProfile(event.target.value)} disabled={readOnly}>{PRINTER_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}<option value="custom">Własny</option></select></label>
-        <Field type="number" label="Szerokość X" value={document.print.bedWidth} suffix="mm" onChange={(value) => updateBed('bedWidth', value)} disabled={readOnly} />
-        <Field type="number" label="Głębokość Y" value={document.print.bedDepth} suffix="mm" onChange={(value) => updateBed('bedDepth', value)} disabled={readOnly} />
-        <Field type="number" label="Wysokość Z" value={document.print.bedHeight} suffix="mm" onChange={(value) => updateBed('bedHeight', value)} disabled={readOnly} />
-      </div>
-      <div className="print-section">
-        <h3>Układ części</h3>
-        <div className="print-field-grid">
-          <Field type="number" label="Pozycja X" value={document.print.positionX ?? 0} suffix="mm" onChange={(value) => updateLayout('positionX', value)} disabled={readOnly} />
-          <Field type="number" label="Pozycja Y" value={document.print.positionY ?? 0} suffix="mm" onChange={(value) => updateLayout('positionY', value)} disabled={readOnly} />
-          <Field type="number" label="Pozycja Z" value={document.print.positionZ ?? 0} suffix="mm" onChange={(value) => updateLayout('positionZ', value)} disabled={readOnly} />
-          <Field type="number" label="Obrót X" value={document.print.rotationX ?? 0} suffix="°" onChange={(value) => updateLayout('rotationX', value)} disabled={readOnly} />
-          <Field type="number" label="Obrót Y" value={document.print.rotationY ?? 0} suffix="°" onChange={(value) => updateLayout('rotationY', value)} disabled={readOnly} />
-          <Field type="number" label="Obrót Z" value={document.print.rotationZ ?? 0} suffix="°" onChange={(value) => updateLayout('rotationZ', value)} disabled={readOnly} />
-          <Field type="number" label="Skala" value={document.print.scale ?? 1} suffix="×" onChange={(value) => updateLayout('scale', value)} disabled={readOnly} />
-          <Field type="number" label="Kopie" value={document.print.copies ?? 1} suffix="szt." onChange={(value) => updateLayout('copies', value)} disabled={readOnly} />
-          <Field type="number" label="Odstęp" value={document.print.copySpacing ?? 10} suffix="mm" onChange={(value) => updateLayout('copySpacing', value)} disabled={readOnly} />
-        </div>
-        <div className="print-layout-actions">
-          <button id="autoOrientPrintBtn" type="button" disabled={readOnly || !bodies.length} onClick={orientAutomatically}>Ułóż automatycznie</button>
-          <button type="button" disabled={readOnly || !selectedFace} onClick={orientToSelectedFace}>Połóż ścianą na stole</button>
-          <button type="button" disabled={readOnly} onClick={resetLayout}>Resetuj układ</button>
-        </div>
-        {automaticOrientation && <small className="print-orientation-result check-ok">Automatyczny układ: podstawa {automaticOrientation.baseArea.toFixed(1)} mm² · nawisy {automaticOrientation.overhangArea.toFixed(1)} mm² · wysokość {automaticOrientation.height.toFixed(1)} mm.</small>}
-        <small>{selectedFace ? 'Zaznaczona płaska ściana jest gotowa do orientacji.' : 'Zaznacz płaską ścianę modelu, aby oprzeć ją na stole.'}</small>
-      </div>
-      <div className="print-section print-summary">
-        <h3>Kontrola modelu</h3>
-        <dl><div><dt>Bryły</dt><dd>{bodies.length}</dd></div><div><dt>Kopie</dt><dd>{layoutResult.layout.copies}</dd></div><div><dt>Rozmiar układu</dt><dd>{bounds.map((value) => value.toFixed(1)).join(' × ')} mm</dd></div></dl>
-        <p className={fits ? 'check-ok' : 'check-warning'}>{!bodies.length ? 'Najpierw utwórz bryłę.' : fits ? 'Model mieści się na stole drukarki.' : 'Model przekracza obszar drukarki.'}</p>
-      </div>
-      <div className="print-section print-analysis-section">
-        <div className="print-section-heading"><h3>Analiza drukowalności</h3><button id="printRiskMapBtn" type="button" className={document.print.showRiskMap ? 'active' : ''} aria-pressed={Boolean(document.print.showRiskMap)} disabled={readOnly || !bodies.length} onClick={() => commit((next) => { next.print.showRiskMap = !next.print.showRiskMap; })}>{document.print.showRiskMap ? 'Ukryj mapę' : 'Pokaż mapę'}</button></div>
-        <label className="command-field"><span>Profil analizy materiału</span><select id="printMaterialProfile" value={document.print.materialProfileId || 'custom'} onChange={(event) => selectMaterialProfile(event.target.value)} disabled={readOnly}><optgroup label="Ogólne">{generalMaterialProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</optgroup>{Object.entries(manufacturerMaterialProfiles).map(([manufacturer, profiles]) => <optgroup key={manufacturer} label={manufacturer}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</optgroup>)}<option value="custom">Własne progi</option></select></label>
-        {materialProfile && <div className="print-material-guidance"><strong>{materialProfile.manufacturer ? `${materialProfile.manufacturer} · ` : ''}{materialProfile.material}</strong><span>Dysza {materialProfile.nozzleTemperature} · stół {materialProfile.bedTemperature} · chłodzenie {materialProfile.cooling}{materialProfile.maxSpeed ? ` · ${materialProfile.maxSpeed}` : ''}</span><span>Komora: {materialProfile.enclosure}{materialProfile.drying ? ` · suszenie: ${materialProfile.drying}` : ''}</span><span>{materialProfile.guidance}</span>{materialProfile.sourceName && <small>Źródło parametrów: {materialProfile.sourceName} · zweryfikowano 09.09.2026</small>}</div>}
-        <div className="print-field-grid">
-          <Field type="number" label="Dysza" value={document.print.nozzleDiameter ?? 0.4} suffix="mm" onChange={(value) => updateAnalysis('nozzleDiameter', value)} disabled={readOnly} />
-          <Field type="number" label="Min. ścianka" value={document.print.minimumWallThickness ?? 0.8} suffix="mm" onChange={(value) => updateAnalysis('minimumWallThickness', value)} disabled={readOnly} />
-          <Field type="number" label="Min. otwór" value={document.print.minimumHoleDiameter ?? 2} suffix="mm" onChange={(value) => updateAnalysis('minimumHoleDiameter', value)} disabled={readOnly} />
-          <Field type="number" label="Próg nawisu" value={document.print.overhangAngle ?? 45} suffix="°" onChange={(value) => updateAnalysis('overhangAngle', value)} disabled={readOnly} />
-        </div>
-        <div className="print-analysis-summary"><strong>{printAnalysis.errorCount} błędów · {printAnalysis.warningCount} ostrzeżeń</strong><span>Wynik opisuje ryzyko technologiczne, nie gwarantuje udanego wydruku.</span></div>
-        {document.print.showRiskMap && <div className="print-risk-legend" aria-label="Legenda mapy druku"><span><i className="safe" /> Bezpieczne</span><span><i className="overhang" /> Nawis</span><span><i className="invalid" /> Błąd siatki</span></div>}
-        <div className="print-issues">
-          {printAnalysis.issues.map((issue, index) => <button type="button" className={issue.severity} key={`${issue.code}-${issue.bodyId || 'layout'}-${index}`} onClick={() => onSelectIssue(issue.selection)}><AlertTriangle size={13} /><span><strong>{issue.message}</strong><small>{issue.risk}</small></span></button>)}
-          {bodies.length > 0 && !printAnalysis.issues.length && <p className="check-ok">Nie wykryto problemów przy bieżących progach analizy.</p>}
-        </div>
-      </div>
-      <div className="print-actions">
-        <button type="button" onClick={() => onExport('stl')} disabled={!bodies.length || engine.status !== 'ready'}><HardDriveDownload size={16} /> Eksportuj STL</button>
-        <button className="secondary" type="button" onClick={() => onExport('step')} disabled={!bodies.length || engine.status !== 'ready'}>Eksportuj STEP</button>
-        <button className="secondary" type="button" onClick={() => onExport('3mf')} disabled={!bodies.length || engine.status !== 'ready'}>Eksportuj 3MF</button>
-        <label className="command-field slicer-field"><span>Program tnący</span><select value={document.print.slicer || 'bambu'} onChange={(event) => commit((next) => { next.print.slicer = event.target.value; })} disabled={readOnly}><option value="bambu">Bambu Studio</option><option value="prusa">PrusaSlicer</option><option value="cura">UltiMaker Cura</option></select></label>
-        <button className="send-slicer" type="button" onClick={() => onSendToSlicer(document.print.slicer || 'bambu')} disabled={!bodies.length || engine.status !== 'ready'}><Printer size={16} /> Otwórz STL w slicerze</button>
-      </div>
-      </>}
-    </aside>
-  );
-}
 
 function featureIcon(type, size = 16) {
   if (type === 'revolve' || type === 'surfaceRevolve') return <Rotate3d size={size} />;
@@ -651,7 +516,6 @@ export default function ModelingWorkspace() {
   const [linkedProjectStatuses, setLinkedProjectStatuses] = useState({});
   const [commandCustomizationOpen, setCommandCustomizationOpen] = useState(false);
   const [commandCustomization, setCommandCustomization] = useState(() => loadCommandCustomization(window.localStorage));
-  const [printPanelOpen, setPrintPanelOpen] = useState(false);
   const [timelineRename, setTimelineRename] = useState(null);
   const [timelineGroupRename, setTimelineGroupRename] = useState(null);
   const [timelineDeleteId, setTimelineDeleteId] = useState(null);
@@ -667,7 +531,6 @@ export default function ModelingWorkspace() {
   const [projectDependenciesOpen, setProjectDependenciesOpen] = useState(false);
   const [projectSearchOpen, setProjectSearchOpen] = useState(false);
   const [projectDependencyNodeId, setProjectDependencyNodeId] = useState(() => initialOpen.document.id);
-  const [camSimulationProgress, setCamSimulationProgress] = useState(1);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
   const [recoveryInfo, setRecoveryInfo] = useState(() => initialOpen.recovered ? {
@@ -695,7 +558,7 @@ export default function ModelingWorkspace() {
   const [fitViewRequest, setFitViewRequest] = useState(null);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
   const [importRepairReport, setImportRepairReport] = useState(null);
-  useEffect(() => { setExplodeAmount(0); setActiveStoryboardId(''); setAnimationPlaying(false); setAnimationTime(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); setCamSimulationProgress(1); }, [document.id]);
+  useEffect(() => { setExplodeAmount(0); setActiveStoryboardId(''); setAnimationPlaying(false); setAnimationTime(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); }, [document.id]);
   useEffect(() => {
     if (!animationPlaying) return undefined;
     const storyboard = document.animationStoryboards?.find((item) => item.id === activeStoryboardId);
@@ -729,8 +592,8 @@ export default function ModelingWorkspace() {
     return () => media.removeEventListener?.('change', updateCompactViewport);
   }, []);
   useEffect(() => {
-    if (compactViewport && (command || printPanelOpen)) setBrowserOpen(false);
-  }, [command, compactViewport, printPanelOpen]);
+    if (compactViewport && command) setBrowserOpen(false);
+  }, [command, compactViewport]);
   useEffect(() => {
     if (!fileMenuOpen) return undefined;
     const closeFileMenu = (event) => { if (event.key === 'Escape') setFileMenuOpen(false); };
@@ -1050,234 +913,6 @@ export default function ModelingWorkspace() {
           : { ...entity, layerId: next.activeLayerId });
       }
     });
-  };
-
-  const createCamSetup = () => {
-    const solidBodies = engine.bodies.filter((body) => body.bodyKind !== 'surface');
-    if (!solidBodies.length) { setNotice('Setup CAM wymaga co najmniej jednej bryły 3D.'); return; }
-    const preferredBody = solidBodies.find((body) => body.id === selection?.id) || solidBodies[0];
-    let created;
-    commit((next) => {
-      created = createManufacturingSetup({ name: `Setup ${next.manufacturing.setups.length + 1}`, bodyId: preferredBody.id });
-      next.manufacturing.setups.push(created);
-      next.manufacturing.activeSetupId = created.id;
-    });
-    if (created) setNotice(`Utworzono ${created.name}: wybierz maszynę, naddatki i zero WCS.`);
-  };
-
-  const activateCamSetup = (setupId) => commit((next) => { next.manufacturing.activeSetupId = setupId; });
-  const updateCamSetup = (setupId, patch) => commit((next) => {
-    const index = next.manufacturing.setups.findIndex((setup) => setup.id === setupId);
-    if (index < 0) return;
-    next.manufacturing.setups[index] = normalizeManufacturingSetup({ ...next.manufacturing.setups[index], ...patch }, index);
-  });
-  const deleteCamSetup = (setupId) => commit((next) => {
-    next.manufacturing.setups = next.manufacturing.setups.filter((setup) => setup.id !== setupId);
-    next.manufacturing.activeSetupId = next.manufacturing.setups[0]?.id || '';
-    setNotice('Usunięto Setup CAM. Cofnij, aby go przywrócić.');
-  });
-  const createCamTool = () => commit((next) => {
-    const tool = createCustomCamTool({ name: `Wiertło własne ${next.manufacturing.tools.length + 1}` });
-    next.manufacturing.tools.push(tool);
-    setNotice(`Dodano ${tool.name} do biblioteki projektu.`);
-  });
-  const updateCamTool = (toolId, patch) => commit((next) => {
-    const index = next.manufacturing.tools.findIndex((tool) => tool.id === toolId);
-    if (index >= 0) next.manufacturing.tools[index] = normalizeCustomCamTool({ ...next.manufacturing.tools[index], ...patch }, index);
-  });
-  const deleteCamTool = (toolId) => commit((next) => {
-    const usedBy = next.manufacturing.setups.flatMap((setup) => setup.operations).find((operation) => operation.toolId === toolId);
-    const templateUsingTool = next.manufacturing.operationTemplates.find((template) => template.operation?.toolId === toolId);
-    if (usedBy) { setNotice(`Nie można usunąć narzędzia używanego przez operację „${usedBy.name}”.`); return; }
-    if (templateUsingTool) { setNotice(`Nie można usunąć narzędzia używanego przez szablon „${templateUsingTool.name}”.`); return; }
-    next.manufacturing.tools = next.manufacturing.tools.filter((tool) => tool.id !== toolId);
-    setNotice('Usunięto narzędzie z biblioteki projektu. Cofnij, aby je przywrócić.');
-  });
-  const createCamOperation = (setupId, type = 'face') => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const sameTypeCount = setup.operations.filter((item) => item.type === type).length + 1;
-    const selectedBoundaryFaceId = selection?.kind === 'face' && selection.bodyId === setup.bodyId ? selection.id : '';
-    const boundarySelection = selectedProfileMatch && !activeSketchId
-      ? { boundarySketchId: selectedProfileMatch.sketch.id, boundaryProfileId: selectedProfileMatch.profile.id }
-      : { boundaryFaceId: selectedBoundaryFaceId };
-    const setupBody = engine.bodies.find((body) => body.id === setup.bodyId);
-    const setupBounds = setupBody?.bounds || setupBody?.metrics?.bounds;
-    const firstHoleDiameter = Number(setupBody?.manufacturingHoles?.[0]?.diameter);
-    const firstHoleFeatureId = setupBody?.manufacturingHoles?.[0]?.featureId;
-    const drillingToolId = [...Object.values(CAM_TOOL_PRESETS), ...next.manufacturing.tools]
-      .filter((tool) => tool.type === 'twist-drill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter <= firstHoleDiameter + 0.05))
-      .sort((first, second) => Number.isFinite(firstHoleDiameter) ? Math.abs(first.diameter - firstHoleDiameter) - Math.abs(second.diameter - firstHoleDiameter) : first.diameter - second.diameter)[0]?.id;
-    const tappingToolId = next.manufacturing.tools
-      .filter((tool) => tool.type === 'tap')
-      .sort((first, second) => Number.isFinite(firstHoleDiameter) ? Math.abs(first.diameter - first.pitch - firstHoleDiameter) - Math.abs(second.diameter - second.pitch - firstHoleDiameter) : first.diameter - second.diameter)[0]?.id;
-    const spotTool = next.manufacturing.tools
-      .filter((tool) => tool.type === 'spot-drill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter > firstHoleDiameter + 0.05))
-      .sort((first, second) => first.diameter - second.diameter)[0];
-    const counterboreToolId = Object.values(CAM_TOOL_PRESETS)
-      .filter((tool) => tool.type === 'flat-end-mill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter <= firstHoleDiameter + 0.05))
-      .sort((first, second) => second.diameter - first.diameter)[0]?.id;
-    const turningDefaults = setupBounds ? {
-      stockDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]) + setup.stock.sideOffset * 2,
-      targetDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]),
-      axialLength: setupBounds[1][0] - setupBounds[0][0],
-    } : {};
-    const operation = type === 'contour'
-      ? createContourOperation({ name: `Kontur 2D ${sameTypeCount}`, ...boundarySelection })
-      : type === 'pocket'
-        ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}`, ...boundarySelection })
-        : type === 'adaptive'
-          ? createAdaptiveOperation({ name: `Adaptacyjne 2D ${sameTypeCount}`, ...boundarySelection })
-          : type === 'drill'
-            ? createDrillingOperation({ name: `Wiercenie ${sameTypeCount}`, toolId: drillingToolId, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
-          : type === 'spot'
-            ? createSpotDrillingOperation({ name: `Nawiertanie ${sameTypeCount}`, toolId: spotTool?.id, targetDiameter: Number.isFinite(firstHoleDiameter) && spotTool ? Math.min(spotTool.diameter, firstHoleDiameter + 2) : spotTool?.diameter, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
-          : type === 'counterbore'
-            ? createCounterboreOperation({ name: `Pogłębianie walcowe ${sameTypeCount}`, toolId: counterboreToolId, targetDiameter: Number.isFinite(firstHoleDiameter) ? firstHoleDiameter + 6 : 12, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
-          : type === 'tap'
-            ? createTappingOperation({ name: `Gwintowanie ${sameTypeCount}`, toolId: tappingToolId, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
-          : type === 'cut2d'
-            ? createCut2dOperation({ name: `Cięcie konturu ${sameTypeCount}`, postProcessorId: setup.machineId === 'plasma-1250' ? 'linuxcnc-plasma' : 'grbl-laser', ...boundarySelection })
-            : type === 'turn-face' || type === 'turn-profile'
-              ? createTurningOperation(type, { name: type === 'turn-face' ? `Planowanie czoła ${sameTypeCount}` : `Toczenie zewnętrzne ${sameTypeCount}`, ...turningDefaults })
-        : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
-    setup.operations.push(operation);
-    const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : type === 'drill' ? 'Wiercenie' : type === 'spot' ? 'Nawiertanie' : type === 'counterbore' ? 'Pogłębianie walcowe' : type === 'tap' ? 'Gwintowanie' : type === 'cut2d' ? 'Cięcie konturu' : type === 'turn-face' ? 'Planowanie czoła' : type === 'turn-profile' ? 'Toczenie zewnętrzne' : 'Kontur 2D';
-    const boundaryLabel = selectedProfileMatch && !activeSketchId ? ' dla zaznaczonego profilu szkicu' : selectedBoundaryFaceId ? ' dla zaznaczonej ściany' : ' dla górnej powierzchni bryły';
-    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : type === 'drill' ? 'Utworzono wiercenie rozpoznanych otworów. Ustaw wiertło, głębokość skoku i wycofanie.' : type === 'spot' ? 'Utworzono nawiertanie. Głębokość jest wyliczana ze średnicy otworu, średnicy docelowej i kąta ostrza.' : type === 'counterbore' ? 'Utworzono pogłębianie walcowe. Ustaw średnicę, głębokość, warstwę i frez mieszczący się w otworze pilotowym.' : type === 'tap' ? 'Utworzono gwintowanie. Posuw jest wyliczany ze skoku gwintownika i obrotów.' : type === 'cut2d' ? `Utworzono ${operationLabel}${boundaryLabel}. Ustaw szczelinę, wejście, moc, przejścia i posuw.` : type === 'turn-face' || type === 'turn-profile' ? `Utworzono ${operationLabel}. Sprawdź średnice, długość, głębokość przejścia, posuw i obroty.` : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
-  });
-  const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    const index = setup?.operations.findIndex((item) => item.id === operationId) ?? -1;
-    if (index >= 0) setup.operations[index] = normalizeManufacturingOperation({ ...setup.operations[index], ...patch }, index);
-  });
-  const optimizeCamOperationOrder = (setupId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const body = engine.bodies.find((item) => item.id === setup.bodyId);
-    const result = optimizeManufacturingOperationOrder(setup, body);
-    setup.operations = result.operations;
-    setNotice(result.warnings[0] || (result.changed ? `Uporządkowano operacje. Zmiany narzędzia: ${result.toolChangesBefore} → ${result.toolChangesAfter}.` : `Kolejność jest już optymalna. Zmiany narzędzia: ${result.toolChangesAfter}.`));
-  });
-  const deleteCamOperation = (setupId, operationId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (setup) setup.operations = setup.operations.filter((item) => item.id !== operationId);
-    setNotice('Usunięto operację CAM. Cofnij, aby ją przywrócić.');
-  });
-  const duplicateCamOperation = (setupId, operationId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const result = duplicateManufacturingOperation(setup, operationId);
-    if (!result.operation) { setNotice('Nie znaleziono operacji CAM do zduplikowania.'); return; }
-    setup.operations = result.operations;
-    setNotice(`Utworzono „${result.operation.name}”. Kopia zachowuje narzędzie, geometrię i parametry źródła.`);
-  });
-  const moveCamOperation = (setupId, operationId, direction) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const body = engine.bodies.find((item) => item.id === setup.bodyId);
-    const result = moveManufacturingOperation(setup, operationId, direction, body);
-    if (!result.changed) { setNotice(result.warnings[0] || 'Operacja jest już na skraju listy.'); return; }
-    setup.operations = result.operations;
-    setNotice('Zmieniono kolejność operacji CAM. Zależności technologiczne pozostały zachowane.');
-  });
-  const createCamOperationGroup = (setupId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const group = createManufacturingOperationGroup({ name: `Folder ${setup.operationGroups.length + 1}` });
-    setup.operationGroups.push(group);
-    setNotice(`Utworzono „${group.name}”. Przypisz operacje z pola Folder.`);
-  });
-  const updateCamOperationGroup = (setupId, groupId, patch) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    const index = setup?.operationGroups.findIndex((group) => group.id === groupId) ?? -1;
-    if (index < 0) return;
-    setup.operationGroups[index] = {
-      ...setup.operationGroups[index],
-      ...patch,
-      name: String(patch.name ?? setup.operationGroups[index].name).trim().slice(0, 80) || setup.operationGroups[index].name,
-    };
-  });
-  const deleteCamOperationGroup = (setupId, groupId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    if (!setup) return;
-    const result = deleteManufacturingOperationGroup(setup, groupId);
-    if (!result.changed) return;
-    setup.operationGroups = result.operationGroups;
-    setup.operations = result.operations;
-    setNotice('Usunięto folder. Operacje zachowano na liście głównej.');
-  });
-  const saveCamOperationTemplate = (setupId, operationId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    const operation = setup?.operations.find((item) => item.id === operationId);
-    if (!operation) return;
-    const template = createManufacturingOperationTemplate(operation);
-    next.manufacturing.operationTemplates.push(template);
-    setNotice(`Zapisano „${template.name}”. Geometria modelu nie jest częścią szablonu.`);
-  });
-  const updateCamOperationTemplate = (templateId, patch) => commit((next) => {
-    const index = next.manufacturing.operationTemplates.findIndex((template) => template.id === templateId);
-    if (index < 0) return;
-    next.manufacturing.operationTemplates[index] = normalizeManufacturingOperationTemplate({ ...next.manufacturing.operationTemplates[index], ...patch }, index);
-  });
-  const deleteCamOperationTemplate = (templateId) => commit((next) => {
-    next.manufacturing.operationTemplates = next.manufacturing.operationTemplates.filter((template) => template.id !== templateId);
-    setNotice('Usunięto szablon operacji CAM.');
-  });
-  const applyCamOperationTemplate = (setupId, templateId) => commit((next) => {
-    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
-    const template = next.manufacturing.operationTemplates.find((item) => item.id === templateId);
-    if (!setup || !template) return;
-    try {
-      const operation = instantiateManufacturingOperationTemplate(template, setup);
-      setup.operations.push(operation);
-      setNotice(`Dodano „${operation.name}” z szablonu. Wskaż geometrię operacji, jeśli jest wymagana.`);
-    } catch (error) {
-      setNotice(error.message);
-    }
-  });
-  const exportCamOperation = (setupId, operationId) => {
-    try {
-      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
-      const operation = setup?.operations.find((item) => item.id === operationId);
-      if (!setup || !operation) throw new Error('Nie znaleziono operacji CAM.');
-      const output = createMachineGcode(setup, operation, engine.bodies, { projectName: document.name, document });
-      downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(operation.name)}.${output.extension}`);
-      setNotice(`Zapisano G-code ${output.postProcessor}: ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
-    } catch (error) {
-      setNotice(`Eksport G-code nie powiódł się: ${error.message}`);
-    }
-  };
-  const exportCamProgram = (setupId) => {
-    try {
-      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
-      if (!setup) throw new Error('Nie znaleziono Setupu CAM.');
-      const output = createManufacturingProgramGcode(setup, engine.bodies, { projectName: document.name, document });
-      downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(setup.name)}-program.${output.extension}`);
-      setNotice(`Zapisano cały program ${output.postProcessor}: ${output.operationCount} operacji, ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
-    } catch (error) {
-      setNotice(`Eksport programu CAM nie powiódł się: ${error.message}`);
-    }
-  };
-  const exportCamSetupSheet = (setupId) => {
-    try {
-      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
-      if (!setup) throw new Error('Nie znaleziono Setupu CAM.');
-      const sheet = createManufacturingSetupSheet(setup, engine.bodies, { projectName: document.name, document });
-      downloadBlob(new Blob([sheet.html], { type: 'text/html;charset=utf-8' }), `${safeName(document.name)}-${safeName(setup.name)}-arkusz-ustawczy.html`);
-      setNotice(`Zapisano arkusz ustawczy: ${sheet.operationCount} operacji i ${sheet.toolCount} narzędzi.`);
-    } catch (error) {
-      setNotice(`Eksport arkusza ustawczego nie powiódł się: ${error.message}`);
-    }
-  };
-  const exportCamSequenceSheet = () => {
-    try {
-      const sheet = createManufacturingSequenceSheet(document.manufacturing, engine.bodies, { projectName: document.name, document });
-      downloadBlob(new Blob([sheet.html], { type: 'text/html;charset=utf-8' }), `${safeName(document.name)}-raport-mocowan.html`);
-      setNotice(`Zapisano raport ${sheet.setupCount} mocowań CAM. Potwierdź zera WCS i przejazdy na obrabiarce.`);
-    } catch (error) {
-      setNotice(`Eksport raportu mocowań nie powiódł się: ${error.message}`);
-    }
   };
 
   const saveNamedView = (name) => {
@@ -2259,12 +1894,6 @@ export default function ModelingWorkspace() {
   const activeGeometryFaceAnalysis = command?.type === 'geometryInspection' && command.inspectionMode === 'thickness' ? thicknessAnalysis : draftAnalysis;
   const surfaceContinuity = useMemo(() => analyzeSurfaceContinuity(engine.bodies), [engine.bodies]);
   const surfaceCurvature = useMemo(() => summarizeMeshCurvature(engine.bodies), [engine.bodies]);
-  const selectedPrintFace = useMemo(() => {
-    if (selectedFaceItems.length !== 1) return null;
-    const selected = selectedFaceItems[0];
-    const descriptor = engine.bodies.find((body) => body.id === selected.bodyId)?.topology?.faces?.find((face) => face.id === selected.id)?.descriptor;
-    return descriptor?.geometry === 'PLANE' && Array.isArray(descriptor.normal) ? descriptor : null;
-  }, [engine.bodies, selectedFaceItems]);
   const constructionAxes = useMemo(() => resolveConstructionAxes(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const constructionPoints = useMemo(() => resolveConstructionPoints(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'sheetBase' || feature.type === 'primitive' || feature.type === 'formBody' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
@@ -2275,11 +1904,6 @@ export default function ModelingWorkspace() {
     () => engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false),
     [engine.bodies, document.features],
   );
-  const printRiskAnalysis = useMemo(() => {
-    if (!printPanelOpen || !document.print.showRiskMap) return null;
-    const visibleBodies = engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false);
-    return analyzePrintability(visibleBodies, document.print);
-  }, [document.features, document.print, engine.bodies, printPanelOpen]);
   useEffect(() => {
     if (!pendingModelImport) return;
     const rollbackFailedImport = (message) => {
@@ -7239,52 +6863,17 @@ export default function ModelingWorkspace() {
     setNotice(result?.ok ? 'Otworzono podgląd arkusza 1:1.' : `Podgląd nie powiódł się: ${result?.error || 'nieznany błąd'}`);
   };
 
-  const sendToSlicer = async (slicer) => {
-    const slicerNames = { bambu: 'Bambu Studio', prusa: 'PrusaSlicer', cura: 'UltiMaker Cura' };
-    const name = slicerNames[slicer] || slicer;
-    setNotice(`Przygotowywanie STL dla ${name}…`);
-    try {
-      const buffers = await engine.exportModel('stl');
-      if (!window.desktopApp?.sendToSlicer) {
-        buffers.forEach((buffer, index) => downloadBlob(new Blob([buffer], { type: 'model/stl' }), `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.stl`));
-        setNotice(`Pobrano STL. Otwórz plik ręcznie w ${name}.`);
-        return;
-      }
-      const result = await window.desktopApp.sendToSlicer({
-        slicer,
-        files: buffers.map((buffer, index) => ({ name: `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.stl`, data: new Uint8Array(buffer) })),
-      });
-      if (!result?.ok) throw new Error(result?.error || `Nie udało się uruchomić ${name}.`);
-      setNotice(`Przekazano ${buffers.length} ${buffers.length === 1 ? 'plik' : 'pliki'} STL do ${name}.`);
-    } catch (error) {
-      setNotice(`Przekazanie do ${name} nie powiodło się: ${error.message}`);
-    }
-  };
-
   const switchWorkspace = (id) => {
     setCommand(null);
     setActiveSketchId(null);
     setToolHelp(null);
     setBrowserOpen(id !== 'drawing');
     setWorkspace(id);
-    setPrintPanelOpen(false);
     setNotice(id === 'drawing'
         ? 'Arkusz 2D: przygotuj rysunek techniczny do PDF albo DXF.'
       : id === 'tools'
         ? 'Zarządzaj: parametry, wersje, struktura i kondycja projektu.'
-      : id === 'manufacture'
-        ? 'Wytwarzanie: przygotuj obrabiarkę, półfabrykat i układ współrzędnych CAM.'
         : 'Projektuj: szkicuj, twórz, modyfikuj i sprawdzaj geometrię.');
-  };
-
-  const openPrintPreparation = () => {
-    setCommand(null);
-    setActiveSketchId(null);
-    setWorkspace('solid');
-    setFileMenuOpen(false);
-    if (compactViewport) setBrowserOpen(false);
-    setPrintPanelOpen(true);
-    setNotice('Druk 3D: ułóż gotowy model na stole, sprawdź go i przekaż do slicera.');
   };
 
   const handleWorkspaceTabKeyDown = (event, index, tabs, onChange) => {
@@ -7779,36 +7368,11 @@ export default function ModelingWorkspace() {
     }
     : workspace === 'tools'
       ? { title: 'ZARZĄDZAJ · projekt i jego historia', text: 'Parametry, wersje, zależności i struktura projektu są zebrane w jednym miejscu.', action: 'Wróć do projektowania', onAction: () => switchWorkspace('solid') }
-      : workspace === 'manufacture'
-        ? { title: 'WYTWARZANIE · przygotowanie CAM', text: 'Wybierz bryłę, maszynę, półfabrykat i zero WCS przed utworzeniem ścieżki.' }
       : workspace === 'solid' && lastSketch && !engine.bodies.length
             ? hasSketchProfile
               ? { title: 'KROK 2 · utwórz bryłę z zamkniętego szkicu', text: selectedProfile ? 'Profil jest zaznaczony. Kliknij Wyciągnij i podaj wysokość.' : 'Kliknij wnętrze zamkniętego profilu, a następnie wybierz Wyciągnij.', action: selectedProfile ? 'Wyciągnij profil' : `Edytuj: ${lastSketch.name}`, onAction: selectedProfile ? openExtrude : () => editSketch(lastSketch.id) }
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
-  const activeCamSetup = document.manufacturing.setups.find((setup) => setup.id === document.manufacturing.activeSetupId) || null;
-  const activeCamSetupResult = useMemo(() => workspace === 'manufacture' && activeCamSetup
-    ? calculateManufacturingSetup(activeCamSetup, engine.bodies)
-    : null, [workspace, activeCamSetup, engine.bodies]);
-  const allManufacturingToolpaths = useMemo(() => workspace === 'manufacture' && activeCamSetup
-    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies, document))
-    : [], [workspace, activeCamSetup, engine.bodies, document]);
-  const activeCamProgramReport = useMemo(() => workspace === 'manufacture' && activeCamSetup
-    ? analyzeManufacturingProgram(activeCamSetup, engine.bodies, document, allManufacturingToolpaths)
-    : null, [workspace, activeCamSetup, engine.bodies, document, allManufacturingToolpaths]);
-  const manufacturingToolpaths = useMemo(() => allManufacturingToolpaths.filter((toolpath) => toolpath.valid), [allManufacturingToolpaths]);
-  const camSimulation = useMemo(() => workspace === 'manufacture' && activeCamSetup
-    ? simulateMaterialRemoval(activeCamSetup, engine.bodies, document, camSimulationProgress, 36, { setupResult: activeCamSetupResult, toolpaths: allManufacturingToolpaths, report: activeCamProgramReport })
-    : null, [workspace, activeCamSetup, engine.bodies, document, camSimulationProgress, activeCamSetupResult, allManufacturingToolpaths, activeCamProgramReport]);
-  const manufacturingSegments = useMemo(() => manufacturingToolpaths.flatMap((toolpath) => toolpath.segments), [manufacturingToolpaths]);
-  const manufacturingVisualization = useMemo(() => activeCamSetupResult?.stockBounds ? {
-    stockBounds: activeCamSetupResult.stockBounds,
-    fixtures: activeCamSetup.fixtures.filter((fixture) => fixture.shape !== 'body' || activeCamSetupResult.fixtureMeshes?.has(fixture.id)),
-    segments: manufacturingSegments,
-    segmentCount: Math.ceil(manufacturingSegments.length * camSimulationProgress),
-    removalColumns: camSimulation?.columns || [],
-    cutter: camSimulation?.cutter || null,
-  } : null, [activeCamSetupResult, activeCamSetup, manufacturingSegments, camSimulationProgress, camSimulation]);
   const showProjectBrowser = browserOpen && workspace !== 'drawing' && !startPageVisible;
   let adaptiveContext = null;
   if (!command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId)) {
@@ -7938,10 +7502,10 @@ export default function ModelingWorkspace() {
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
-    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : workspace === 'tools' ? 'tools-mode' : workspace === 'manufacture' ? 'manufacture-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
+    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : workspace === 'tools' ? 'tools-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu">
-          <button id="fileMenuBtn" className={fileMenuOpen ? 'active' : ''} type="button" aria-label="Menu Plik" aria-expanded={fileMenuOpen} aria-controls="file-backstage" title="Projekt, import, eksport i druk" onClick={() => setFileMenuOpen((open) => !open)}><FileText size={15} /><span>Plik</span></button>
+          <button id="fileMenuBtn" className={fileMenuOpen ? 'active' : ''} type="button" aria-label="Menu Plik" aria-expanded={fileMenuOpen} aria-controls="file-backstage" title="Projekt i wymiana plików CAD" onClick={() => setFileMenuOpen((open) => !open)}><FileText size={15} /><span>Plik</span></button>
           <span className="app-menu-separator" aria-hidden="true" />
           <button id="newProjectBtn" type="button" aria-label="Nowy projekt" title="Nowy projekt" onClick={createNew}><FilePlus2 size={15} /><span>Nowy</span></button>
           <button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={15} /><span>Otwórz</span></button>
@@ -7973,7 +7537,7 @@ export default function ModelingWorkspace() {
       {fileMenuOpen && <div className="file-backstage-layer" id="file-backstage" role="dialog" aria-modal="true" aria-label="Plik">
         <button className="file-backstage-dismiss" type="button" aria-label="Zamknij menu Plik" onClick={() => setFileMenuOpen(false)} />
         <aside className="file-backstage">
-          <header><div><strong>PLIK</strong><span>Projekt, import, eksport i druk</span></div><button type="button" aria-label="Zamknij menu Plik" title="Zamknij" onClick={() => setFileMenuOpen(false)}><X size={18} /></button></header>
+          <header><div><strong>PLIK</strong><span>Projekt i wymiana plików CAD</span></div><button type="button" aria-label="Zamknij menu Plik" title="Zamknij" onClick={() => setFileMenuOpen(false)}><X size={18} /></button></header>
           <div className="file-backstage-content">
             <section><h2>PROJEKT</h2>
               <button type="button" onClick={() => { setFileMenuOpen(false); createNew(); }}><FilePlus2 /><span><strong>Nowy projekt</strong><small>Rozpocznij pusty dokument MadCAD.</small></span></button>
@@ -7997,9 +7561,6 @@ export default function ModelingWorkspace() {
               <button type="button" disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} onClick={() => { setFileMenuOpen(false); void previewActiveDrawing(); }}><Eye /><span><strong>Podgląd wydruku</strong><small>Arkusz 2D w skali 1:1.</small></span></button>
               <button id="fileExportPdfBtn" type="button" disabled={!activeDrawingSheet?.views.length} onClick={() => { setFileMenuOpen(false); void exportActiveDrawingPdf(); }}><FileText /><span><strong>PDF</strong><small>Zapisz aktywny arkusz techniczny.</small></span></button>
               <button id="fileExportDxfBtn" type="button" disabled={!activeDrawingSheet?.views.length} onClick={() => { setFileMenuOpen(false); exportActiveDrawingDxf(); }}><FileText /><span><strong>DXF</strong><small>Eksport geometrii arkusza w mm.</small></span></button>
-            </section>
-            <section className="file-backstage-print"><h2>DRUK 3D</h2>
-              <button id="filePrint3dBtn" type="button" onClick={openPrintPreparation}><Printer /><span><strong>Przygotuj druk 3D</strong><small>Stół, orientacja, kontrola modelu i slicer.</small></span><ArrowRight /></button>
             </section>
           </div>
         </aside>
@@ -8137,12 +7698,6 @@ export default function ModelingWorkspace() {
                   { icon: Trash2, label: 'Usuń oznaczenie', onClick: deleteSelectedDrawingAnnotation, disabled: readOnly || !selectedDrawingAnnotation },
                 ]} /></RibbonGroup>
                 <RibbonGroup label="ZESTAWIENIA"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części z modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch || !engine.bodies.length} description="Dodaj tabelę średnic z zaznaczonego widoku modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela gięć" onClick={() => addDrawingTable('bend-table')} disabled={readOnly || !activeDrawingSheet || !sheetBodies.some((body) => body.sheetMetal.flatSegments?.length)} description="Dodaj skojarzoną tabelę kątów, promieni, długości i naddatków gięcia blachy." /></RibbonGroup>
-              </>
-            ) : workspace === 'manufacture' ? (
-              <>
-                <RibbonGroup label="SETUP"><ToolButton icon={ManufacturingSetupCadIcon} label="Nowy Setup" onClick={createCamSetup} disabled={readOnly || !engine.bodies.some((body) => body.bodyKind !== 'surface')} primary description="Powiąż bryłę z obrabiarką, półfabrykatem i układem WCS." /></RibbonGroup>
-                <RibbonGroup label="WIDOK"><ToolButton icon={Crosshair} label="Dopasuj model" onClick={() => setFitViewRequest({ requestId: `cam-fit:${Date.now()}` })} disabled={!engine.bodies.length} /></RibbonGroup>
-                <RibbonGroup label="PRZYGOTOWANIE"><ToolButton icon={Ruler} label="Sprawdź Setup" onClick={() => setNotice('Panel Setup pokazuje bieżące wymiary półfabrykatu, zero WCS i zgodność z przesuwem maszyny.')} disabled={!document.manufacturing.setups.length} /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? null : startPageVisible ? (
               <>
@@ -8355,11 +7910,10 @@ export default function ModelingWorkspace() {
       </section>
 
       <div
-        className={`modeling-content command-dock-right ${showProjectBrowser ? '' : 'without-browser'} ${printPanelOpen ? 'with-print-panel' : ''}`}
+        className={`modeling-content command-dock-right ${showProjectBrowser ? '' : 'without-browser'}`}
         style={{
           '--browser-column': showProjectBrowser ? '252px' : '0px',
           '--command-column': '0px',
-          '--print-column': printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
         }}
       >
         {showProjectBrowser && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onToggleSketchVisibility={toggleSketchVisibility} onToggleBodyVisibility={toggleBodyVisibility} onEditSketch={(sketchId) => (readOnly ? readOnlyNotice() : editSketch(sketchId))} onClose={() => setBrowserOpen(false)} />}
@@ -8467,8 +8021,6 @@ export default function ModelingWorkspace() {
             surfaceAnalysis={surfaceAnalysis}
             beamFeaVisualization={command?.type === 'beamFea' ? beamFea?.result : null}
             solidFeaVisualization={command?.type === 'solidFea' ? solidFea?.result : null}
-            manufacturingVisualization={manufacturingVisualization}
-            printRiskAnalysis={printRiskAnalysis}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}
@@ -8531,14 +8083,10 @@ export default function ModelingWorkspace() {
             directManipulator={readOnly ? null : directManipulator}
             snapEnabled={sketchOptions.snap}
             snapThresholdPx={sketchOptions.snapDistance}
-            bed={document.print}
-            showBed={printPanelOpen}
-            printLayout={document.print}
             renderScene={document.renderScene}
             renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
-          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} cachedSetupResult={activeCamSetupResult} cachedProgramReport={activeCamProgramReport} cachedToolpaths={allManufacturingToolpaths} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onDuplicateOperation={duplicateCamOperation} onMoveOperation={moveCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onCreateOperationGroup={createCamOperationGroup} onUpdateOperationGroup={updateCamOperationGroup} onDeleteOperationGroup={deleteCamOperationGroup} onSaveOperationTemplate={saveCamOperationTemplate} onUpdateOperationTemplate={updateCamOperationTemplate} onDeleteOperationTemplate={deleteCamOperationTemplate} onApplyOperationTemplate={applyCamOperationTemplate} onExportOperation={exportCamOperation} onExportProgram={exportCamProgram} onExportSetupSheet={exportCamSetupSheet} onExportSequenceSheet={exportCamSequenceSheet} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}
@@ -8608,7 +8156,6 @@ export default function ModelingWorkspace() {
             }}
           />
         </main>
-        {printPanelOpen && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} collapsed={panelLayout.printCollapsed} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => setPrintPanelOpen(false)} onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, printCollapsed: !current.printCollapsed }))} readOnly={readOnly} />}
       </div>
 
       {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && document.features.length > 0 && <footer className="modeling-footer">

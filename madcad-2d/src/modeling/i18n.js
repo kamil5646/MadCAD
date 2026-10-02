@@ -1343,7 +1343,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Plik': 'File',
   'PLIK': 'FILE',
   'Menu Plik': 'File menu',
-  'Projekt, import, eksport i druk': 'Project, import, export, and print',
+  'Projekt i wymiana plików CAD': 'Project and CAD file exchange',
   'Zamknij menu Plik': 'Close File menu',
   'Rozpocznij pusty dokument MadCAD.': 'Start a blank MadCAD document.',
   'Wczytaj plik .madcad.': 'Open a .madcad file.',

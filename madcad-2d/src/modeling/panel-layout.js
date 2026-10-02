@@ -3,7 +3,6 @@ const PANEL_LAYOUT_VERSION = 1;
 export const DEFAULT_PANEL_LAYOUT = Object.freeze({
   commandDock: 'right',
   commandCollapsed: false,
-  printCollapsed: false,
 });
 
 function positiveInteger(value, fallback) {
@@ -22,7 +21,6 @@ export function normalizePanelLayout(value) {
   return {
     commandDock: 'right',
     commandCollapsed: Boolean(value?.commandCollapsed),
-    printCollapsed: Boolean(value?.printCollapsed),
   };
 }
 

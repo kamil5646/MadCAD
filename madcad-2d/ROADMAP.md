@@ -1,473 +1,53 @@
-# MadCAD — aktywny plan rozwoju
+# MadCAD — aktywny plan projektowania 2D/3D
 
-Aktualizacja: 2026-09-29
-Wersja bazowa: `6.5.28 stable`
-Gałąź wydania: `main`
+Aktualizacja: 2026-10-02
+Wersja opublikowana: `6.5.28`
 
-Ten plik opisuje aktywną ścieżkę do CAD 2D/3D: bezpośrednie szkicowanie i polecenia znane z klasycznego CAD są podstawą, a parametryczna historia i modelowanie bryłowe rozwijają rysunek w model 3D. Przygotowanie do druku 3D pozostaje opcjonalnym dodatkiem eksportowym. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
+Zakres uzgodniony z użytkownikiem: prosty program CAD do szkicowania 2D,
+modelowania 3D i dokumentacji technicznej. Frezowanie, CAM, G-code,
+przygotowanie druku 3D, profile drukarek i integracje slicerów zostały wycofane
+z produktu. Dalszych funkcji wytwarzania nie rozwijamy.
 
-## Osiągnięty zakres wydania 6.1
+## Aktywne zadanie
 
-Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechaniczną, szkicuje również na ścianie, wykonuje podstawowe operacje bryłowe na wskazanej geometrii, sprawdza model i eksportuje go w skali 1:1 do STEP/STL/3MF.
+- [>] Usunąć narzędzia produkcyjne i potwierdzić podstawowy przepływ CAD:
+  nowy projekt → szkic → wymiary i więzy → bryła → edycja historii →
+  Cofnij/Ponów → zapis `.madcad` → ponowne otwarcie.
+- [ ] Potwierdzić migrację v26 → v27: zachować szkice, bryły, parametry i historię;
+  dawne ustawienia produkcyjne przechować jako nieaktywne `legacyProduction`.
+- [ ] Potwierdzić brak CAM/druku 3D w menu, panelach i interfejsie desktopowym.
+- [ ] Przejść szkic na ścianie i zależne wycięcie, zmianę wymiarów oraz
+  naprawę utraconej referencji.
+- [ ] Potwierdzić czytelność podstawowych poleceń i wymiarów na typowym
+  oraz małym oknie, również przy skali 150%.
+- [ ] Zweryfikować wersję instalowaną na Windows i macOS przed wydaniem.
 
-## Oznaczenia i priorytet
+## Co jest podstawą produktu
 
-- `[x]` — ukończone i zweryfikowane.
-- `[~]` — działa częściowo i nie może być przedstawiane jako pełna funkcja.
-- `[>]` — aktywne zadanie.
-- `[ ]` — oczekuje.
-- `[!]` — blokada architektoniczna.
-- `P0` — wymagane do najbliższego używalnego wydania.
-- `P1` — ważne po zamknięciu ścieżki P0.
-- `P2` — odłożone do backlogu.
+1. Szkic 2D: linie, prostokąty, okręgi, łuki, snap, dokładne wymiary i więzy.
+2. Model 3D: wyciągnięcie, obrót, wycięcie, otwory, fazy, zaokrąglenia,
+   przenoszenie i podstawowe operacje na bryłach.
+3. Historia: edycja szkicu i operacji, poprawna przebudowa, Cofnij/Ponów.
+4. Projekt: nowy/otwórz/zapisz, odzyskiwanie i czytelne błędy.
+5. Dokumentacja 2D: widoki, wymiary, arkusze, PDF/DXF.
+6. Wymiana geometrii: STEP i siatki STL/3MF; te formaty nie uruchamiają
+   przygotowania druku ani programowania obrabiarki.
 
-## Zasady wykonania
+## Dowody i ograniczenia
 
-1. Limit pracy to jeden aktywny pionowy scenariusz funkcjonalny. Równolegle wolno prowadzić tylko testy, bezpieczeństwo, dokumentację i naprawy regresji.
-2. Funkcja jest gotowa dopiero po obsłudze błędów, anulowaniu, undo/redo, zapisie/otwarciu i teście automatycznym na właściwym poziomie.
-3. Test jednostkowy pokrywa algorytm, test kernela wynik B-Rep, a desktop E2E cały scenariusz użytkownika. Nie uruchamiamy round-trip eksportu osobno dla każdej drobnej funkcji.
-4. Aktywny przycisk zawsze wykonuje prawdziwą operację. Niedostępne narzędzie pokazuje przyczynę, a nie atrapę.
-5. Zmiana schematu `.madcad` wymaga migracji, fixture starego dokumentu i testu round-trip.
-6. Operacje kernela są deterministyczne, transakcyjne i zachowują ostatni poprawny model po błędzie.
-7. Każdy pionowy etap kończy się scenariuszem od pustego dokumentu oraz ponownym otwarciem zapisu.
-8. Nowe narzędzie działa na obsługiwanych płaszczyznach i ścianach albo jawnie pokazuje ograniczenie.
+`verify:extrude-after-sketch` sprawdza wymiary przez interfejs, wyciągnięcie,
+edycję szkicu/operacji, przebudowę, Cofnij/Ponów i zapis/otwarcie przez
+produkcyjne handlery plików. Przypadki szkiców na płaskich ścianach końcowych,
+bocznych i obróconych były sprawdzane osobno. Ogólne zmiany topologii nadal
+wymagają walidacji; sam poprawny prosty przykład nie zamyka tej kwestii.
 
-## Aktywny cel — podstawowy przepływ projektowania jak w Fusion
+Test uruchomienia paczki potwierdza start aplikacji, nie pełną pracę po
+zalogowaniu na każdym systemie. Nie przedstawiaj niepotwierdzonej weryfikacji
+instalatora jako ukończonej.
 
-Priorytet użytkownika z 2026-09-27: najpierw niezawodna codzienna praca w
-obszarze projektowania, dopiero potem ewentualne zaawansowanie przygotowania
-ścieżek CAM. Samo oznaczenie narzędzia jako zaimplementowanego nie potwierdza
-spójnego doświadczenia od pustego projektu do gotowej części.
+## Zasady pracy
 
-Zakres produktu doprecyzowany 2026-09-27: użytkownik nie potrzebuje
-zarządzania obrabiarką. Sterowanie maszyną, automatyczne ustawianie jej zera,
-sondowanie WCS i konfiguracja pracy sterownika nie są wymaganiami celu.
-Ewentualny eksport ścieżek/G-code pozostaje przygotowaniem pliku poza maszyną;
-istniejących blokad niebezpiecznego eksportu nie wolno usuwać.
-
-- [>] Przejść w rzeczywistej aplikacji jeden ciąg: nowy projekt → szkic na
-  płaszczyźnie → wymiary i więzy → Wyciągnij → edycja wymiaru szkicu i operacji
-  w historii → automatyczna przebudowa bryły → Cofnij/Ponów → zapis pliku
-  `.madcad` → ponowne otwarcie i porównanie geometrii.
-- [ ] Powtórzyć ten sam ciąg dla szkicu na ścianie oraz drugiej operacji
-  zależnej od pierwszej; utracona referencja ma dawać naprawialny komunikat,
-  a nie znikającą bryłę.
-- [ ] Sprawdzić ergonomię i widoczny stan podstawowych poleceń na typowym
-  oknie oraz przy 150% skali; każdą potwierdzoną różnicę od oczekiwanego
-  przepływu naprawić i zabezpieczyć desktopowym testem regresyjnym.
-- [ ] Potwierdzić finalny podstawowy przepływ na Windows i macOS w CI oraz
-  rozróżnić wyniki z kodu źródłowego od stanu zainstalowanej aplikacji.
-
-Desktopowy test `verify:extrude-after-sketch` potwierdza szkic z wymiarem
-poziomym między punktami i pionowym odcinka dodanymi przez interfejs → bryłę,
-edycję źródłowego wymiaru szkicu w widocznym panelu i automatyczną przebudowę,
-edycję Wyciągnięcia z osi czasu, Cofnij/Ponów, ponowne otwarcie przez
-serializację, zapis pliku `.madcad` przyciskiem aplikacji i otwarcie go po nowym
-projekcie oraz osobny przypadek cienkiego wyciągnięcia. Krótki test wywołuje
-ten sam handler pliku co aplikacja (walidacja żądania, zapis atomowy i kopia
-`.bak`) z kontrolowanym wyborem ścieżki; nie sprawdza natywnego okna systemu
-ani uruchomienia z instalatora. Ten sam test potwierdza też drugi szkic
-założony na płaskiej ścianie, wycięcie zależne od pierwszej bryły, przesunięcie
-tej podpory po edycji pierwszego Wyciągnięcia z 15 na 20 mm, Cofnij/Ponów
-obu położeń, odczyt obu operacji z pliku i naprawę kontrolowanie utraconej
-referencji ściany przez kreator. Korekta podpory obejmuje końcową ścianę
-jednostronnego Wyciągnięcia, także na skośnej ramie szkicu; test jednostkowy
-potwierdza przesunięcie ramy zależnego szkicu bez zmiany jej osi lokalnych,
-a desktopowe przypadki osiowy i skośny potwierdzają wycięcie, przebudowę,
-Cofnij/Ponów oraz zapis i ponowne otwarcie. Rotacja podpory, ogólne zmiany
-topologii i inne rodzaje ścian wymagają osobnej walidacji przed zamknięciem
-tego etapu.
-Lokalny scenariusz desktopowy potwierdził ponadto szkic na bocznej płaskiej
-ścianie, wycięcie przez bryłę, Cofnij/Ponów, zapis i ponowne otwarcie pliku
-oraz naprawę utraconej referencji tej ściany. Przeszła również naprawa
-utraconej referencji skośnej ściany z zachowaniem objętości wycięcia.
-CI `36448327496` potwierdziło boczną ścianę i jej naprawę. Lokalnie przeszedł
-także obrót źródłowej płaszczyzny konstrukcyjnej z 30° na 60°: zależny szkic
-na końcowej ścianie, wycięcie, Cofnij/Ponów i plik `.madcad` zachowały geometrię.
-CI `36450498129` potwierdziło ten wariant na Windows i macOS (23/23 zadań,
-CodeQL `36450497970` zielony). Kolejny lokalny test wykrył, że po zmianie
-szerokości źródłowego szkicu 50→60 mm boczna ściana przesuwała się z X=25 na
-X=30, lecz referencja i drugi szkic pozostawały na X=25 mimo poprawnego statusu
-osi czasu. Naprawa śledzi płaską boczną ścianę wyciągnięcia, jeśli co najmniej
-dwa te same punkty jej krawędzi przesuwają się zgodnie wzdłuż normalnej;
-nie zgaduje położenia, kiedy krawędź się obraca. Test desktopowy sprawdza
-przebudowę zależnego wycięcia, zgodność położenia podpory i ściany oraz zapis
-i ponowne otwarcie `.madcad`. CI `36518052349` potwierdziło ten wariant
-na Windows/macOS (23/23 zadań, CodeQL `36518052338` zielony). Dodatkowy
-scenariusz lokalny wykrywa stary projekt, w którym ściana zachowała ID, lecz
-referencja szkicu pozostała na poprzedniej płaszczyźnie; kreator naprawy
-przypisuje ją ponownie i ustawia szkic na bieżącej ścianie. CI `36519688187`
-potwierdziło ten przypadek na Windows/macOS (23/23 zadań, CodeQL
-`36519688182` zielony). Ogólne zmiany topologii nadal nie są potwierdzone.
-Lokalna kontrola spakowanej aplikacji macOS arm64, także po wyodrębnieniu z
-dystrybuowanego ZIP, z odizolowaną kopią zalogowanego profilu potwierdziła
-wejście do programu bez hooków testowych,
-bryłę prymitywną, szkic okręgu na XY → Wyciągnięcie oraz Cofnij/Ponów.
-Rzeczywiste systemowe okna zapisu i otwarcia zostały lokalnie potwierdzone
-w niepodpisanym pakiecie macOS z zalogowanym kontem: zapisany plik `.madcad`
-ponownie otworzył jedną bryłę i jedną operację przy gotowym silniku. Pełny
-przepływ po zalogowaniu z instalatora Windows pozostaje niepotwierdzonym
-krokiem wydania.
-`verify:modeling` obejmuje wiele tych etapów w oddzielnych
-scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
-całego scenariusza 120 s (199,9 s); dwa późniejsze lokalne przebiegi pełnego
-`verify:modeling` przeszły bez podnoszenia progu. Nie tworzymy
-wydania przed zamknięciem pełnego przepływu i walidacją.
-
-## Ukończony pion R6.6 — niezawodność dużych projektów
-
-Jeden aktywny pion prowadzi teraz od szybkiej edycji długiej historii do
-potwierdzonego wyniku bez blokowania użytkownika:
-
-- [x] worker CAD kooperacyjnie przerywa nieaktualną przebudowę między grupami
-  operacji i brył, zwalniając tymczasowe kształty kernela zamiast kończyć całą
-  starą rewizję;
-- [x] deterministyczny korpus trzech dokumentów po 220 operacji przechodzi
-  walidację, round-trip i budżet przygotowania, a desktopowy scenariusz z
-  prawdziwym OpenCascade przebudowuje 220 operacji i zachowuje najnowszą
-  rewizję po anulowaniu starszej;
-- [x] rozszerzyć raport dużych projektów o Undo/Redo, autozapis oraz szczytowe
-  zużycie pamięci na Windows i macOS;
-- [x] edycja podczas przebudowy zachowuje wyłącznie najnowszą rewizję, daje się
-  anulować z interfejsu i nie pozostawia częściowego modelu ani cache;
-- [x] wielokrotne zapisanie, autozapis, awaria i ponowne otwarcie każdego
-  dokumentu korpusu zachowują identyczny wynik geometrii i trwałe referencje;
-- [x] kontrola bezpieczeństwa CAM przetwarza 150 tys. segmentów bez kopiowania
-  wszystkich punktów i bez przekazywania dużej tablicy do stosu wywołań;
-- [x] granice obrysów kieszeni 2D i obróbki adaptacyjnej są mierzone iteracyjnie;
-  regresja obejmuje 150 tys. punktów i nieprawidłowe współrzędne;
-- [x] animacja CAM ponownie wykorzystuje ścieżki i raport zamiast przeliczać je
-  przy każdym kroku, a symulacja i widok nie kopiują listy wszystkich segmentów;
-  zakres i pozostały koszt opisuje [CAM_SIMULATION_PERFORMANCE.md](./docs/CAM_SIMULATION_PERFORMANCE.md);
-- [x] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
-  ustalonego budżetu blokuje merge.
-
-Anulowanie przeliczenia zachowuje w widoku ostatni poprawnie obliczony model,
-ale dokument nadal zawiera niezakończoną zmianę. Eksport geometrii jest wtedy
-niedostępny. Następna edycja uruchamia nową przebudowę; cofnięcie zmiany lub
-ponowne otwarcie zapisu też przywraca spójny wynik. Worker odrzuca wyniki
-anulowanej rewizji i usuwa jej wpis z cache nawet wtedy, gdy zdążyła się
-zakończyć tuż przed kliknięciem. Test desktopowy obejmuje anulowanie oraz
-ponowną edycję historii 220 operacji.
-
-Test korpusu sprawdza trzy kolejne zapisy atomowe, autozapis, odzyskanie
-uszkodzonego autozapisu z kopii oraz trwałość identyfikatorów i przygotowanych
-operacji we wszystkich trzech dokumentach. Osobny scenariusz desktopowy celowo
-kończy proces renderera po autozapisie każdego projektu; po ponownym uruchomieniu
-porównuje objętość, pole, granice, siatkę oraz stabilne identyfikatory ścian,
-krawędzi i wierzchołków wszystkich brył z wynikiem OpenCascade przed awarią.
-Raport `artifacts/madcad-large-project-corpus.json` zapisuje czasy i rozmiar
-każdego scenariusza; test należy do pełnej bramki desktopowej na macOS i Windows.
-Worker podaje też najwolniejszą operację historii. Raport korpusu zawiera czasy,
-szczyt pamięci procesu oraz budżety: 45 s na przebudowę, 15 s na pojedynczą
-operację, 5 s na siatkowanie bryły i 2 GiB szczytu pamięci procesu.
-Przekroczenie kończy test błędem; w GitHub Actions te same dane trafiają do
-podsumowania zadania i artefaktu. CI `35823985456` na roboczym PR #87
-potwierdziło oba zadania `Desktop E2E modeling` oraz łącznie 19/19 zadań CI
-i osobny CodeQL. Raporty korpusu z obu systemów mają `failures: []`:
-najdłuższe przeliczenie to 39,2 s na Windows i 6,3 s na macOS, a największy
-odnotowany szczyt pamięci wyniósł odpowiednio 429 636 KiB i 544 656 KiB.
-Budżety pozostają częścią wymaganej kontroli `main`, więc przekroczenie
-blokuje merge. Wynik dotyczy tej gałęzi i tego uruchomienia, nie dowodzi
-jeszcze gotowości całego produktu do wydania.
-Nowszy przebieg `35827561178` wykazał na Windows pojedyncze przekroczenie
-o `363 ms` w siatkowaniu korpusu szkiców. Diagnoza, usunięty nadmiar pracy
-i sposób sprawdzenia kolejnego CI są w
-[CAD_MESH_PERFORMANCE.md](./docs/CAD_MESH_PERFORMANCE.md); budżet nie został
-podniesiony.
-
-Kontrola istniejącego CI z 2026-09-23 (run `35800781854`, starszy commit)
-wykazała dwa błędy scenariuszy desktopowych: na macOS test otwartego szkicu
-zakładał samoczynne zakończenie polecenia linii, a na Windows test naprawy
-referencji szukał przycisku kandydata osobno od kliknięcia, gdy silnik nadal
-przeliczał historię. Testy synchronizują teraz oba kroki ze stanem aplikacji;
-powtórne pełne scenariusze modelowania przeszły na macOS i Windows w CI
-`35823985456`. To nie potwierdza jeszcze całkowitej gotowości produktu.
-Nowego wydania, taga ani publikacji strony nie wykonujemy przed zamknięciem
-całego celu i przejściem pełnej bramki na docelowych systemach.
-
-Po tym pionie następne w kolejności są: walidacja importu na większym korpusie
-STEP/DWG/DXF/STL/3MF, rozbudowa CAM oraz walidowany MES dowolnej geometrii 3D.
-
-## Ścieżka krytyczna P0
-
-| Kolejność | Etap | Status | Zależność | Wynik użytkownika |
-| --- | --- | --- | --- | --- |
-| 1 | M1 Solver szkicu MVP | `[x]` | ukończony model encji | szkic ma wymiary, podstawowe więzy i stopnie swobody |
-| 2 | M2 Podstawowe modyfikacje szkicu | `[x]` | M1 | Trim/Extend/Break/Offset/Fillet/Chamfer i podstawowe transformacje zachowują więzy |
-| 3 | M3 Picking B-Rep | `[x]` | trwałe ID z R0 | można stabilnie wskazać ścianę, krawędź i wierzchołek |
-| 4 | M4 Konstrukcja podstawowa | `[x]` | M3 | offset plane, midplane, plane przez trzy punkty, osie i punkty konstrukcyjne |
-| 5 | M5 Szkic na modelu i Project | `[x]` | M1, M3, M4 | drugi szkic powstaje na ścianie i zachowuje projekcję krawędzi |
-| 6 | M6 Modelowanie części MVP | `[x]` | M3, M5 | pełniejsze Extrude, Boolean, wskazane Fillet/Chamfer, Shell i podstawowe prymitywy |
-| 7 | M7 Otwory i gwinty MVP | `[x]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
-| 8 | M8 Inspect MVP | `[x]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
-| 9 | M9 Wymiana danych i dodatki eksportowe | `[x]` | M6–M8 | STEP jako wymiana CAD; opcjonalnie STL/3MF, analiza drukowalności i slicer |
-| 10 | M10 Wydanie stabilne | `[x]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS/Linux |
-
-## M4 — geometria konstrukcyjna MVP `P0`
-
-- [x] Offset plane ma nazwę, widoczność, parametryczną odległość, trwałe ID i pełny przepływ zapisu/undo/redo.
-- [x] Midplane i płaszczyzna przez trzy punkty.
-- [x] Oś z krawędzi, walca, dwóch punktów oraz przecięcia dwóch płaszczyzn.
-- [x] Punkt na wierzchołku, centrum i przecięciu.
-- [x] Widoczność, nazwa i trwała referencja do konstrukcji.
-
-Rozbudowany UCS jest ukończony: szkic może używać pełnej ortonormalnej ramy dowolnej obróconej płaszczyzny konstrukcyjnej albo planarnej ściany, a tę samą ramę zachowują widok, siatka, snap i operacje B-Rep.
-
-## M5 — szkic na modelu i Project `P0`
-
-- [x] Szkic na płaszczyźnie bazowej, ścianie planarnej i płaszczyźnie konstrukcyjnej.
-  - [x] Płaszczyzny bazowe XY/XZ/YZ.
-  - [x] Planarna ściana bryły z trwałą referencją podpory i odsunięciem.
-  - [x] Nazwana płaszczyzna konstrukcyjna.
-- [x] Project punktu, krawędzi i zamkniętej pętli.
-- [x] Associative link oraz czytelny stan utraconej referencji.
-- [x] Slice i kontrola widoczności profili, więzów oraz projected geometry.
-
-Import SVG/DXF został ukończony w `P1.1`.
-
-## M6 — modelowanie części MVP `P0`
-
-- [x] Extrude: New/Join/Cut/Intersect, jedna/dwie strony, symetrycznie i Through All.
-- [x] Boolean Union/Subtract/Intersect dla wskazanych brył.
-- [x] Fillet i Chamfer wyłącznie wskazanych krawędzi.
-- [x] Shell z wyborem usuwanych ścian.
-- [x] Box, Cylinder, Sphere i Torus.
-- [x] Jeden manipulator dla Extrude, Move/Rotate i Offset Face.
-- [x] Tekst szkicu jako jeden scenariusz `Text → profile → Extrude/Emboss/Deboss`, bez blokowania solvera i zależności od fontów systemowych.
-
-Coil i Pipe ukończono jako `P1.18–P1.19`.
-
-## M7 — otwory i gwinty MVP `P0`
-
-- [x] Umieszczenie prostego otworu przez trwały punkt szkicu.
-- [x] Umieszczenie na planarnej ścianie z trwałymi referencjami do dwóch prostopadłych krawędzi i parametrycznymi odsunięciami.
-- [x] Otwór prosty, Counterbore i Countersink; Distance/Through All.
-- [x] Podstawowy gwint metryczny kosmetyczny i modelowany: średnica, skok, kierunek i długość.
-- [x] Profil kompensacji luzu FFF bez zmiany nominalnego wymiaru.
-
-Tapered threads, wiele norm i klasy pasowania są `P1`.
-
-## M8 — Inspect MVP `P0`
-
-- [x] Measure: długość, odległość, kąt, promień/średnica, pole i pozycja.
-- [x] Section Analysis.
-- [x] Objętość, pole, gęstość, masa i środek masy.
-- [x] Minimum Radius oraz podstawowa kontrola kolizji wielu brył.
-
-## M9 — wymiana danych i opcjonalny druk 3D `P0`
-
-- [x] Profile stołu Bambu/Prusa/Creality i własny profil.
-- [x] Pozycja, obrót, skala, kopie i orientacja względem płaskiej ściany.
-- [x] Import STEP/STL/3MF z kontrolą jednostek; eksport STEP/STL/3MF w skali 1:1.
-- [x] Analiza manifold, normalnych, trójkątów zdegenerowanych, minimalnej grubości, małych otworów, nawisów i gabarytu stołu.
-- [x] Lista problemów wskazuje geometrię; wynik opisuje ryzyko, nie gwarancję wydruku.
-- [x] Przekazanie pliku do Bambu Studio, PrusaSlicer lub Cura.
-
-Mapa ryzyka druku, automatyczna orientacja, profile analizy materiałów i kontrolowany remesh są ukończone. Pełne profile procesu pozostają odpowiedzialnością wybranego slicera.
-
-## M10 — ciągły tor jakości i wydanie `P0`
-
-Te prace nie czekają na koniec modelowania:
-
-- [x] CI: test core i build na Linux/macOS/Windows, desktop E2E na macOS/Windows oraz smoke test paczek ZIP/NSIS/AppImage.
-- [x] Awaria workera, pełny dysk, uszkodzony projekt, kopia autozapisu i odzyskanie sesji są testowane.
-- [x] Electron ma context isolation, sandbox, CSP, bezpieczne linki, wspólną kontrolę źródła dla wszystkich 20 kanałów IPC oraz test odrzucenia obcego widoku.
-- [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
-- [x] Przełącznik PL/EN, katalog tekstów nowych przepływów oraz bramka wykrywająca polskie teksty w renderowanym interfejsie EN działają. Dostępność klawiatury i fokusu oraz DPI 100–200% są testowane.
-- [x] Kanały alpha/beta/stable, SHA-256, testy paczek, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera są zaimplementowane. Oficjalne wydanie 6.5.0 bez certyfikatu przeszło pełną bramkę desktopową na Windows i macOS, a zweryfikowane paczki Windows/macOS/Linux opublikowano z sumami SHA-256.
-- [x] Wbudowany samouczek prowadzi od szkicu do modelu i eksportu, ma ścieżkę PL/EN oraz jawną listę znanych ograniczeń.
-
-## P1 — rozszerzenie modelowania części
-
-- [x] P1.1 Import SVG/DXF do aktywnego szkicu: wykrywanie i wybór jednostek, profile, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
-- [x] P1.1a Lokalny import DWG przez wykryty GNU LibreDWG albo ODA File Converter: bez przesyłania projektu do chmury, z bezpiecznym wyborem pliku, limitami rozmiaru i ponownym użyciem sprawdzonego importera DXF.
-- [x] P1.2 Więzy `collinear` i `symmetry` od solvera do interfejsu, z diagnostyką konfliktów, undo/redo, autozapisem i round-trip projektu.
-- [x] P1.3 Wymiary ordinate X/Y oraz długości łuku: sterowanie solverem, znaczniki, edycja na szkicu, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
-- [x] P1.4 Prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień, walidacją, undo/redo, autozapisem i ponownym otwarciem w desktop E2E.
-- [x] P1.5 Szyk geometrii szkicu po linii lub łuku z równym rozstawem, stałą orientacją albo orientacją do stycznej, pomijaniem wystąpień i pełnym desktop E2E.
-- [x] P1.6 Parametryczne płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i odsunięty na osi, z walidacją dokumentu, grafem zależności i pełnym desktop E2E.
-- [x] P1.7 Więz ciągłości krzywizny `curvature` (G2) dla dwóch łuków ze wspólnym końcem, z diagnostyką konfliktu, znacznikiem κ, undo/redo, autozapisem i round-trip dokumentu.
-- [x] P1.8 Extrude To Object i parametryczne odsunięcie początku wyciągnięcia.
-  - [x] P1.8a Odsunięcie początku działa parametrycznie dla wszystkich zakresów, przechodzi edycję i pełny desktop E2E na przesuniętym B-Rep.
-  - [x] P1.8b To Object kończy bryłę na równoległej płaszczyźnie konstrukcyjnej albo planarnej ścianie, śledzi przesunięcie ściany przez trwałą referencję i przechodzi undo/redo, autozapis oraz ponowne otwarcie.
-- [x] P1.9 Thin Extrude dla zamkniętego i otwartego profilu: parametryczna grubość, strona wewnętrzna/zewnętrzna/symetryczna oraz pełny przepływ B-Rep.
-  - [x] P1.9a Zamknięty profil tworzy dokładną cienkościenną bryłę do wewnątrz, na zewnątrz lub symetrycznie; edycja, undo/redo, autozapis i ponowne otwarcie przechodzą desktop E2E.
-  - [x] P1.9b Otwarty łańcuch linii szkicu tworzy dokładną cienkościenną bryłę z zakończeniem prostym lub wydłużonym; walidacja rozgałęzień, anulowanie, undo/redo, autozapis i ponowne otwarcie przechodzą testy.
-- [x] P1.10 Draft wskazanych planarnych ścian względem bazowej albo parametrycznej płaszczyzny neutralnej, z kątem dodatnim/ujemnym, trwałymi referencjami, anulowaniem, edycją, undo/redo, autozapisem i ponownym otwarciem.
-- [x] P1.11 Press Pull jako kontekstowa operacja profilu i planarnej ściany, oparta na istniejących Extrude oraz Offset Face i sprawdzona w obu kontekstach przez desktop E2E.
-- [x] P1.12 Split Face/Body bez dublowania narzędzi tnących.
-  - [x] P1.12a Split Body bazową albo konstrukcyjną płaszczyzną, z zachowaniem obu wynikowych brył, trwałym ID drugiej bryły, edycją, undo/redo, autozapisem i ponownym otwarciem.
-  - [x] P1.12b Split Face zamkniętym profilem szkicu na wskazanej planarnej ścianie, bez zmiany objętości, z trwałą referencją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
-- [x] P1.13 Naprawa ścian jako osobne, mierzalne etapy.
-  - [x] P1.13a Delete Face + Heal scala wskazane regiony ze zgodnymi sąsiednimi ścianami, chroni pozostałe granice i kontroluje objętość oraz liczbę ścian wynikowej bryły; trwałe referencje, anulowanie, undo/redo, autozapis i ponowne otwarcie przechodzą desktop E2E.
-  - [x] P1.13b Replace Face dopasowuje wskazaną planarną ścianę do równoległej powierzchni docelowej innej bryły, zachowuje bryłę referencyjną, odrzuca powierzchnie nierównoległe i przechodzi pełny przepływ trwałych referencji oraz historii.
-- [x] P1.14 Revolve zamkniętego profilu wokół osi bazowej albo konstrukcyjnej, z kątem parametrycznym, New/Join/Cut/Intersect, kontrolą położenia osi, edycją, undo/redo, autozapisem i ponownym otwarciem.
-- [x] P1.15 Sweep jednego zamkniętego profilu po ciągłej otwartej ścieżce linii z osobnego szkicu, z New/Join/Cut/Intersect, walidacją rozłączeń, edycją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
-- [x] P1.16 Loft między dwoma zamkniętymi profilami z osobnych szkiców na różnych równoległych płaszczyznach, z przejściem gładkim/odcinkowym, zgodną liczbą otworów, New/Join/Cut/Intersect, edycją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
-- [x] P1.17 Rib/Web z ciągłego otwartego łańcucha linii szkicu: Rib rośnie w płaszczyźnie, Web prostopadle do niej, oba mają parametryczną grubość i zadany zasięg, stronę oraz kierunek, łączą się z istniejącą bryłą i przechodzą edycję, anulowanie, undo/redo, autozapis i ponowne otwarcie.
-- [x] P1.18 Coil jako dokładna bryła helikalna wokół osi bazowej albo konstrukcyjnej, z parametryczną średnicą spirali i przekroju, skokiem, ułamkową liczbą zwojów, kierunkiem prawym/lewym, New/Join/Cut/Intersect, limitem złożoności, kontrolą samoprzecięcia, edycją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
-- [x] P1.19 Pipe jako dokładny pusty przekrój rurowy prowadzony po ciągłej otwartej ścieżce linii, z parametryczną średnicą zewnętrzną i grubością ścianki, New/Join/Cut/Intersect, walidacją ścieżki i kanału wewnętrznego, edycją, undo/redo, autozapisem i ponownym otwarciem.
-- [x] P1.20 Pattern bryły w jednym wspólnym narzędziu: prostokątny z parametrycznymi wierszami/kolumnami i odstępami, kołowy wokół osi bazowej/konstrukcyjnej oraz równomierny po ciągłej ścieżce, z limitem 100 wystąpień, edycją trybu, undo/redo i autozapisem.
-- [x] P1.21 Zaawansowane Emboss/Deboss tekstu na wskazanej planarnej ścianie: trwała referencja topologii, lokalny układ powierzchni, kierunek zgodny z normalną dla Emboss i przeciwny dla Deboss, edycja, undo/redo, autozapis i ponowne otwarcie.
-- [x] P1.21a Modelowanie powierzchniowe B-Rep: Patch z zamkniętego profilu, Surface Extrude z profilu lub otwartego łańcucha oraz Thicken jednostronny/symetryczny; osobny typ ciała, historia, graf zależności, przeglądarka i desktop E2E.
-- [x] P1.21b Surface Revolve: obrót zamkniętego profilu albo otwartego łańcucha wokół osi bazowej/konstrukcyjnej, kąt parametryczny, bezpośredni dostęp z aktywnego szkicu, edycja historii i współpraca z Thicken.
-- [x] P1.21c Surface Sweep: prowadzenie zamkniętego profilu albo otwartego łańcucha po osobnym ciągłym szkicu ścieżki, bezpośredni dostęp z aktywnego szkicu, edycja historii, graf zależności i współpraca z Thicken.
-- [x] P1.21d Surface Loft: otwarta powierzchnia gładka lub odcinkowa między dwoma zamkniętymi profilami z osobnych równoległych szkiców, edycja historii, graf zależności i współpraca z Thicken.
-- [x] P1.21e Surface Offset: dokładne odsunięcie istniejącej powierzchni B-Rep o dodatnią lub ujemną odległość, podgląd, edycja historii, graf zależności i współpraca z Thicken.
-- [x] P1.21f Stitch: zszywanie co najmniej dwóch stykających się powierzchni z parametryczną tolerancją; otwarty wynik pozostaje jednym płaszczem, a szczelny płaszcz automatycznie staje się bryłą.
-- [x] P1.21g Surface Trim: dokładne odjęcie bryły tnącej od powierzchni B-Rep, opcjonalne zachowanie narzędzia, podgląd, edycja historii i współpraca z Thicken.
-- [x] P1.21h Surface Extend: przedłużenie wskazanej prostej krawędzi planarnej powierzchni o parametryczną odległość, trwała referencja topologii i poprawne późniejsze Thicken.
-- [x] P1.21i Analiza powierzchni: zebra zależna od kamery, mapa krzywizny siatki z regulowanym zakresem, grzebień krzywizny krawędzi, izolinie XYZ oraz klasyfikacja płynnych, przejściowych i ostrych granic ścian bez zmiany historii modelu.
-
-## P1 — organizacja dokumentu i produktywność klasycznego CAD
-
-- [x] P1.22 Warstwy szkicu: aktywna warstwa, kolor, typ i grubość linii, widoczność, blokada, drukowanie oraz nadpisania `ByLayer`; starsze dokumenty są normalizowane bez zmiany wersji schematu, a zapis, undo/redo i desktop E2E zachowują właściwości.
-- [x] P1.23 Bloki 2D: tworzenie definicji z połączonej geometrii, wybór całego wystąpienia, biblioteka dokumentu, wstawianie z pozycją/obrotem/skalą, atrybuty definicji i wystąpienia, rozbijanie, usuwanie, undo/redo oraz zapis/otwarcie.
-- [x] P1.24 Konfigurowalne aliasy i bezpośrednie klawisze podstawowych poleceń: ustawienia ogólne aplikacji, walidacja konfliktów i nazw zarezerwowanych, przywracanie układu Autodesk, dynamiczne tooltipy, podpowiedzi linii poleceń oraz zapis lokalny.
-- [x] P1.25 Automatyczne sugestie więzów podczas szkicowania: czytelny podgląd `H/V` przy kursorze, automatyczne wyrównanie i zapis więzu poziomego/pionowego oraz zbieżności punktów, możliwość wyłączenia w palecie szkicu i regresja desktopowa.
-- [x] P1.26 Diagnostyka niedowiązania: solver wyznacza bazę przestrzeni swobodnej, wskazuje osie i parametry pozostające do związania, podświetla swobodne punkty oraz udostępnia kompaktowy panel z wyborem geometrii i podpowiedziami następnego więzu.
-- [x] P1.27 Raport naprawy importu: SVG/DXF/DWG jawnie zlicza dodane, zmienione i pominięte elementy, raportuje uproszczenia i nieobsługiwane encje, a import 3D rejestruje konwersję 3MF i skalowanie; wynik ma zwarty podgląd oraz zapis JSON.
-- [x] P1.28 Zapisywane obszary robocze i układy paneli: cztery gotowe presety CAD, czyste płótno, narzędzia dokumentu i eksport/druk, do ośmiu nazwanych układów użytkownika, trwały zapis lokalny, usuwanie oraz bezpieczne zastosowanie podczas aktywnego szkicu.
-- [x] P1.29 Porządkowanie architektury obszaru modelowania: decyzje linii poleceń są planowane w testowalnym kontrolerze, zapis i odczyt projektu korzystają ze wspólnej usługi dokumentu, a modalne narzędzia szkicu/importu są renderowane przez osobny stos dialogów.
-- [x] P1.30 Korpus zgodności wymiany danych: deterministyczne fixture profili AutoCAD 2013 DXF, Fusion sketch DXF, FreeCAD/OpenCascade STEP oraz ASCII STL dla PrusaSlicer/Cura/Bambu mają testy jednostek, profili, trybu B-Rep/mesh i siatki; osobna regresja sprawdza drzewo AX, nazwy kontrolek i kolejność fokusu.
-- [x] P1.31a Diagnostyka i bezpieczna naprawa importowanej siatki: wykrywanie duplikatów, degeneracji, powtórzeń, granic otwartych, niemanifold i niespójnej orientacji; naprawa usuwa wyłącznie jednoznaczne błędy, zachowuje otwory, wspiera undo i ponowną ocenę silnika.
-- [x] P1.31 Rzeczywista macierz zgodności uruchamia lokalny GNU LibreDWG 0.13.3, oficjalny model STEP z przypiętego commita FreeCAD oraz zapisany wynik CLI Bambu Studio 2.8.2 przez pełny interfejs i silnik MadCAD. Naprawiono 3MF Production z geometrią w zewnętrznych plikach modelu: diagnostyka pokazuje teraz 1 obiekt i 4 trójkąty zamiast zera, a import zachowuje gabaryt 20 × 20 × 20 mm i dodatnią objętość. Raport JSON oraz `docs/INTEROPERABILITY_REPORT.md` rozdzielają wyniki potwierdzone od aplikacji nieobecnych na maszynie.
-- [x] P1.32a Wspólne otwory normowane M2–M24: trzy serie przejściowe ISO 273, gwinty metryczne o skoku zwykłym i wybranych drobnych, klasy wewnętrzne 5H/6H/7H, automatyczna średnica i oznaczenie. Metadane przechodzą walidację, edycję, B-Rep, zapis/otwarcie i zasilają skojarzoną tabelę otworów w dokumentacji 2D; zakres oraz źródła opisuje `docs/HOLE_STANDARDS.md`.
-- [x] P1.32b Rozszerza gwinty metryczne do M1–M56 i dodaje NPT 1/16–3 oraz BSPT/Rc 1/8–3 z TPI, stożkiem 1:16, wyborem przygotowania, kontrolą sprawdzianem i jawnymi odchyłkami produkcyjnymi. Publiczne zalecenia producentów są odseparowane od płatnych wymagań odbiorowych ASME/ISO; walidacja, stożkowy B-Rep, zapis/otwarcie i tabela otworów mają regresję desktopową.
-- [x] P1.33 Draft Analysis oblicza podpisany zakres kąta każdej ściany z rzeczywistych normalnych tessellacji względem kierunku ±X/±Y/±Z i tolerancji 0–45°. Widok 3D nakłada rozróżnialne kolory pochylenia dodatniego, zerowego, ujemnego i mieszanego, panel pokazuje liczniki oraz jawnie zgłasza siatki bez mapy ścian; analiza nie zmienia historii modelu.
-- [x] P1.34a Interference uruchamia dokładną analizę tylko dla dwóch świadomie wskazanych wystąpień, odróżnia potwierdzone przecięcie siatek od ryzyka obwiedni i wyniku czystego oraz pokazuje wymiary nakładania obwiedni bez przedstawiania ich jako dokładnej objętości przecięcia.
-- [x] P1.34b Named Views zapisuje w dokumencie dokładną pozycję kamery, punkt celu i kierunek góry po dowolnej orbicie lub panoramowaniu. Zwarty panel przywraca widok jednym kliknięciem, usuwa go z Undo/Redo i zachowuje dane po ponownym otwarciu bez podnoszenia zgodnego wstecznie schematu v15.
-- [x] P1.34c ViewCube udostępnia komplet widoków Góra/Dół/Przód/Tył/Lewo/Prawo oraz izometrię w zwartej, przestrzennej kontrolce. Każdy kierunek ma nazwę dostępności, stan aktywny i test rzeczywistego wektora kamery; forma pozostaje płaska bez gradientów i nie zasłania narzędzi nawigacji.
-- [x] P1.35a Appearance zapisuje na definicji komponentu preset, kolor, metaliczność i chropowatość, stosuje je do wszystkich wystąpień w widoku 3D oraz zachowuje zgodność ze starszymi dokumentami bez pola wyglądu. Testy potwierdzają zapis/otwarcie, Undo/Redo, rzeczywisty materiał renderera i układ panelu bez przepełnienia.
-- [x] P1.35b Exploded View rozsuwa widoczne wystąpienia części od środka złożenia deterministycznym suwakiem 0–100%, nie zmieniając położeń projektowych, jointów, kolizji ani historii. Kolory kolizji zostają wyłączone wyłącznie w rozstrzelonym podglądzie, a test desktopowy potwierdza rozsunięcie, powrót do położeń projektowych i układ panelu bez przepełnienia.
-- [x] P1.35c Scena i render zapisuje w projekcie preset Studio/Warsztat/Światło dzienne/Noc, kolor tła, trzy poziomy oświetlenia, kierunek i wysokość światła, ekspozycję, cienie oraz podłoże. Three.js stosuje tonemapping ACES i miękkie cienie na żywo, a eksport PNG używa aktualnej kamery i wyglądu komponentów, ale usuwa siatkę roboczą. Migracja zgodnego schematu v15, walidacja, Undo/Redo, zapis prawdziwego PNG oraz układ panelu bez overflow są sprawdzane automatycznie i wizualnie.
-- [x] P1.35d Decals nakłada PNG/JPEG/WebP przez projekcję na konkretną ścianę B-Rep zamiast zmieniać materiał całego komponentu. Trwałe ID bryły i ściany, obraz do 2 MB, rozmiar, krycie, obrót i widoczność pozostają w `.madcad`; brakująca ściana jest jawnie oznaczona i może zostać przypisana ponownie. Naklejka przechodzi Undo/Redo, zapis/otwarcie, rzeczywisty renderer i czysty eksport PNG bez podświetleń wyboru.
-- [x] P1.35e Storyboard złożenia zapisuje do 12 nazwanych animacji i 120 klatek rozłożenia na storyboard. Oś 0,1–300 s ma płynne przejścia, ręczne przewijanie, odtwarzanie i zatrzymanie; zmienia wyłącznie podgląd Exploded View, bez mutowania transformacji, jointów ani historii geometrii. Tworzenie, nazwa, czas trwania, klatki i usuwanie współpracują z Undo/Redo oraz zapisem `.madcad`, a desktop E2E sprawdza rzeczywisty ruch renderera i układ bez overflow.
-- [x] P1.35f Klatka storyboardu zapisuje również niezależne przesunięcie XYZ każdego wystąpienia, bieżącą kamerę i opis kroku montażowego. Renderer interpoluje ruch części oraz pozycję i cel kamery bez zapisywania ich do transformacji projektowych; panel pokazuje ruch aktualnie wybranego wystąpienia, a desktop E2E potwierdza wartość 30 mm, kamerę, opis, odtwarzanie i Undo/Redo.
-- [x] P1.35g Klatka storyboardu zapisuje niezależny obrót XYZ każdego wystąpienia. Obrót jest płynnie interpolowany razem z przesunięciem i nakładany wyłącznie w rendererze, bez mutowania transformacji projektowej, jointów i historii modelu; panel rozdziela pola przesunięcia w milimetrach od obrotu w stopniach.
-- [x] P1.35h Wybrane wystąpienie animacji ma bezpośrednio w scenie turkusową strzałkę przesunięcia oraz bursztynowy łuk dominującego obrotu. Prowadnice są tylko informacją wizualną, nie trafiają do modelu ani eksportu i znikają przy zerowym ruchu.
-- [x] P1.35i Storyboard zapisuje i interpoluje wartości jointów, a renderer wyznacza z nich chwilową transformację względem osi, położenia spoczynkowego i limitów jointa bez zmiany dokumentu. Pierwsza klatka nowego storyboardu przejmuje aktualne wartości jointów.
-- [x] P1.35j Gotowy storyboard można wydać jako film WebM 24 fps do 1920×1080 oraz samodzielną, drukowalną instrukcję HTML. Film przechwytuje bieżącą scenę mimo przebudowy renderera między klatkami, a instrukcja porządkuje kroki, czas, opisy, rozłożenie, przesunięcia, obroty i wartości jointów oraz koduje treść projektu bezpiecznie dla HTML.
-- [x] P1.35k Instrukcja montażowa automatycznie renderuje czysty widok każdej klatki storyboardu, osadza obrazy PNG bezpośrednio w jednym przenośnym pliku HTML i po eksporcie przywraca czas, stan złożenia oraz kamerę użytkownika. Osadzane obrazy przechodzą ścisłą walidację schematu data URL.
-- [x] P1.36a Szybka analiza statyczna daje jawnie ograniczony szacunek belki wspornikowej dla wybranej bryły: materiał, kierunek długości i siły, utwierdzony koniec oraz obciążenie prowadzą do naprężenia zginającego, ugięcia, masy i współczynnika bezpieczeństwa. Panel wyraźnie odróżnia obliczenie przesiewowe od MES oraz ostrzega o otworach, karbach, kontaktach, wyboczeniu i anizotropii druku 3D, których model nie uwzględnia.
-- [x] P1.36b Szybka analiza cieplna daje jawnie ograniczony model ustalonego przewodzenia 1D przez obwiednię wybranej bryły. Materiał, kierunek i dwie temperatury prowadzą do oporu cieplnego, przepływu i strumienia ciepła oraz swobodnego wydłużenia; panel ostrzega o przekroczeniu temperatury użytkowej i wyraźnie odróżnia wynik od termicznego MES.
-- [x] P1.36c MES belki 1D składa globalną macierz sztywności elementów Eulera-Bernoulliego, nakłada utwierdzenie i siłę końcową, rozwiązuje przemieszczenia oraz raportuje reakcję, moment, naprężenie i współczynnik bezpieczeństwa. Wynik jest automatycznie porównywany z rozwiązaniem analitycznym tego samego przypadku, a panel jawnie odróżnia model belkowy od MES dowolnej bryły 3D.
-- [x] P1.36d Wynik MES belki ma wykres ugięcia w panelu oraz nałożoną na model linię zdeformowaną z automatyczną skalą, węzłami i mapą koloru od utwierdzenia do maksymalnego przemieszczenia. Wizualizacja jest wyłącznie podglądem i znika razem z poleceniem analizy.
-- [x] P1.36e MES belki obsługuje zarówno siłę skupioną na końcu, jak i równomiernie rozłożone obciążenie liniowe. Dla obciążenia rozłożonego solver składa zgodne siły węzłowe każdego elementu, a reakcje, moment, naprężenie i ugięcie są niezależnie sprawdzane rozwiązaniem analitycznym.
-- [x] P1.36f Siłę skupioną można umieścić w dowolnym położeniu 0–100% długości belki. Solver używa funkcji kształtu Hermite'a do zgodnego rozdzielenia siły i momentów między węzły elementu, zamiast zaokrąglać położenie do siatki.
-- [x] P1.36g Warunki brzegowe analizy są widoczne bezpośrednio na modelu: czerwone utwierdzenie oraz pomarańczowa strzałka siły skupionej albo sześć strzałek obciążenia rozłożonego. Panel ma spójną legendę kolorów deformacji, podpory i obciążenia.
-- [x] P1.36h Solver zachowuje momenty zginające na końcach wszystkich elementów, a panel pokazuje diagram momentu wzdłuż całej belki obok wykresu ugięcia. Maksimum diagramu jest sprawdzane względem raportowanego naprężenia i reakcji utwierdzenia.
-- [x] P1.36i Solver zachowuje siły tnące na obu końcach każdego elementu. Panel wyników nie układa już wielu wykresów jeden pod drugim: wspólny przełącznik Ugięcie/Moment/Tnąca pokazuje jeden czytelny diagram naraz i ogranicza zajęte miejsce robocze.
-- [x] P1.36j Rozkład naprężenia zginającego jest wyznaczany w każdym węźle z momentu i właściwości przekroju. Czwarty widok Naprężenie pokazuje MPa wzdłuż belki, a jego maksimum jest sprawdzane względem wyniku bezpieczeństwa.
-- [x] P1.36k Wynik naprężenia pokazuje procent wykorzystania granicy plastyczności oraz liczbę przekroczonych węzłów. Punkty wykresu są klasyfikowane zielony/bursztynowy/czerwony, dzięki czemu strefa krytyczna jest widoczna bez ręcznego porównywania liczb.
-- [x] P1.36l Użytkownik ustawia wymagany współczynnik bezpieczeństwa 1–10. Wynik jawnie podaje spełnienie celu i procentowy margines, rozróżniając niespełniony cel projektowy od faktycznego przekroczenia plastyczności.
-- [x] P1.36m Jeden przypadek MES może łączyć siłę skupioną w dowolnym położeniu z równomiernym obciążeniem liniowym. Macierz obciążeń, reakcje, moment, ugięcie analityczne, naprężenia i siedem symboli w scenie wynikają z superpozycji obu składników.
-- [x] P1.36n Panel tworzy obwiednię nazwanych scenariuszy Bazowy ×1, Roboczy ×1,25 i Przeciążenie ×1,5. Dla każdego pokazuje FoS i spełnienie celu, a przypadek o najmniejszym zapasie jest automatycznie oznaczony jako krytyczny.
-- [x] P1.36o Współczynniki trzech scenariuszy obciążenia są edytowalne w panelu w zakresie 0,1–10. Solver przelicza obwiednię na żywo, zachowuje nazwy i niezależnie wybiera krytyczny wariant po każdej zmianie.
-- [x] P1.36p Użytkownik może nazwać, dodać i usunąć od 1 do 8 własnych scenariuszy obciążenia. Nazwy i identyfikatory są walidowane jako unikalne, a dowolna liczba przypadków uczestniczy w tej samej automatycznej obwiedni.
-- [x] P1.36q Wyniki MES belki można zapisać jako raport CSV zgodny z arkuszami kalkulacyjnymi. Plik obejmuje dane projektu, materiał, geometrię, obciążenia, główne wyniki oraz wszystkie scenariusze z ich współczynnikami i FoS.
-- [x] P1.36r Pierwszy rzeczywisty MES bryły 3D tworzy objętościową siatkę czworościenną z zamkniętej siatki powierzchniowej, składa macierz liniowej sprężystości z trzema przemieszczeniami na węzeł, nakłada utwierdzenie i siłę powierzchniową oraz pokazuje deformację i naprężenie von Mises. Panel jawnie raportuje błąd aproksymacji objętości, równowagę sił, zbieżność solvera i zakres beta; test rdzenia oraz Electron sprawdzają rzeczywistą bryłę OpenCascade i mapę w widoku.
-- [x] P1.36s MES bryły 3D przyjmuje dwie bezpośrednio wskazane planarne ściany B-Rep jako utwierdzenie i powierzchnię obciążenia, rozkłada siłę zgodnie z polami trójkątów granicznych i automatycznie porównuje przemieszczenie oraz naprężenie na dwóch kolejnych gęstościach siatki. Trwałe ID ścian, reakcja i wynik badania zbieżności przechodzą test rdzenia oraz pełny scenariusz Electron.
-- [x] P1.36t Niezależna bramka 11 benchmarków sprawdza analityczne rozciąganie i zginanie, liniowość obciążenia, skalowanie modułu Younga, bilans reakcji i zerowe przemieszczenia podpory. Wykryta nadmierna sztywność smukłych siatek doprowadziła do rozdzielczości do 16 oraz minimum 4–6 komórek przez przekrój. Każdy wynik ma osobną kontrolę objętości, równowagi, reszty solvera i zbieżności; zmierzone błędy zapisano w `docs/SOLID_FEA_BENCHMARKS_2026-09-09.md`.
-- [x] P1.36u Zgodna adaptacja wykrywa ostre i zakrzywione cechy powierzchni, dodaje pełne płaszczyzny w ich sąsiedztwie bez wiszących węzłów i pokazuje liczbę zagęszczeń w panelu. Benchmark płyty z otworem zmniejsza błąd objętości z 4,15% do 0,17%, rozpoznaje koncentrację 239,69 MPa względem odniesienia 300 MPa i przechodzi limit 25%. Po przejściu wszystkich 14 bramek panel zmieniono z `BETA` na jawny zakres `LINIOWY`.
-- [x] P1.37a Przekrojowy audyt kompletności produktu zamknięty dla 6.5.0: usunięto wykryte atrapy, martwe ścieżki i luki bramki wydania. Manifest obejmuje 53 scenariusze Electron w pięciu częściach; pełny zestaw przeszedł na macOS i Windows w wydaniu `v6.5.0` (run `34477547067`). Audyt zależności usunął 2 wysokie i 2 umiarkowane podatności; `npm audit` raportuje 0, a końcowa baza ma 184/184 testy UI i 224/224 testy rdzenia. Zweryfikowane instalatory Windows/macOS oraz AppImage Linux opublikowano z sumami SHA-256. Pełny wynik zapisano w `docs/PRODUCT_COMPLETENESS_AUDIT_2026-09-09.md` i `docs/FINAL_PRODUCT_AUDIT_2026-09-10.md`.
-
-## P2 — dokumentacja techniczna 2D
-
-- [x] P2.1 Obszar `DOKUMENTACJA`: arkusze A4/A3 w orientacji poziomej lub pionowej, skojarzony widok bazowy z rzeczywistych krawędzi aktualnego modelu, kierunki Front/Top/Right/Isometric, automatyczny dobór standardowej skali, położenie na arkuszu, tabliczka, zapis/otwarcie, undo/redo, podgląd 1:1 i bezpośredni eksport PDF.
-- [x] P2.2 Skojarzone widoki rzutowane, przekroje z rzeczywistego przecięcia modelu i kreskowaniem oraz powiększone detale tworzone od widoku bazowego; kontrola wyrównania, zależności rodzic–dziecko, automatyczna aktualizacja po przebudowie, bezpieczne usuwanie kaskadowe i układ arkusza 2×2.
-- [x] P2.3 Skojarzone wymiary gabarytowe poziome/pionowe, osie i znaczniki środka, automatyczne opisy średnicy otworu, opisy gwintu z klasą oraz tolerancje symetryczne i odchyłkowe; adnotacje aktualizują się z widokiem, zapisują w projekcie, przechodzą undo/redo, autozapis, round-trip, PDF i desktop E2E.
-- [x] P2.4 Podstawowe ramki GD&T (pozycja, płaskość, równoległość, prostopadłość, okrągłość), konfigurowalna tabliczka, zapisywana historia rewizji oraz eksport geometrii, tekstów i oznaczeń arkusza do DXF w milimetrach; schemat v8 ma migrację v7 i pełną walidację.
-- [x] P2.5 Automatyczne BOM z komponentów lub brył, skojarzone balony pozycji oraz tabela średnic i liczby otworów z topologii modelu; czytelne numery części, edycja położenia, usuwanie kaskadowe, migracja schematu v8→v9, zapis/otwarcie, undo/redo, autozapis oraz eksport PDF/DXF są objęte testami core, UI i desktop E2E.
-
-## P3 — komponenty i złożenia
-
-- [x] P3.1 Części, złożenia i podkomponenty: hierarchia bez cykli i wielu rodziców, origin XYZ, numer części, opis, materiał, ilość, wyłączna własność brył, przenoszenie i bezpieczne usuwanie z promocją dzieci. Struktura jest widoczna w przeglądarce projektu oraz panelu właściwości, zasila wielopoziomowy BOM, czyści przypisania po usunięciu historii, przechodzi undo/redo, walidację i migrację schematu v9→v10, testy core/UI oraz desktop E2E.
-- [x] P3.2 Wystąpienia komponentów: wielokrotne użycie jednej definicji, zagnieżdżone położenie i obrót XYZ, widoczność, wybór z drzewa i widoku 3D, Ground, powielanie całego poddrzewa oraz Rigid Group przenosząca członków razem. BOM sumuje wystąpienia, usuwanie promuje dzieci i czyści grupy, a migracja v10→v11 odtwarza dotychczasową hierarchię bez utraty danych. Etap ma testy core/UI, undo/redo, walidację zapisu i desktop E2E z kontrolą wizualną.
-- [x] P3.3 Joints: rigid, revolute i slider mają trwałe referencje osi origin, kotwice, konfigurowalne limity i wartość ruchu. Solver blokuje cykle, Ground, Rigid Group oraz ręczne nadpisanie sterowanego wystąpienia, a usuwanie wystąpień czyści zależności. Jointy są widoczne i wybieralne w przeglądarce oraz widoku 3D, mają bezpośredni panel sterowania, undo/redo, migrację schematu v11→v12, walidację, testy core/UI i desktop E2E z kontrolą wizualną.
-- [x] P3.4 Kontrola kolizji w ruchu wykorzystuje szybkie obwiednie oraz ograniczony kosztowo, dokładny test trójkątów z rozróżnieniem potwierdzonej kolizji i ryzyka. Motion Links przekazują ruch wielu jointów przez przełożenie i offset bez cykli, Contact Sets zapisują stale monitorowane pary, a konfiguracje odtwarzają transformacje, widoczność, Ground i wartości jointów bez kopiowania definicji ani geometrii części. Całość jest widoczna w panelu, przeglądarce i widoku 3D, ma czyszczenie zależności, undo/redo, walidację, migrację schematu v12→v13 oraz testy core/UI i desktop E2E.
-
-## P4 — historia i zarządzanie projektem
-
-- [x] P4.1 Bezpieczny rollback osi czasu oznacza aktywną granicę modelu i nie wykonuje późniejszych operacji. Nowe operacje są wstawiane przy markerze, reorder odrzuca zerwanie zależności lub kolejności grupy, a rename/suppress/delete oraz zwijane, nazywane grupy działają z kaskadowym czyszczeniem. Schemat v14 zapisuje marker i grupy, migruje v13 bez utraty danych i przechodzi testy core, walidację, undo/redo oraz desktop E2E z kontrolą wizualną.
-- [x] P4.2 Lokalne punkty zapisu projektu przechowują nazwane, niezmienne migawki `.madcad` z czasem, opisem, rozmiarem i liczbą szkiców/operacji. Manifest i jego kopia zapasowa są zapisywane atomowo, limity 20 wersji, 64 MiB na wersję i 256 MiB łącznie automatycznie usuwają najstarsze dane. Kompaktowy panel PL/EN tworzy, przywraca i usuwa wersje z potwierdzeniem; przywrócenie pozostawia poprzedni stan w Undo/Redo, oznacza projekt jako zmieniony i jest dostępne z komunikatu odzyskiwania po awarii. Zaufane IPC blokuje nieprawidłowe ID i obcy widok, a testy core, Electron security oraz desktop E2E sprawdzają prawdziwy zapis, odczyt, limity, odbudowę brył i układ panelu.
-- [x] P4.3 Linkowane komponenty projektu wskazują zewnętrzny plik `.madcad`, zapisują względną ścieżkę, ID i SHA-256 źródła oraz zachowują lekką, odświeżalną geometrię proxy STEP zamiast całej historii części. Panel PL/EN pokazuje stan aktualny/zmieniony/brakujący/błąd, odświeża bez zmiany stabilnych ID proxy i naprawia utracone łącze z jawną zgodą na zmianę tożsamości źródła. Usuwanie chroni zależności, odświeżenie przechodzi Undo/Redo, a schemat v15 migruje v14. Natywne otwieranie projektu zachowuje pełną ścieżkę na desktopie; 19 kanałów IPC ma wspólną kontrolę zaufanego widoku. Testy core, PL/EN E2E, Electron security, komponentów, dokumentacji i pełnego modelowania sprawdzają zmianę, brak pliku, naprawę, zapis i układ panelu.
-- [x] P4.4 Pack & Go tworzy atomowo przenośny folder projektu nadrzędnego i wszystkich osiągalnych projektów linkowanych. Graf do 200 plików odrzuca cykle, braki, zmienione źródła, podwójne ID, nieprawidłowe ścieżki, pliki ponad 64 MiB i istniejący katalog docelowy przed publikacją paczki. Deterministyczne nazwy rozwiązują kolizje, wszystkie ścieżki są przepisywane przenośnie, a sumy źródeł aktualizowane od liści grafu. `madcad-pack.json` zawiera SHA-256, rozmiar, ID i zależności każdego pliku bez ujawniania ścieżek absolutnych. Natywny dialog, komunikaty PL/EN i uporządkowany pasek 2×2 przechodzą testy core na prawdziwym systemie plików, zaufane IPC, desktop E2E, dostępność, komponenty i kontrolę wizualną.
-- [x] P4.5 Porównanie wersji projektu tworzy deterministyczny, tylko do odczytu diff bieżącego dokumentu względem lokalnego punktu zapisu albo zewnętrznego `.madcad`. Parametry, szkice, operacje, komponenty i linki są dopasowywane po trwałym ID, klasyfikowane jako dodane/usunięte/zmienione/bez zmian i opisane listą zmienionych pól. Znaczniki czasu są ignorowane, a duże proxy STEP porównywane odciskiem treści bez renderowania Base64. Kompaktowy panel PL/EN pokazuje źródło, liczniki, grupy i filtry oraz aktualizuje wynik po dalszej zmianie bieżącego modelu bez mutowania historii. Testy core, punkty zapisu, zewnętrzny plik, dostępność, DPI/overflow i wizualny desktop E2E przechodzą; moduł diff ma 98,91% pokrycia linii.
-- [x] P4.6 Kondycja projektu tworzy deterministyczny raport tylko do odczytu łączący walidację dokumentu, stany historii, utracone referencje B-Rep, aktualność linków zewnętrznych, diagnostykę silnika i rozmiar danych. Problemy mają stabilny kod, kategorię, priorytet krytyczny/ostrzeżenie/informacja oraz cel nawigacji do operacji, szkicu, komponentu, parametrów albo dokumentu. Zwarty panel PL/EN pokazuje wynik 0–100, sześć kontroli, metryki i filtry; kliknięcie przechodzi do problemu, a eksport JSON dodaje czas wygenerowania bez modyfikowania modelu. Testy core obejmują stan zdrowy i złożone błędy, desktop E2E sprawdza nawigację, prawdziwy pobrany JSON, układ bez overflow i oba języki, a moduł raportu ma 94,89% pokrycia linii.
-- [x] P4.7 „Gdzie używane” indeksuje jeden istniejący graf zależności zamiast dublować logikę modelu. Parametry, szkice, profile, geometria szkicu, konstrukcja, operacje, bryły, komponenty i linkowane projekty mają deterministyczne wejścia, bezpośrednich użytkowników, pełne zależności nadrzędne oraz transytywny wpływ zmiany z poziomem odległości. Link projektu wskazuje komponent i stabilne proxy. Zwarty panel PL/EN otwiera się dla bieżącego zaznaczenia, pozwala wyszukać dowolny węzeł, przełącza `Używany przez`/`Używa`/`Wpływ zmiany` i nawiguje do obiektu bez modyfikowania dokumentu. Testy core, desktop E2E, dostępność, DPI/overflow, regresja raportu kondycji i kontrola wizualna przechodzą; moduł inspektora ma 95,70% pokrycia linii.
-- [x] P4.8 Globalne „Idź do” buduje deterministyczny indeks parametrów, szkiców, operacji, brył, komponentów, wystąpień, arkuszy, projektów linkowanych i geometrii konstrukcyjnej. Paleta otwierana przyciskiem albo `Ctrl/⌘ K` wyszukuje po nazwie, typie i numerze części bez rozróżniania polskich znaków, porządkuje trafienia według jakości oraz obsługuje strzałki, Enter, Escape, mysz i pusty wynik. Wybrany element otwiera właściwy obszar, panel lub zaznaczenie bez zmiany dokumentu. Interfejs PL/EN, fokus, dostępność, DPI/overflow i układ wizualny sprawdza desktop E2E; test komponentu obejmuje klawiaturę, a 178 testów core potwierdza komplet celów i brak mutacji. Moduł indeksu ma 100% pokrycia linii.
-
-## P5 — Manufacture / CAM klasy produkcyjnej
-
-- [x] P5.1 Wiercenie 3-osiowe rozpoznanych otworów modelu: pozycje i osie z kernela, obsługa szyków, wiertła kręte, grupy cech, pełne wycofanie między skokami, przebicie otworów przelotowych, kontrola długości rowków i średnicy, symulacja oraz przenośny G-code. Odrzucenie osi innych niż Z, Undo/Redo, zapis/otwarcie i desktop E2E są zweryfikowane; kontrakt opisuje `docs/CAM_DRILLING.md`.
-- [x] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: zapisywane w projekcie edytowalne wiertła, nawiertaki i gwintowniki, bezpieczne referencje i dobór po średnicy, wiercenie zwykłe/peck/dwell, jawny fallback GRBL oraz G81/G82/G83 dla LinuxCNC i Mach3. Dedykowane gwintowanie sprawdza otwór pilotowy, wylicza posuw jako obroty × skok, generuje synchronizowane G84/G80 i blokuje sterowniki bez obsługi sztywnego gwintowania.
-- [x] P5.3 Rozszerzone strategie otworowe: nawiertanie/pogłębianie stożkowe wylicza głębokość z geometrii ostrza, pogłębianie walcowe tworzy bezpieczne warstwy i koncentryczne przejścia, raport kompletności wyprowadza wymagane etapy z modelu, a graf zależności automatycznie porządkuje operacje i ogranicza zmiany narzędzia.
-- [x] P5.4 Produkcyjne zarządzanie programem CAM: foldery i grupy operacji, duplikowanie i szablony, ręczne przesuwanie z walidacją zależności, arkusz ustawczy oraz eksport całego programu jednym plikiem.
-  - [x] Eksport wszystkich operacji Setupu do jednego bezpiecznego programu z jednym nagłówkiem, zmianami narzędzi i zakończeniem.
-  - [x] Duplikowanie operacji oraz ręczne przesuwanie góra/dół z walidacją zależności technologicznych.
-  - [x] Drukowalny arkusz ustawczy A4 z WCS, półfabrykatem, narzędziami, operacjami, czasem i wynikiem kontroli.
-  - [x] Trwałe foldery operacji organizują program bez zmiany kolejności wykonania; usunięcie folderu zachowuje operacje.
-  - [x] Szablony operacji zapisują parametry i narzędzie w projekcie bez nietrwałych referencji do geometrii, a zgodność z rodzajem Setupu jest sprawdzana przed użyciem.
-- [~] P5.5 Mocowanie i układy robocze: częściowy model uchwytu oraz strefy kolizji, G54–G59 i raport kolejnych zamocowań. Dalsze prace nad dokładną kontrolą eksportowanych ścieżek są odłożone za podstawowy przepływ projektowania; automatyczne sondowanie i zarządzanie obrabiarką są poza celem użytkownika.
-  - [x] Każdy Setup zapisuje własny układ G54–G59, przekazuje go do programów frezarskich, tokarskich i cięcia oraz umieszcza na arkuszu ustawczym.
-  - [x] Wiele stref uchwytów jako prostopadłościany XYZ jest zapisywanych w Setupie, wizualizowanych i blokuje eksport przy przecięciu trajektorii narzędzia z zadanym odstępem.
-  - [x] Raport kolejnych Setupów zestawia WCS, operacje, ostrzeżenia i ręczne czynności operatora; wykrywa ponowne użycie offsetu z innym zerem, ale nie generuje sondowania ani przejazdów między Setupami.
-  - [x] Kontrola ścieżki obejmuje również szerokość oprawki i jej minimalny wysięg nad końcówką narzędzia przy strefach uchwytów; wykryta kolizja blokuje eksport G-code.
-  - [x] Kontrola obejmuje też wysunięty trzon narzędzia ponad końcówką na każdym odcinku, również szybkim; scenariusz szczęki ponad końcówką ma test regresyjny.
-  - [x] Strefę szczęki można obrócić wokół własnego środka w osi Z; ten sam kąt obowiązuje w widoku, raporcie, kontroli narzędzia i oprawki oraz migracji dokumentu v20→v21.
-  - [x] Okrągły przekrój freza i oprawki jest sprawdzany względem narożnika szczęki po obrocie, bez fałszywego przecięcia wynikającego wyłącznie z kwadratowej obwiedni; regresja obejmuje bezpieczny i kolizyjny przejazd.
-  - [x] Widok CAM pokazuje osobny obrys zadanego odstępu bezpieczeństwa każdej aktywnej szczęki; brak obrysu przy 0 mm oraz Cofnij są sprawdzane w desktop E2E.
-  - [x] Eksport najpierw podnosi Z i ustawia XY na płaszczyźnie bezpiecznej; pełny program sprawdza dodatkowo przejazdy między operacjami tego samego Setupu.
-  - [x] Frezarskie postprocesory LinuxCNC i Mach3/Mach4 włączają `G43 Hn` po każdym `Tn M6`, przed pierwszym ruchem Z; brak dostępu do rzeczywistej tabeli długości narzędzi nadal wymaga kontroli operatora.
-  - [x] Toczenie rozdziela dojazd na odsunięcie promieniowe X, przejazd osiowy Z i powrót do promienia startowego; blokuje nieosiągalną średnicę bezpieczną.
-  - [x] Strefa mocowania może być pionowym walcem, np. śrubą: widok, odstęp, kontrola freza i oprawki, arkusz ustawczy oraz migracja projektu v21→v22 używają tego samego kształtu.
-  - [x] Kontrola szybkiego przejazdu frezu przez półfabrykat wykrywa także pionowy ruch w dół do materiału; pionowe wycofanie, ruch poza obrysem XY i dojazd głowicy laserowej/plazmowej mają regresje bez fałszywego alarmu.
-  - [x] Kontrola eksportu frezarskiego obejmuje końcowe podniesienie Z dopisywane przez postprocesor i odrzuca nieciągłą ścieżkę lub dojazd niezgodny z jej płaszczyzną startową; test pokazuje kolizję z uchwytem wyłącznie podczas tego ostatniego ruchu.
-  - [x] Mocowanie może wskazywać osobną bryłę CAD projektu: siatka jest indeksowana przestrzennie, zachowawcza kontrola pełnego ruchu freza i oprawki blokuje eksport przy kolizji lub niepewnej geometrii, a panel i widok 3D pokazują wskazaną bryłę. Schemat v23 migruje v22; testy obejmują zapis/otwarcie, utraconą bryłę, Cofnij/Ponów i desktop E2E. Nie jest to jeszcze dokładna symulacja oprawki ani wszystkich ruchów maszyny.
-  - [x] Dla skośnej szczęki z bryły CAD kontrola oprócz obwiedni trójkąta sprawdza odległość rzutu całego odcinka ruchu w XY: wyraźnie oddalony narożnik nie blokuje ścieżki, ale przecięcie, zadany odstęp i niepewna pozycja wewnątrz rzutu nadal blokują eksport.
-  - [x] Ograniczony podział pochyłego trójkąta zawęża jego lokalny zakres Z, więc przejazd wyraźnie ponad niską częścią szczęki nie dziedziczy wysokości odległego narożnika. Promień pionowy sprawdza punkt wewnątrz zamkniętej bryły i zakresy trzonu/oprawki. Szew triangulacji nie blokuje punktu ponad wszystkimi powierzchniami przeciętymi przez promień, natomiast niepewne wejście w bryłę nadal blokuje eksport. Test obejmuje bezpieczny i kolizyjny odcinek, różne diagonale siatki oraz pełny analizator CAM; to nadal przybliżenie zachowawcze, nie dokładna geometria całej maszyny.
-  - [x] Siatka bryły mocowania wymaga przeciwnej orientacji sąsiednich trójkątów na każdej wspólnej krawędzi; test odrzuca pojedynczy odwrócony trójkąt przed kontrolą kolizji.
-  - [x] Jawnie nieznany typ mocowania nie jest po normalizacji zastępowany prostopadłościanem: walidacja projektu i eksport NC odrzucają go, zamiast sprawdzać inną geometrię. Brak pola w starszym projekcie nadal oznacza prostopadłościan.
-  - [~] Własne narzędzie może opisać zmierzoną szyjkę i do sześciu kolejnych walcowych stopni oprawki nad wysięgiem; kontrola używa ich przy szczękach i półfabrykacie. Schemat v26 migruje v25 z pustą listą stopni. Nadal brakuje dowolnej geometrii oprawki, wrzeciona i kinematyki maszyny.
-  - [x] Biblioteka obejmuje własne frezy palcowe i do planowania: operacje frezowania rozwiązują ich trwałe ID z projektu, brakujące lub niezgodne narzędzie blokuje ścieżkę, a schemat v25 zachowuje typ i profil oprawki po ponownym otwarciu. Zmierzona oprawka i szyjka freza czołowego mogą być węższe od ostrza. Testy obejmują ścieżki, walidację, eksport oraz desktopowy wybór freza w konturze i zapis profilu freza czołowego.
-  - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
-  - [~] Sondowanie/automatyczne ustawianie bazy było analizowane jako możliwe rozszerzenie, lecz nie jest wymagane przez użytkownika i nie blokuje ukończenia jego celu; [ograniczenia i źródła](./docs/CAM_PROBING_NOTES.md). Nie udostępniać niedokończonego eksportu sondowania.
-
-## Definition of Done
-
-Każda funkcja spełnia wymagania wspólne: test happy path i błędu, anulowanie bez częściowego stanu, undo/redo, zapis/otwarcie, poprawny komunikat użytkownika i brak aktywnej atrapy.
-
-Dodatkowo:
-
-- funkcja geometrii: poprawny B-Rep, tolerancje, test parametryczny i zachowanie referencji;
-- import/eksport: jednostki, gabaryt i round-trip reprezentatywnego scenariusza;
-- UI: label, tooltip, disabled reason, DPI i obsługa klawiatury tam, gdzie ma sens;
-- zmiana schematu: migracja, fixture i round-trip `.madcad`;
-- pionowy etap: desktop E2E od pustego dokumentu do ponownego otwarcia projektu.
-
-## Aktualne ryzyka
-
-- [!] Pełny solver więzów musi pozostać osobnym modułem numerycznym, nie logiką React.
-- [!] Stabilne referencje B-Rep nie mogą używać indeksów z pojedynczej tessellacji.
-- [!] Brakujące operacje Replicad wymagają kontrolowanego adaptera OpenCascade.
-- [!] Import musi być sprawdzany na plikach z różnych programów, nie tylko na własnym eksporcie.
-- [!] Zmiana `appId` i instalatora wymaga migracji danych i ciągłości aktualizacji.
-- [!] Niepodpisane wydanie 6.2.0 nadal wywołuje ostrzeżenia SmartScreen/Gatekeeper; aktualizator może bezpiecznie zweryfikować i otworzyć paczkę, lecz cicha instalacja wymaga certyfikatu platformowego.
-- [x] Zgodność EN ma automatyczną bramkę renderowanego tekstu, a nowe przepływy układów, więzów, diagnostyki i raportu importu mają komplet kluczy.
-- [x] Automatyczne kontrole axe, kontrastu, drzewa AX i klawiatury oraz ręczny przepływ VoiceOver na macOS nie wykrywają naruszeń blokujących. Wykryte podczas odsłuchu okno aktualizacji przenosi teraz fokus do środka, ogłasza wynik jako status, obsługuje Escape i przywraca fokus na wywołujący przycisk.
-
-## Najbliższe zadania
-
-1. [x] Dodać globalne wyszukiwanie projektu „Idź do” z nawigacją klawiaturą jako etap P4.8.
-2. [x] Sprawdzić import/eksport na rzeczywistych plikach z dostępnych lokalnie LibreDWG i Bambu Studio oraz oficjalnym STEP FreeCAD; wynik i uczciwe granice potwierdzenia zapisać w raporcie P1.31.
-3. [x] Dodać etap P1.32a wspólnych otworów ISO metrycznych z automatycznym opisem produkcyjnym i tabelą otworów.
-4. [x] P1.32b ukończono: NPT/BSPT, dodatkowe rozmiary, jawne tolerancje użytkownika oraz publiczne zalecenia przygotowania bez kopiowania płatnych tabel normatywnych.
-5. [x] Dodać P1.33 Draft Analysis z kolorową mapą ścian, wyborem kierunku i tolerancji.
-6. [x] Interference P1.34a, Named Views P1.34b i pełny ViewCube P1.34c ukończono.
-7. [x] Ręczny przepływ VoiceOver na kandydacie macOS 6.4.0 objął uruchomienie, licencję, samouczek, linię od wskazanego punktu z długością `50 mm` zatwierdzoną Enterem, komunikaty snap/status, cofnięcie i aktualizator. Naprawiono fokus, ogłaszanie wyniku i Escape w aktualizatorze; regresja sprawdza teraz także przywrócenie fokusu mimo użycia `autoFocus`.
-8. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
-9. [x] Przepływ i hierarchię interfejsu przebudowano według lokalnie zweryfikowanego Autodesk Fusion; wykonana lista oraz kryteria odbioru: [docs/FUSION_UI_CHECKLIST.md](./docs/FUSION_UI_CHECKLIST.md).
-
-Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.
+Jedno aktywne zadanie. Najpierw podstawy i błędy codziennej pracy, następnie
+pozycje z [BACKLOG.md](./BACKLOG.md). Każda zmiana schematu ma migrację,
+fixture i round-trip. Operacja kernela po błędzie zachowuje ostatni poprawny
+model. Wydanie wymaga zielonego CI, paczek, SHA-256 i aktualnej strony.

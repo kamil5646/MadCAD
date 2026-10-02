@@ -46,7 +46,7 @@ async function clickText(window, selector, label) {
 
 async function selectWorkspace(window, value) {
   return window.webContents.executeJavaScript(`(() => {
-    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' };
+    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', tools: 'ZARZĄDZAJ' };
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === labels[${JSON.stringify(value)}]);
     if (!button) return false;
     button.click();
@@ -147,14 +147,14 @@ app.whenReady().then(async () => {
       domainPickerVisible: Boolean(document.querySelector('#designDomainSelect')),
       legacyDomainTabs: document.querySelectorAll('.design-tabs button').length,
     })`);
-    if (startNavigation.workspaceTabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|WYTWARZANIE|ZARZĄDZAJ' || startNavigation.domainPickerVisible || startNavigation.legacyDomainTabs) throw new Error(`Strona startowa ma nadmiarową nawigację: ${JSON.stringify(startNavigation)}`);
+    if (startNavigation.workspaceTabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|ZARZĄDZAJ' || startNavigation.domainPickerVisible || startNavigation.legacyDomainTabs) throw new Error(`Strona startowa ma nadmiarową nawigację: ${JSON.stringify(startNavigation)}`);
 
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
     await waitFor(window, `document.querySelector('.file-backstage')`, 'lewe menu Plik');
     const fileMenu = await window.webContents.executeJavaScript(`(() => {
       const menu = document.querySelector('.file-backstage');
       const rect = menu?.getBoundingClientRect();
-      const requiredIds = ['fileImportModelBtn', 'fileImportSketchBtn', 'fileImportDwgBtn', 'fileExportStepBtn', 'fileExportStlBtn', 'fileExport3mfBtn', 'fileExportPdfBtn', 'fileExportDxfBtn', 'filePrint3dBtn'];
+      const requiredIds = ['fileImportModelBtn', 'fileImportSketchBtn', 'fileImportDwgBtn', 'fileExportStepBtn', 'fileExportStlBtn', 'fileExport3mfBtn', 'fileExportPdfBtn', 'fileExportDxfBtn'];
       return {
         headings: [...menu.querySelectorAll('h2')].map((item) => item.textContent.trim()),
         requiredActions: requiredIds.map((id) => ({ id, available: Boolean(document.querySelector('#' + id)) })),
@@ -167,7 +167,7 @@ app.whenReady().then(async () => {
         importNotDuplicatedInRibbon: !document.querySelector('.modeling-ribbon [data-tool-label="Import 3D"]'),
       };
     })()`);
-    const expectedHeadings = ['PROJEKT', 'IMPORT', 'EKSPORT MODELU', 'EKSPORT SZKICU', 'RYSUNEK TECHNICZNY', 'DRUK 3D'];
+    const expectedHeadings = ['PROJEKT', 'IMPORT', 'EKSPORT MODELU', 'EKSPORT SZKICU', 'RYSUNEK TECHNICZNY'];
     if (fileMenu.headings.join('|') !== expectedHeadings.join('|') || fileMenu.requiredActions.some((item) => !item.available) || !fileMenu.leftAligned || !fileMenu.insideWindow || !fileMenu.readableWidth || !fileMenu.compactRows || !fileMenu.legacyLayoutsRemoved || !fileMenu.fileTabsRemoved || !fileMenu.importNotDuplicatedInRibbon) throw new Error(`Menu Plik nie porządkuje operacji wejścia i wyjścia: ${JSON.stringify(fileMenu)}`);
     const fileMenuCapture = (await window.webContents.capturePage()).toPNG();
     await fs.writeFile(fileMenuScreenshotPath, fileMenuCapture);
@@ -502,35 +502,9 @@ app.whenReady().then(async () => {
     assertCollisionFree(compactChromeLayout, 'Kompaktowy pasek');
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
     await waitFor(window, `document.querySelector('.file-backstage')`, 'menu Plik w kompaktowym oknie');
-    await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
-    await waitFor(window, `document.querySelector('.print-panel')`, 'panel druku w kompaktowym oknie');
-    const compactLayout = await window.webContents.executeJavaScript(`(() => {
-      const content = document.querySelector('.modeling-content');
-      const stage = document.querySelector('.modeling-stage');
-      const print = document.querySelector('.print-panel');
-      const stageRect = stage?.getBoundingClientRect();
-      const printRect = print?.getBoundingClientRect();
-      const noticeRect = document.querySelector('.workspace-notice')?.getBoundingClientRect();
-      const navigationRect = document.querySelector('.navigation-bar')?.getBoundingClientRect();
-      const selectionRect = document.querySelector('.selection-filter-bar')?.getBoundingClientRect();
-      const overlaps = (first, second) => Boolean(first && second && first.left < second.right && first.right > second.left && first.top < second.bottom && first.bottom > second.top);
-      const panelTolerance = 4;
-      return {
-        browserClosedForInspector: !document.querySelector('.model-browser'),
-        stageWidth: stageRect?.width || 0,
-        printInsideViewport: Boolean(printRect && printRect.left >= -panelTolerance && printRect.right <= innerWidth + panelTolerance && printRect.top >= content.getBoundingClientRect().top - panelTolerance && printRect.bottom <= content.getBoundingClientRect().bottom + panelTolerance),
-        printRect: printRect ? { left: printRect.left, top: printRect.top, right: printRect.right, bottom: printRect.bottom } : null,
-        contentRect: content ? { left: content.getBoundingClientRect().left, top: content.getBoundingClientRect().top, right: content.getBoundingClientRect().right, bottom: content.getBoundingClientRect().bottom } : null,
-        innerSize: { width: innerWidth, height: innerHeight },
-        viewCubeHidden: !document.querySelector('.view-cube')?.checkVisibility(),
-        noticeClearOfNavigation: !overlaps(noticeRect, navigationRect) && !overlaps(noticeRect, selectionRect),
-        horizontalOverflow: content.scrollWidth > content.clientWidth + 1 || document.documentElement.scrollWidth > innerWidth + 1,
-      };
-    })()`);
-    if (!compactLayout.browserClosedForInspector || compactLayout.stageWidth < 440 || !compactLayout.printInsideViewport || !compactLayout.viewCubeHidden || !compactLayout.noticeClearOfNavigation || compactLayout.horizontalOverflow) throw new Error(`Kompaktowy układ nadal ściska lub nakłada panele: ${JSON.stringify(compactLayout)}`);
+    const compactLayout = await window.webContents.executeJavaScript(`({ noProductionTools: !document.querySelector('#filePrint3dBtn, .print-panel, .manufacturing-panel'), horizontalOverflow: document.documentElement.scrollWidth > innerWidth + 1 })`);
+    if (!compactLayout.noProductionTools || compactLayout.horizontalOverflow) throw new Error(`Niepoprawny kompaktowy układ CAD: ${JSON.stringify(compactLayout)}`);
     await fs.writeFile(compactLayoutScreenshotPath, (await window.webContents.capturePage()).toPNG());
-    await window.webContents.executeJavaScript(`document.querySelector('.print-panel [aria-label="Zamknij panel druku 3D"]')?.click()`);
-    await waitFor(window, `!document.querySelector('.print-panel')`, 'zamknięcie panelu druku');
     window.setContentSize(2200, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
 

@@ -5,9 +5,12 @@ Aktualna stabilna wersja: **6.5.28**.
 MadCAD jest aplikacją Electron z interfejsem React, parametrycznym dokumentem
 CAD i kernelem OpenCascade uruchamianym w workerze. Główny przepływ zaczyna się
 od precyzyjnego rysunku 2D, a następnie przechodzi do modelu powierzchniowego lub bryłowego z historią.
-Przygotowanie do druku 3D jest opcjonalnym dodatkiem w obszarze eksportu.
+Zakres produktu obejmuje projektowanie 2D i 3D, historię modelu i dokumentację techniczną.
 
 ## Katalogi
+
+Zakres usuniętych dodatków, migrację projektów i wyniki kontroli opisuje
+[`docs/CAD_ONLY_SCOPE.md`](./docs/CAD_ONLY_SCOPE.md).
 
 - `src/modeling/` — aktualny interfejs modelowania i widok 2D/3D.
 - `src/cad-core/` — dokument, szkicownik, solver, topologia, historia i eksporty.

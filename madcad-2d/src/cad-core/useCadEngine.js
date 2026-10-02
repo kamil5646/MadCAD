@@ -11,7 +11,7 @@ function engineError(message, code = 'CAD_ENGINE_ERROR') {
 
 export function cadGeometrySignature(document) {
   const geometryDocument = { ...document };
-  delete geometryDocument.manufacturing;
+  delete geometryDocument.legacyProduction;
   delete geometryDocument.metadata;
   return JSON.stringify(geometryDocument);
 }

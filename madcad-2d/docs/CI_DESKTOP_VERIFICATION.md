@@ -1,5 +1,11 @@
 # Pełna bramka desktopowa
 
+Od 2026-10-02 produkt jest ograniczony do projektowania CAD 2D/3D. Manifest
+zawiera 51 scenariuszy; usunięto cztery testy CAM (`manufacturing`,
+`cam-sequence`, `cutting`, `turning`). Scenariusze interfejsu i paneli
+sprawdzają obecną nawigację CAD bez panelu druku 3D. Poniższe liczby 55 i
+raporty starszych przebiegów opisują historię sprzed zmiany zakresu.
+
 Źródłem listy scenariuszy jest `scripts/desktop-verification-manifest.cjs`. Każdy plik `scripts/verify-*.cjs` przeznaczony do aplikacji musi wystąpić w nim dokładnie raz; `npm run verify:product-completeness` sprawdza pokrycie listy, zgodność macierzy CI i brak pominiętych testów. Wydanie nadal uruchamia `npm run verify:desktop-suite -- all`, czyli wszystkie scenariusze kolejno.
 
 W CI testy modelowania są rozdzielone na `modeling` (`verify-modeling.cjs`), `modeling-3d` (`verify-sketch-3d.cjs`) i `modeling-features` (pozostałe 13), uruchamiane równolegle na macOS i Windows. W przebiegu `35905193839` na macOS poprzedni wspólny shard 15 scenariuszy trwał około 602 s, z czego `verify-modeling.cjs` około 347 s. Na Windows cały shard trwał około 1400 s, z czego `verify-modeling.cjs` około 510 s, a `verify-sketch-3d.cjs` około 467 s. Rozdział skrócił ścieżkę krytyczną bez usuwania żadnego scenariusza.

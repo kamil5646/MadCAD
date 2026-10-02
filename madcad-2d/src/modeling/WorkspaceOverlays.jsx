@@ -518,7 +518,7 @@ export function StartPage({ commandCustomization = null }) {
               <li><span>1</span><div><PencilRuler size={18} /><strong>Szkic 2D</strong><small>Linie, łuki, snap, trim, offset, więzy i wymiary.</small></div></li>
               <li><span>2A</span><div><FileBox size={18} /><strong>Arkusz techniczny 2D</strong><small>Widoki, wymiary oraz zapis do PDF lub DXF.</small></div></li>
               <li><span>2B</span><div><Layers3 size={18} /><strong>Model parametryczny 3D</strong><small>Wyciągnięcia, operacje bryłowe i edytowalna historia.</small></div></li>
-              <li><span>3</span><div><Box size={18} /><strong>Opcjonalnie: druk 3D</strong><small>Osobne przygotowanie modelu i przekazanie do slicera.</small></div></li>
+              <li><span>3</span><div><Box size={18} /><strong>Zapis i wymiana CAD</strong><small>Zapisz projekt, otwórz go ponownie i wyeksportuj geometrię.</small></div></li>
             </ol>
           </aside>
         </div>

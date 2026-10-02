@@ -191,13 +191,6 @@ export function DrawingSheetCadIcon(props) {
   </CadSvg>;
 }
 
-export function ManufacturingSetupCadIcon(props) {
-  return <CadSvg {...props}>
-    <path className="cad-surface-secondary" d="m3 13 8 4 8-4-8-4zM3 13v4l8 4 8-4v-4" />
-    <path className="cad-surface-primary" d="M14 3h5v7l-2.5 2L14 10z" /><path className="cad-detail" d="M16.5 3v9" /><path className="cad-action" d="M5 7h5M7.5 4.5v5" />
-  </CadSvg>;
-}
-
 export function ImportMeshCadIcon(props) {
   return <CadSvg {...props}>
     <path className="cad-surface-secondary" d="m3 13 7 3.5 7-3.5-7-3.5zM3 13v5l7 3.5 7-3.5v-5" />

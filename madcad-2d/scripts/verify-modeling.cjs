@@ -320,13 +320,13 @@ async function runUiFlow(window) {
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
   const selectWorkspaceMode = async (value) => {
     await window.webContents.executeJavaScript(`(() => {
-      const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' };
+      const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', tools: 'ZARZĄDZAJ' };
       const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === labels[${JSON.stringify(value)}]);
       if (!button) throw new Error('Brak głównego obszaru programu');
       if (button.getAttribute('aria-selected') === 'true') return;
       button.click();
     })()`);
-    await waitForUi(window, `[...document.querySelectorAll('.workspace-tabs button')].some((item) => item.getAttribute('aria-selected') === 'true' && item.textContent.trim() === ({ solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' })[${JSON.stringify(value)}])`, `główny obszar ${value}`);
+    await waitForUi(window, `[...document.querySelectorAll('.workspace-tabs button')].some((item) => item.getAttribute('aria-selected') === 'true' && item.textContent.trim() === ({ solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', tools: 'ZARZĄDZAJ' })[${JSON.stringify(value)}])`, `główny obszar ${value}`);
   };
   const clickWorkspace = async (_workspaceLabel) => {
     await selectWorkspaceMode('solid');
@@ -660,7 +660,7 @@ async function runUiFlow(window) {
   await sendMouse('mouseUp', helpPoint);
   await waitForUi(window, `document.querySelector('.app-help-menu [role="menu"]')`, 'otwarte menu pomocy');
   await clickByTitle('Samouczek pierwszego projektu CAD');
-  await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 5`, 'samouczek i znane ograniczenia');
+  await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 3 && !/slicer|druk 3D|3D print/i.test(document.querySelector('.tutorial-body')?.textContent || '')`, 'samouczek CAD i znane ograniczenia');
   const tutorial = await window.webContents.executeJavaScript(`({ steps: document.querySelectorAll('.tutorial-body ol li').length, limitations: document.querySelectorAll('.tutorial-body aside li').length })`);
   await sendKey('Escape');
   await waitForUi(window, `!document.querySelector('.tutorial-dialog')`, 'zamknięty samouczek');
@@ -2823,7 +2823,7 @@ async function runUiFlow(window) {
   progress('parameters and undo/redo');
   await clickTool('Parametry');
   await waitForUi(window, `document.querySelector('.parameters-dialog')`, 'okno parametrów');
-  progress('print panel from File menu');
+  progress('CAD project save and reopen');
   await window.webContents.executeJavaScript(`(() => {
     const add = [...document.querySelectorAll('.parameters-dialog button')].find((item) => item.textContent.includes('Dodaj parametr'));
     const key = Object.keys(add).find((item) => item.startsWith('__reactProps'));
@@ -2843,11 +2843,6 @@ async function runUiFlow(window) {
   await clickTool('Parametry');
   await waitForUi(window, `document.querySelectorAll('.parameter-row').length === 1`, 'ponowienie parametru skrótem');
   await confirmParameters();
-
-  await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
-  await waitForUi(window, `document.querySelector('.file-backstage')`, 'menu Plik');
-  await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
-  await waitForUi(window, `document.querySelector('.print-inspector')`, 'obszar przygotowania druku');
 
   await selectWorkspaceMode('solid');
 
@@ -2959,7 +2954,7 @@ async function runUiFlow(window) {
     goldenBrep,
     describedControls,
     commandDialogs: true,
-    printWorkspace: true,
+    cadOnlyWorkspace: true,
     tutorial,
     sketchImport,
     constraintFlow,

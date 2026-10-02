@@ -4,12 +4,10 @@ const { pathToFileURL } = require('url');
 const fsRaw = require('fs');
 const fs = require('fs/promises');
 const https = require('https');
-const { execFile, spawn } = require('child_process');
-const { promisify } = require('util');
+const { spawn } = require('child_process');
 const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain, screen, safeStorage } = require('electron');
 const { atomicWriteTextFile } = require('./atomic-file.cjs');
 const { saveProjectTextFile, openProjectTextFile } = require('./project-file-handlers.cjs');
-const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.cjs');
 const { isTrustedAppNavigation, isTrustedIpcUrl, normalizeExternalUrl } = require('./security-policy.cjs');
 const {
   normalizeAutosavePayload,
@@ -31,7 +29,6 @@ const { createLicenseClient } = require('./license-client.cjs');
 const { selectImportFile } = require('./import-file.cjs');
 const packageMetadata = require('../package.json');
 
-const execFileAsync = promisify(execFile);
 
 const isMac = process.platform === 'darwin';
 const isWindows = process.platform === 'win32';
@@ -745,15 +742,6 @@ function mapUpdaterError(error, fallbackPl, fallbackEn) {
   };
 }
 
-async function pathExists(filePath) {
-  try {
-    await fs.access(filePath, fsRaw.constants.F_OK);
-    return true;
-  } catch (_error) {
-    return false;
-  }
-}
-
 async function handleSavePromptBeforeExit(win) {
   let persistenceReady = false;
   try {
@@ -1058,11 +1046,6 @@ function createMenu() {
           accelerator: 'CmdOrCtrl+S',
           click: () => executeRendererShortcut({ id: 'saveProjectBtn' })
         },
-        {
-          label: t('Druk 3D', '3D Print'),
-          accelerator: 'CmdOrCtrl+P',
-          click: () => executeRendererShortcut({ id: 'printWorkspaceBtn' })
-        },
         { type: 'separator' },
         {
           role: isMac ? 'close' : 'quit',
@@ -1116,54 +1099,10 @@ function createMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function spawnDetached(executable, args) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, { detached: true, stdio: 'ignore' });
-    child.once('error', reject);
-    child.once('spawn', () => {
-      child.unref();
-      resolve();
-    });
-  });
-}
-
 function storageErrorMessage(error, fallbackPl, fallbackEn) {
   if (error?.code === 'ENOSPC') return t('Brak wolnego miejsca na dysku. Ostatnia poprawna wersja pliku nie została zmieniona.', 'The disk is full. The last valid file version was not changed.');
   if (error?.code === 'EACCES' || error?.code === 'EPERM') return t('Brak uprawnień do zapisu w wybranym miejscu.', 'Permission denied for the selected location.');
   return error?.message ? String(error.message) : t(fallbackPl, fallbackEn);
-}
-
-async function openFilesInSlicer(slicer, definition, filePaths) {
-  if (process.platform === 'darwin') {
-    let lastError;
-    for (const applicationName of definition.mac) {
-      try {
-        await execFileAsync('/usr/bin/open', ['-a', applicationName, ...filePaths]);
-        return applicationName;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw new Error(`${definition.label} nie jest zainstalowany albo macOS nie może go uruchomić. ${lastError?.message || ''}`.trim());
-  }
-  if (process.platform === 'win32') {
-    for (const executable of windowsCandidates(slicer)) {
-      if (!(await pathExists(executable))) continue;
-      await spawnDetached(executable, filePaths);
-      return executable;
-    }
-    throw new Error(`${definition.label} nie został znaleziony w standardowych katalogach Windows.`);
-  }
-  let lastError;
-  for (const command of definition.linux) {
-    try {
-      await spawnDetached(command, filePaths);
-      return command;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw new Error(`${definition.label} nie jest dostępny w PATH. ${lastError?.message || ''}`.trim());
 }
 
 function trustedIpcSenderUrl(event) {
@@ -1208,26 +1147,6 @@ registerTrustedIpcHandler('madcad:license-request-password-reset', licenseIpcRes
 registerTrustedIpcHandler('madcad:license-reset-password', licenseIpcResult((_event, payload) => licenseClient.resetPassword(payload)));
 registerTrustedIpcHandler('madcad:license-resend-verification', licenseIpcResult(() => licenseClient.resendVerification()));
 registerTrustedIpcHandler('madcad:license-verify-email', licenseIpcResult((_event, payload) => licenseClient.verifyEmail(payload)));
-
-registerTrustedIpcHandler('madcad:send-to-slicer', async (_event, payload) => {
-  let filePaths = [];
-  try {
-    const normalized = normalizeSlicerPayload(payload);
-    const root = path.join(app.getPath('temp'), 'madcad-slicer');
-    await fs.mkdir(root, { recursive: true });
-    const jobDirectory = await fs.mkdtemp(path.join(root, 'job-'));
-    filePaths = await Promise.all(normalized.files.map(async (file, index) => {
-      const filePath = path.join(jobDirectory, `${String(index + 1).padStart(2, '0')}-${file.name}`);
-      await fs.writeFile(filePath, Buffer.from(file.bytes));
-      return filePath;
-    }));
-    const launchedWith = await openFilesInSlicer(normalized.slicer, normalized.definition, filePaths);
-    return { ok: true, slicer: normalized.slicer, launchedWith, filePaths };
-  } catch (error) {
-    if (filePaths[0]) shell.showItemInFolder(filePaths[0]);
-    return { ok: false, filePaths, error: error?.message || String(error) };
-  }
-});
 
 registerTrustedIpcHandler('madcad:import-dwg-sketch', async (event) => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;

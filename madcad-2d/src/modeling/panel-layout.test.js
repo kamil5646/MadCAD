@@ -18,7 +18,6 @@ describe('panel layout persistence', () => {
     expect(normalizePanelLayout({ commandDock: 'top', commandCollapsed: 1 })).toEqual({
       commandDock: 'right',
       commandCollapsed: true,
-      printCollapsed: false,
     });
   });
 
@@ -29,7 +28,7 @@ describe('panel layout persistence', () => {
       setItem: vi.fn((key, value) => values.set(key, value)),
     };
     const monitor = { availWidth: 1440, availHeight: 900 };
-    const saved = writePanelLayout({ commandDock: 'left', commandCollapsed: true, printCollapsed: true }, storage, monitor);
+    const saved = writePanelLayout({ commandDock: 'left', commandCollapsed: true }, storage, monitor);
     expect(readPanelLayout(storage, monitor)).toEqual(saved);
     expect(readPanelLayout(storage, { availWidth: 2560, availHeight: 1440 })).toEqual(DEFAULT_PANEL_LAYOUT);
   });
