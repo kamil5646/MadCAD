@@ -1104,7 +1104,9 @@ export function drawingSheetDxf(sheet, bodies = [], { components = [], component
   const layerNames = ['0', 'GEOMETRY', 'HIDDEN', 'HATCH', 'ANNOTATION', 'TEXT', 'BALLOON', 'GD&T', 'TABLE'];
   const layerRecords = layerNames.map((name) => `0\nLAYER\n2\n${name}\n70\n0\n62\n7\n6\n${name === 'HIDDEN' ? 'DASHED' : 'CONTINUOUS'}`).join('\n');
   const tables = `${dxfLineTypeTable(new Set(['continuous', 'dashed']))}\n0\nTABLE\n2\nLAYER\n70\n${layerNames.length}\n${layerRecords}\n0\nENDTAB`;
-  return `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1027\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n${tables}\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('\n')}\n0\nENDSEC\n0\nEOF\n`;
+  // LINE/CIRCLE/TEXT and these symbol tables use the R12 dialect, like sketchDxf.
+  // Do not label legacy records as AC1027 without modern handles/subclass markers.
+  return `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n${tables}\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('\n')}\n0\nENDSEC\n0\nEOF\n`;
 }
 
 export function drawingPageDimensions(sheet) {

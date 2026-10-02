@@ -5889,6 +5889,7 @@ test('arkusz używa rzutu z usuwaniem linii ukrytych i rysuje je przerywaną lin
   assert.equal(drawingSheetScene(sheet, [body]).views[0].hiddenSegments.length, 2);
   assert.match(drawingSheetHtml(sheet, [body]), /class="hidden"/);
   const hiddenDxf = drawingSheetDxf(sheet, [body]);
+  assert.match(hiddenDxf, /\n\$ACADVER\n1\nAC1009\n/);
   assert.match(hiddenDxf, /\n8\nHIDDEN\n/);
   assert.match(hiddenDxf, /0\nLTYPE\n2\nDASHED\n/);
   assert.match(hiddenDxf, /0\nLAYER\n2\nHIDDEN\n70\n0\n62\n7\n6\nDASHED\n/);

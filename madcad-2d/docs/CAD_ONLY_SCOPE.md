@@ -141,6 +141,11 @@ więc powiększony detal nie zwiększa błędu na papierze. Test okręgu ⌀200 
 skali 10× potwierdza błąd cięciwy poniżej 0,001 mm na arkuszu. DXF zawiera
 tabele LTYPE/LAYER, a HIDDEN korzysta z DASHED; test ponownego importu
 potwierdza zachowanie przerywanego typu linii.
+Eksport arkusza deklaruje R12/AC1009, zgodnie z używanymi rekordami
+LINE/CIRCLE/TEXT i tabelami bez znaczników klas nowego DXF. Wcześniejszy
+nagłówek AC1027 błędnie deklarował format AutoCAD 2013.
+Źródła formatu: [HEADER](https://help.autodesk.com/cloudhelp/2018/ENU/AutoCAD-DXF/files/GUID-A85E8E67-27CD-4C59-BE61-4DC9FADBE74A.htm),
+[znaczniki podklas](https://help.autodesk.com/cloudhelp/2025/ENU/AutoCAD-DXF/files/GUID-CC5ACB1B-BBA3-463B-84A5-6CCD320C66E7.htm).
 
 ## Migracja w produkcyjnym pakiecie i nawigacja
 
