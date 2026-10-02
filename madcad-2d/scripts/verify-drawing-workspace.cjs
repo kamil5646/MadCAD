@@ -39,6 +39,7 @@ const drawingCommandMenus = Object.freeze({
   'Usuń widok': 'Widoki zależne',
   'Wymiar X': 'Wymiary',
   'Wymiar Y': 'Wymiary',
+  'Wymiar między punktami': 'Wymiary',
   Oś: 'Osie i środki',
   Środek: 'Osie i środki',
   'Opis otworu': 'Opisy techniczne',
@@ -120,6 +121,23 @@ app.whenReady().then(async () => {
     }
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.annotations?.length === 8 && document.querySelectorAll('.drawing-user-annotation').length === 8 && document.querySelector('.drawing-feature-control-frame rect') && document.querySelector('.drawing-balloon circle')`, 'skojarzone adnotacje rysunkowe, GD&T i balon pozycji');
 
+    // Point-to-point dimension: pick two vertices of a horizontal edge in the first view.
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+    if (!(await clickRibbonCommand(window, 'Wymiar między punktami'))) throw new Error('Brak polecenia Wymiar między punktami.');
+    await waitFor(window, `document.querySelector('.drawing-paper[data-point-pick]')`, 'tryb wskazywania punktów wymiaru');
+    await window.webContents.executeJavaScript(`(() => {
+      const svg = document.querySelector('.drawing-paper');
+      const edge = [...document.querySelectorAll('.drawing-view')[0].querySelectorAll('line')].find((line) => Math.abs(line.y1.baseVal.value - line.y2.baseVal.value) < 1e-6 && Math.abs(line.x1.baseVal.value - line.x2.baseVal.value) > 5);
+      const matrix = svg.getScreenCTM();
+      for (const [x, y] of [[edge.x1.baseVal.value, edge.y1.baseVal.value], [edge.x2.baseVal.value, edge.y2.baseVal.value]]) {
+        const client = new DOMPoint(x, y).matrixTransform(matrix);
+        svg.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: client.x, clientY: client.y }));
+      }
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.annotations?.some((item) => item.type === 'point-dimension' && item.axis === 'horizontal') && document.querySelector('.drawing-point-dimension text') && !document.querySelector('.drawing-paper[data-point-pick]')`, 'wymiar między punktami na arkuszu');
+    const pointDimensionText = await window.webContents.executeJavaScript(`document.querySelector('.drawing-point-dimension text').textContent`);
+    if (!/^\d+\.\d{2}$/.test(pointDimensionText)) throw new Error(`Nieoczekiwany tekst wymiaru między punktami: ${pointDimensionText}`);
+
     // Dimension style: decimal comma and larger lettering apply to the rendered dimensions.
     await window.webContents.executeJavaScript(`(() => {
       const set = (selector, value) => { const select = document.querySelector(selector); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, value); select.dispatchEvent(new Event('change', { bubbles: true })); };
@@ -136,7 +154,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
     if (!(await clickText(window, '.ribbon-tool', 'Tabela otworów'))) throw new Error('Brak polecenia Tabela otworów.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.tables?.length === 2 && document.querySelector('.drawing-table-hole-table')`, 'skojarzona tabela otworów');
-    await waitFor(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.drawings?.[0]?.annotations?.length === 8 && saved?.drawings?.[0]?.tables?.length === 2; })()`, 'autozapis oznaczeń i tabel');
+    await waitFor(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.drawings?.[0]?.annotations?.length === 9 && saved?.drawings?.[0]?.tables?.length === 2; })()`, 'autozapis oznaczeń i tabel');
     await window.webContents.executeJavaScript(`document.querySelector('.drawing-revisions summary')?.click()`);
     if (!(await clickText(window, '.drawing-add-revision', 'Dodaj rewizję'))) throw new Error('Brak polecenia Dodaj rewizję.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.revisions?.length === 1`, 'historia rewizji');
@@ -210,7 +228,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `!document.querySelector('.file-backstage')`, 'zamknięte menu Plik przed kontrolą wizualną');
     await new Promise((resolve) => setTimeout(resolve, 120));
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (state.schemaVersion !== DOCUMENT_SCHEMA_VERSION || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.visibleProjectionLines < 20 || !state.projectedInkInsidePaper || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage || !state.drawingMode || !state.projectBrowserHidden || !state.timelineHidden || !state.zoomToolbar || !state.panelToggles) {
+    if (state.schemaVersion !== DOCUMENT_SCHEMA_VERSION || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.visibleProjectionLines < 20 || !state.projectedInkInsidePaper || state.hatchCount < 1 || state.annotationCount !== 11 || state.userAnnotationCount !== 9 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon|point-dimension' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage || !state.drawingMode || !state.projectBrowserHidden || !state.timelineHidden || !state.zoomToolbar || !state.panelToggles) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
     // Windows pipes stdout asynchronously. Exiting Electron before the write

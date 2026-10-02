@@ -149,7 +149,7 @@ import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-impor
 import { sketchDxf } from '../cad-core/sketch-dxf-export.js';
 import { createId } from '../cad-core/ids.js';
 import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
-import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
+import { createPointDrawingDimension, createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { DEFAULT_LAYER_ID, assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
@@ -591,6 +591,10 @@ export default function ModelingWorkspace() {
   }, [language]);
   const [initialOpen] = useState(loadInitialDocument);
   const history = useDocumentHistory(initialOpen.document);
+  const [drawingPointPick, setDrawingPointPickState] = useState(null);
+  // Picks can arrive faster than React commits, so the latest pick state lives in a ref too.
+  const drawingPointPickRef = useRef(null);
+  const setDrawingPointPick = useCallback((value) => { drawingPointPickRef.current = value; setDrawingPointPickState(value); }, []);
   const ribbonCommandsRef = useRef([]);
   const { document } = history;
   const replaceDocument = history.replace;
@@ -7040,6 +7044,53 @@ export default function ModelingWorkspace() {
     setNotice(deletedIds.size === 1 ? 'Usunięto widok z arkusza. Model pozostał bez zmian.' : `Usunięto widok i ${deletedIds.size - 1} zależne widoki. Model pozostał bez zmian.`);
   };
 
+  useEffect(() => {
+    if (!drawingPointPick) return undefined;
+    if (workspace !== 'drawing') { setDrawingPointPick(null); return undefined; }
+    const cancel = (event) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      setDrawingPointPick(null);
+      setNotice('Anulowano wymiar między punktami.');
+    };
+    window.addEventListener('keydown', cancel, true);
+    return () => window.removeEventListener('keydown', cancel, true);
+  }, [drawingPointPick, workspace, setDrawingPointPick]);
+
+  const startDrawingPointDimension = () => {
+    if (!activeDrawingSheet || !selectedDrawingView || readOnly) return;
+    setDrawingPointPick({ viewId: selectedDrawingView.id, points: [] });
+    setNotice('Wymiar między punktami: kliknij dwa wierzchołki widoku (przyciągane do najbliższego). Esc anuluje.');
+  };
+
+  const pickDrawingDimensionPoint = (point) => {
+    const pick = drawingPointPickRef.current;
+    if (!pick) return;
+    if (!point) {
+      setNotice('Kliknij bliżej wierzchołka widoku, aby przyciągnąć punkt wymiaru.');
+      return;
+    }
+    const points = [...pick.points, point];
+    if (points.length < 2) {
+      setDrawingPointPick({ ...pick, points });
+      setNotice('Wymiar między punktami: wskaż drugi wierzchołek.');
+      return;
+    }
+    if (Math.hypot(points[1][0] - points[0][0], points[1][1] - points[0][1]) < 1e-6) {
+      setNotice('Wskaż dwa różne wierzchołki.');
+      return;
+    }
+    const annotation = createPointDrawingDimension({ viewId: pick.viewId, points, offset: 10, precision: 2 });
+    commit((next) => {
+      const sheet = next.drawings.find((item) => item.id === activeDrawingSheet?.id);
+      if (sheet) (sheet.annotations ||= []).push(annotation);
+    });
+    setDrawingPointPick(null);
+    setSelectedDrawingViewId(null);
+    setSelectedDrawingAnnotationId(annotation.id);
+    setNotice('Dodano wymiar między punktami skojarzony z widokiem.');
+  };
+
   const addDrawingAnnotation = (type) => {
     if (!activeDrawingSheet || !selectedDrawingView || readOnly) return;
     const viewId = selectedDrawingView.id;
@@ -8031,6 +8082,7 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="OPISZ"><ToolMenuButton icon={Ruler} label="Wymiary" description="Dodaj skojarzony wymiar poziomy albo pionowy." items={[
                   { icon: Ruler, label: 'Wymiar X', onClick: () => addDrawingAnnotation('dimension-horizontal'), disabled: readOnly || !selectedDrawingView },
                   { icon: Ruler, label: 'Wymiar Y', onClick: () => addDrawingAnnotation('dimension-vertical'), disabled: readOnly || !selectedDrawingView },
+                  { icon: Ruler, label: 'Wymiar między punktami', onClick: startDrawingPointDimension, disabled: readOnly || !selectedDrawingView, disabledReason: 'Zaznacz widok na arkuszu.' },
                 ]} /><ToolMenuButton icon={CircleDotDashed} label="Osie i środki" description="Dodaj oś symetrii albo znacznik środka." items={[
                   { icon: Minus, label: 'Oś', onClick: () => addDrawingAnnotation('centerline'), disabled: readOnly || !selectedDrawingView },
                   { icon: CircleDotDashed, label: 'Środek', onClick: () => addDrawingAnnotation('center-mark'), disabled: readOnly || !selectedDrawingView },
@@ -8310,6 +8362,8 @@ export default function ModelingWorkspace() {
             onAddTable={addDrawingTable}
             onUpdateTable={updateDrawingTable}
             onDeleteTable={deleteDrawingTable}
+            pointPick={drawingPointPick}
+            onPickPoint={pickDrawingDimensionPoint}
             onExportPdf={() => { void exportActiveDrawingPdf(); }}
             onExportDxf={exportActiveDrawingDxf}
           /> : workspace === 'tools' ? <ProjectDashboard

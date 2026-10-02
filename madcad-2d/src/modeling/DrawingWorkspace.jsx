@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FilePlus2, FileText, Maximize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
-import { drawingBomItemNumber, drawingSheetScene, formatDrawingScale } from '../cad-core/drawing-sheets.js';
+import { drawingBomItemNumber, drawingSheetScene, drawingViewSnapPoint, formatDrawingScale } from '../cad-core/drawing-sheets.js';
 
 const ORIENTATION_LABELS = {
   front: 'Przód',
@@ -19,6 +19,7 @@ const VIEW_TYPE_LABELS = {
 
 const ANNOTATION_TYPE_LABELS = {
   'linear-dimension': 'Wymiar gabarytowy',
+  'point-dimension': 'Wymiar między punktami',
   centerline: 'Oś',
   'center-mark': 'Znacznik środka',
   'hole-note': 'Opis otworu',
@@ -39,9 +40,24 @@ function DrawingTableGraphic({ table }) {
   </g>;
 }
 
-function DrawingSheetPreview({ documentName, sheet, bodies, components, componentInstances, sketches, parameters, layers, selectedViewId, selectedAnnotationId, zoom, sheetsOpen, propertiesOpen, onZoomChange, onToggleSheets, onToggleProperties, onSelectView, onSelectAnnotation }) {
+function DrawingSheetPreview({ documentName, sheet, bodies, components, componentInstances, sketches, parameters, layers, selectedViewId, selectedAnnotationId, zoom, sheetsOpen, propertiesOpen, onZoomChange, onToggleSheets, onToggleProperties, onSelectView, onSelectAnnotation, pointPick = null, onPickPoint }) {
   const scene = useMemo(() => drawingSheetScene(sheet, bodies, { components, componentInstances, sketches, parameters, layers }), [sheet, bodies, components, componentInstances, sketches, parameters, layers]);
   const titleTop = scene.height - scene.titleBlockHeight;
+  const pickView = pointPick ? scene.views.find((view) => view.id === pointPick.viewId) : null;
+  const pickToSheet = (point) => [pickView.x + (point[0] - pickView.projectionCenter[0]) * pickView.scale, pickView.y + (point[1] - pickView.projectionCenter[1]) * pickView.scale];
+  // While picking dimension points, a click snaps to the nearest projected vertex of the
+  // chosen view instead of selecting views or annotations.
+  const pickPoint = (event) => {
+    if (!pickView) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const svg = event.currentTarget;
+    const matrix = svg.getScreenCTM?.();
+    if (!matrix) return;
+    const cursor = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+    const snapped = drawingViewSnapPoint(pickView, [cursor.x, cursor.y], 6);
+    onPickPoint?.(snapped);
+  };
   return (
     <div className="drawing-paper-wrap">
       <div className="drawing-canvas-toolbar" role="toolbar" aria-label="Widok arkusza">
@@ -54,8 +70,9 @@ function DrawingSheetPreview({ documentName, sheet, bodies, components, componen
         <i />
         <button type="button" className={propertiesOpen ? 'active' : ''} title={propertiesOpen ? 'Ukryj właściwości' : 'Pokaż właściwości'} aria-label={propertiesOpen ? 'Ukryj właściwości' : 'Pokaż właściwości'} onClick={onToggleProperties}><span>Właściwości</span>{propertiesOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}</button>
       </div>
-      <svg className="drawing-paper" style={{ width: `${Math.round(zoom * 100)}%`, maxWidth: `${Math.round(1080 * zoom)}px`, maxHeight: zoom === 1 ? '100%' : 'none' }} viewBox={`0 0 ${scene.width} ${scene.height}`} role="img" aria-label={`Arkusz ${sheet.name}`}>
+      <svg className={`drawing-paper ${pickView ? 'picking' : ''}`} style={{ width: `${Math.round(zoom * 100)}%`, maxWidth: `${Math.round(1080 * zoom)}px`, maxHeight: zoom === 1 ? '100%' : 'none' }} viewBox={`0 0 ${scene.width} ${scene.height}`} data-point-pick={pickView ? pickView.id : undefined} onClickCapture={pickView ? pickPoint : undefined} role="img" aria-label={`Arkusz ${sheet.name}`}>
         <rect className="drawing-border" x={scene.margin} y={scene.margin} width={scene.width - scene.margin * 2} height={scene.height - scene.margin * 2} />
+        {pickView && (pointPick.points || []).map((point, index) => { const [x, y] = pickToSheet(point); return <circle key={`pick-${index}`} className="drawing-pick-marker" cx={x} cy={y} r={1.2} />; })}
         {scene.views.map((view) => <g key={view.id} className={`drawing-view drawing-view-${view.type} ${selectedViewId === view.id ? 'selected' : ''}`} role="button" tabIndex="0" aria-label={`${view.name}, ${ORIENTATION_LABELS[view.orientation]}, skala ${formatDrawingScale(view.scale)}`} onClick={() => onSelectView(view.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectView(view.id); } }}>
           {selectedViewId === view.id && <rect className="drawing-view-selection" x={view.x - Math.max(4, view.modelWidth * view.scale + 6) / 2} y={view.y - Math.max(4, view.modelHeight * view.scale + 6) / 2} width={Math.max(4, view.modelWidth * view.scale + 6)} height={Math.max(4, view.modelHeight * view.scale + 6)} />}
           {view.segments.map(([first, second], index) => <line key={`edge-${index}`} x1={first[0]} y1={first[1]} x2={second[0]} y2={second[1]} />)}
@@ -115,8 +132,9 @@ function AnnotationControls({ annotation, rendered, bodies, allBodies, component
   return <div className="drawing-view-properties drawing-annotation-properties">
     <strong>{ANNOTATION_TYPE_LABELS[annotation.type]}</strong>
     <small className="drawing-association-status">Aktualizowane z widokiem źródłowym</small>
+    {annotation.type === 'point-dimension' && <label><span>Kierunek</span><select data-point-dimension-axis value={annotation.axis} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ axis: event.target.value })}><option value="horizontal">Poziomy</option><option value="vertical">Pionowy</option><option value="aligned">Wyrównany</option></select></label>}
     {(annotation.type === 'linear-dimension' || annotation.type === 'centerline') && <label><span>Kierunek</span><select value={annotation.axis} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ axis: event.target.value })}><option value="horizontal">Poziomy</option><option value="vertical">Pionowy</option></select></label>}
-    {annotation.type === 'linear-dimension' && <>
+    {(annotation.type === 'linear-dimension' || annotation.type === 'point-dimension') && <>
       <div className="drawing-property-row"><label><span>Odsunięcie [mm]</span><input type="number" min="-100" max="100" value={annotation.offset} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ offset: Math.max(-100, Math.min(100, Number(event.target.value) || 0)) })} /></label><label><span>Miejsca</span><input type="number" min="0" max="4" value={annotation.precision} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ precision: Math.max(0, Math.min(4, Math.trunc(Number(event.target.value) || 0))) })} /></label></div>
       <label><span>Tolerancja</span><select value={annotation.toleranceMode} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ toleranceMode: event.target.value })}><option value="none">Bez tolerancji</option><option value="symmetric">Symetryczna ±</option><option value="deviation">Odchyłki +/−</option></select></label>
       {annotation.toleranceMode !== 'none' && <div className="drawing-property-row"><label><span>{annotation.toleranceMode === 'symmetric' ? '± [mm]' : 'Górna [mm]'}</span><input type="number" min="0" step="0.01" value={annotation.upperTolerance} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ upperTolerance: Math.max(0, Number(event.target.value) || 0), ...(annotation.toleranceMode === 'symmetric' ? { lowerTolerance: Math.max(0, Number(event.target.value) || 0) } : {}) })} /></label>{annotation.toleranceMode === 'deviation' && <label><span>Dolna [mm]</span><input type="number" min="0" step="0.01" value={annotation.lowerTolerance} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ lowerTolerance: Math.max(0, Number(event.target.value) || 0) })} /></label>}</div>}
@@ -144,7 +162,7 @@ function AnnotationControls({ annotation, rendered, bodies, allBodies, component
   </div>;
 }
 
-export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, selectedAnnotationId, focusSection = null, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onSelectView, onUpdateView, onDeleteView, onSelectAnnotation, onUpdateAnnotation, onDeleteAnnotation, onAddRevision, onUpdateRevision, onDeleteRevision, onUpdateTable, onDeleteTable }) {
+export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, selectedAnnotationId, focusSection = null, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onSelectView, onUpdateView, onDeleteView, onSelectAnnotation, onUpdateAnnotation, onDeleteAnnotation, onAddRevision, onUpdateRevision, onDeleteRevision, onUpdateTable, onDeleteTable, pointPick = null, onPickPoint }) {
   const titleBlockRef = useRef(null);
   const revisionsRef = useRef(null);
   const [sheetsOpen, setSheetsOpen] = useState(true);
@@ -180,7 +198,7 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
       {document.drawings.map((sheet, index) => <button type="button" className={sheet.id === activeSheet.id ? 'active' : ''} key={sheet.id} onClick={() => onSelectSheet(sheet.id)}><FileText size={15} /><span><strong>{sheet.name}</strong><small>{sheet.pageSize} · {sheet.orientation === 'landscape' ? 'poziomo' : 'pionowo'} · {sheet.views.length} wid.</small></span><em>{index + 1}</em></button>)}
     </nav>
 
-    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} components={document.components || []} componentInstances={document.componentInstances || []} sketches={document.sketches || []} parameters={document.parameters || []} layers={document.layers || []} selectedViewId={selectedViewId} selectedAnnotationId={selectedAnnotationId} zoom={zoom} sheetsOpen={sheetsOpen} propertiesOpen={propertiesOpen} onZoomChange={setZoom} onToggleSheets={() => setSheetsOpen((open) => !open)} onToggleProperties={() => setPropertiesOpen((open) => !open)} onSelectView={onSelectView} onSelectAnnotation={onSelectAnnotation} />
+    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} components={document.components || []} componentInstances={document.componentInstances || []} sketches={document.sketches || []} parameters={document.parameters || []} layers={document.layers || []} selectedViewId={selectedViewId} selectedAnnotationId={selectedAnnotationId} zoom={zoom} sheetsOpen={sheetsOpen} propertiesOpen={propertiesOpen} onZoomChange={setZoom} onToggleSheets={() => setSheetsOpen((open) => !open)} onToggleProperties={() => setPropertiesOpen((open) => !open)} onSelectView={onSelectView} onSelectAnnotation={onSelectAnnotation} pointPick={pointPick} onPickPoint={onPickPoint} />
 
     <aside className="drawing-properties" aria-label="Właściwości arkusza">
       <header><FileText size={16} /><strong>Właściwości</strong></header>

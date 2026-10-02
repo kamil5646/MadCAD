@@ -2214,6 +2214,12 @@ export function validateDocument(document) {
         if (!['none', 'symmetric', 'deviation'].includes(annotation.toleranceMode)) add(`${annotationBase}.toleranceMode`, 'Nieobsługiwany zapis tolerancji.', 'UNSUPPORTED');
         if (Number(annotation.upperTolerance) < 0 || Number(annotation.lowerTolerance) < 0) add(annotationBase, 'Tolerancje nie mogą być ujemne.', 'VALUE');
       }
+      if (annotation.type === 'point-dimension') {
+        if (!['horizontal', 'vertical', 'aligned'].includes(annotation.axis)) add(`${annotationBase}.axis`, 'Wymiar między punktami musi być poziomy, pionowy albo wyrównany.', 'UNSUPPORTED');
+        if (!Array.isArray(annotation.points) || annotation.points.length !== 2 || annotation.points.some((point) => !Array.isArray(point) || point.length !== 2 || point.some((value) => !Number.isFinite(Number(value))))) add(`${annotationBase}.points`, 'Wymiar między punktami wymaga dwóch punktów [u, v].', 'VALUE');
+        if (!Number.isFinite(Number(annotation.offset)) || Math.abs(Number(annotation.offset)) > 100) add(`${annotationBase}.offset`, 'Odsunięcie wymiaru musi mieścić się między -100 i 100 mm.', 'VALUE');
+        if (!Number.isInteger(Number(annotation.precision)) || Number(annotation.precision) < 0 || Number(annotation.precision) > 4) add(`${annotationBase}.precision`, 'Dokładność wymiaru musi mieścić się między 0 i 4 miejscami.', 'VALUE');
+      }
       if (annotation.type === 'centerline') {
         if (!['horizontal', 'vertical'].includes(annotation.axis)) add(`${annotationBase}.axis`, 'Oś musi być pozioma albo pionowa.', 'UNSUPPORTED');
         if (!Number.isFinite(Number(annotation.offset)) || Math.abs(Number(annotation.offset)) > 1) add(`${annotationBase}.offset`, 'Położenie osi musi mieścić się między -1 i 1.', 'VALUE');
