@@ -1721,6 +1721,8 @@ const ENGLISH_TEXT = Object.freeze({
   'Wyszukaj obiekt albo polecenie': 'Search for an object or a command',
   'EKSPORT SZKICU': 'SKETCH EXPORT',
   'BRYŁA ZE SZKICU': 'SOLID FROM SKETCH',
+  'Cofnięto ostatnią zmianę.': 'Undid the last change.',
+  'Ponowiono zmianę.': 'Redid the change.',
   'Wymiar między punktami': 'Point-to-point dimension',
   'Wyrównany': 'Aligned',
   'Zaznacz widok na arkuszu.': 'Select a view on the sheet.',

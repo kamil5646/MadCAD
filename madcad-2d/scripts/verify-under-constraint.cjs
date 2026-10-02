@@ -56,7 +56,34 @@ app.whenReady().then(async () => {
     if (state.expanded !== 'true' || !state.status.includes('DOF') || !state.heading.includes('Pozostałe stopnie swobody') || !state.suggestions.includes('Co dodać') || !state.insideViewport) {
       throw new Error(`Niepełna diagnostyka niedowiązania: ${JSON.stringify(state)}`);
     }
-    process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`);
+
+    // Driving dimension from the keyboard: D on a selected segment, typed value replaces the default, Enter confirms.
+    await window.webContents.executeJavaScript(`document.querySelector('.sketch-freedom-panel header button')?.click()`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadConstraintFixtureIds.horizontal, 'replace')`);
+    await waitFor(window, `document.body.textContent.includes('1 element szkicu')`, 'zaznaczony odcinek');
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'D' });
+    window.webContents.sendInputEvent({ type: 'char', keyCode: 'd' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'D' });
+    await waitFor(window, `document.querySelector('.sketch-dimension-dialog input') === document.activeElement`, 'okno wymiaru po klawiszu D');
+    const initialSelection = await window.webContents.executeJavaScript(`(() => { const input = document.activeElement; return { value: input.value, start: input.selectionStart, end: input.selectionEnd }; })()`);
+    if (initialSelection.start !== 0 || initialSelection.end !== initialSelection.value.length || !initialSelection.value) throw new Error(`Wartość wymiaru nie jest zaznaczona: ${JSON.stringify(initialSelection)}`);
+    await window.webContents.insertText('12');
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+    await waitFor(window, `!document.querySelector('.sketch-dimension-dialog') && window.__madcadVerifyDocumentState?.sketches?.[0]?.dimensions?.length === 1`, 'wymiar zatwierdzony Enterem');
+    const dimension = await window.webContents.executeJavaScript(`(() => { const sketch = window.__madcadVerifyDocumentState.sketches[0]; const dimension = sketch.dimensions[0]; return { ...dimension, value: sketch.constraints.find((item) => item.id === dimension.constraintId)?.value }; })()`);
+    if (String(dimension.value) !== '12') throw new Error(`Wpisana wartość nie zastąpiła domyślnej: ${JSON.stringify(dimension)}`);
+    // The dimension is drawn at the geometry and clicking its value opens the editor.
+    await waitFor(window, `window.__madcadVerifySketchDimensionLabels?.().some((label) => label.text === '12')`, 'etykieta wymiaru w widoku');
+    const label = await window.webContents.executeJavaScript(`window.__madcadVerifySketchDimensionLabels().find((item) => item.text === '12')`);
+    const point = { x: Math.round(label.x), y: Math.round(label.y) };
+    const hitElement = await window.webContents.executeJavaScript(`document.elementFromPoint(${point.x}, ${point.y})?.tagName`);
+    if (hitElement !== 'CANVAS') throw new Error(`Etykieta wymiaru jest zasłonięta przez ${hitElement}.`);
+    window.webContents.sendInputEvent({ type: 'mouseDown', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+    window.webContents.sendInputEvent({ type: 'mouseUp', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+    await waitFor(window, `document.querySelector('.sketch-constraint-editor input')?.value === '12'`, 'edytor wartości po kliknięciu etykiety');
+    await fs.writeFile(screenshotPath.replace('.png', '-dimension.png'), (await window.webContents.capturePage()).toPNG());
+    process.stdout.write(`${JSON.stringify({ screenshotPath, ...state, dimension, label }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

@@ -173,6 +173,7 @@ import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboa
 import { assemblyInstructionHtml } from '../src/cad-core/assembly-instructions.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
+import { formatDimensionValue, sketchDimensionAnnotations } from '../src/cad-core/sketch-dimension-annotations.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -6924,4 +6925,38 @@ test('wymiar między punktami przyciąga wierzchołki widoku i mierzy w jednostk
   const broken = annotationIssues(validateDocument(document)).map((issue) => issue.path);
   assert.ok(broken.some((path) => path.endsWith('.points')) && broken.some((path) => path.endsWith('.axis')));
   assert.throws(() => createPointDrawingDimension({ viewId: view.id, points: [[0, 0]] }), /dwóch punktów/);
+});
+
+test('sketch dimension annotations sit outside the sketch with the driving value', () => {
+  const point = (id, x, y) => ({ id, type: 'point', geometry: { x, y } });
+  const sketch = {
+    entities: [
+      point('a', 0, 0), point('b', 80, 0), point('c', 80, 50), point('d', 0, 50),
+      { id: 'bottom', type: 'line', pointIds: ['a', 'b'] },
+      { id: 'right', type: 'line', pointIds: ['b', 'c'] },
+      { id: 'center', type: 'point', geometry: { x: 40, y: 25 } },
+      { id: 'hole', type: 'circle', pointIds: ['center'], geometry: { radius: 'r' } },
+    ],
+    constraints: [
+      { id: 'k1', type: 'distance', value: '80' },
+      { id: 'k2', type: 'distance', value: 'h' },
+      { id: 'k3', type: 'diameter', value: '2 * r' },
+    ],
+    dimensions: [
+      { id: 'd1', type: 'aligned', entityIds: ['bottom'], constraintId: 'k1' },
+      { id: 'd2', type: 'vertical', entityIds: ['b', 'c'], constraintId: 'k2' },
+      { id: 'd3', type: 'diameter', entityIds: ['hole'], constraintId: 'k3' },
+    ],
+  };
+  const parameters = [{ name: 'h', expression: '50' }, { name: 'r', expression: '5' }];
+  const [bottom, right, hole] = sketchDimensionAnnotations(sketch, parameters, { offset: 10, arrow: 3 });
+  assert.equal(bottom.text, '80');
+  assert.ok(bottom.label[1] < 0, 'bottom edge dimension goes below the sketch');
+  assert.ok(bottom.segments.some(([start, end]) => start[1] === -10 && end[1] === -10 && Math.abs(end[0] - start[0]) === 80));
+  assert.equal(right.text, 'fx: 50');
+  assert.ok(right.label[0] > 80, 'right edge dimension goes to the right');
+  assert.equal(hole.text, 'fx: Ø10');
+  assert.equal(hole.constraintId, 'k3');
+  assert.equal(formatDimensionValue(12.345), '12.35');
+  assert.deepEqual(sketchDimensionAnnotations({ entities: [], dimensions: [] }), []);
 });

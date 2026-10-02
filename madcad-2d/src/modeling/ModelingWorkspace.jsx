@@ -7482,6 +7482,36 @@ export default function ModelingWorkspace() {
     setSelection(nextSelection);
   };
 
+  const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
+  // Start page "Quick start" keys: create a sketch on XY, then open the tool once that sketch is active.
+  const pendingStartToolRef = useRef(null);
+  const startPageToolForKey = (key) => {
+    const shortcutFor = (label, fallback) => String(commandCustomization?.commands?.[label]?.shortcut || commandCustomization?.commands?.[label]?.alias || fallback).toUpperCase();
+    const pressed = String(key || '').toUpperCase();
+    return [['Linia', 'L', 'line'], ['Prostokąt', 'R', 'rectangle'], ['Okrąg', 'C', 'circle']].find(([label, fallback]) => shortcutFor(label, fallback) === pressed)?.[2] || null;
+  };
+  useEffect(() => {
+    const tool = pendingStartToolRef.current;
+    if (!tool || !activeSketchId) return;
+    pendingStartToolRef.current = null;
+    if (tool === 'line') openSketchPath('line');
+    else openProfileCommand(tool);
+    // Runs once per newly activated sketch; the openers are render-local.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSketchId]);
+
+  // The status line must not keep announcing the operation that was just undone.
+  const undoWithNotice = () => {
+    if (!history.canUndo) return;
+    history.undo();
+    setNotice('Cofnięto ostatnią zmianę.');
+  };
+  const redoWithNotice = () => {
+    if (!history.canRedo) return;
+    history.redo();
+    setNotice('Ponowiono zmianę.');
+  };
+
   const executeBasicShortcut = useCallback((rawShortcut) => {
     const shortcut = String(rawShortcut || '').trim().toUpperCase();
     if (!shortcut) return false;
@@ -7606,6 +7636,15 @@ export default function ModelingWorkspace() {
         }
         return;
       }
+      if (!textEntry && startPageVisible && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const tool = startPageToolForKey(event.key);
+        if (tool) {
+          event.preventDefault();
+          pendingStartToolRef.current = tool;
+          pickPlane('XY');
+          return;
+        }
+      }
       if (!textEntry && !command && !event.ctrlKey && !event.metaKey && !event.altKey && (/^[a-z0-9]$/i.test(event.key) || /^F(?:[4-9]|1[0-2])$/.test(event.key))) {
         if (executeBasicShortcut(event.key.toUpperCase())) event.preventDefault();
         return;
@@ -7650,8 +7689,8 @@ export default function ModelingWorkspace() {
       }
       if (primaryModifierPressed(event, DESKTOP_PLATFORM) && !command && !readOnly && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
         event.preventDefault();
-        if (event.key.toLowerCase() === 'y' || event.shiftKey) history.redo();
-        else history.undo();
+        if (event.key.toLowerCase() === 'y' || event.shiftKey) redoWithNotice();
+        else undoWithNotice();
         return;
       }
       if ((event.key === 'Delete' || event.key === 'Backspace') && !textEntry && !command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId) && !readOnly) {
@@ -7673,7 +7712,7 @@ export default function ModelingWorkspace() {
     return () => window.removeEventListener('keydown', onKeyDown);
   // Command state is the stable boundary for the keyboard handler; command helpers are render-local callbacks.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, executeBasicShortcut, projectSearchOpen, sketchOptions.snap]);
+  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, executeBasicShortcut, projectSearchOpen, sketchOptions.snap, startPageVisible]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
   const selectedTimelineFeature = selection?.kind === 'feature'
@@ -7770,7 +7809,6 @@ export default function ModelingWorkspace() {
     removalColumns: camSimulation?.columns || [],
     cutter: camSimulation?.cutter || null,
   } : null, [activeCamSetupResult, activeCamSetup, manufacturingSegments, camSimulationProgress, camSimulation]);
-  const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
   const showProjectBrowser = browserOpen && workspace !== 'drawing' && !startPageVisible;
   let adaptiveContext = null;
   if (!command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId)) {
@@ -7917,8 +7955,8 @@ export default function ModelingWorkspace() {
         <input ref={sketchImportInputRef} hidden type="file" accept=".svg,.dxf,image/svg+xml,application/dxf" onChange={chooseSketchImport} />
         <div className="document-tab" title={currentPath || (dirty ? 'Projekt zawiera niezapisane zmiany' : 'Projekt zapisany')}><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : dirty ? <span role="img" aria-label="Niezapisane zmiany">*</span> : null}</div>
         <div className="title-actions">
-          <button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button>
-          <button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button>
+          <button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={undoWithNotice} title="Cofnij"><Undo2 size={15} /></button>
+          <button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={redoWithNotice} title="Ponów"><Redo2 size={15} /></button>
           <button id="commandShortcutsBtn" className={commandCustomizationOpen ? 'active' : ''} type="button" aria-pressed={commandCustomizationOpen} title="Skróty klawiszowe · F1" onClick={() => { setLayersOpen(false); setBlocksOpen(false); setComponentsOpen(false); setCommandCustomizationOpen((open) => !open); }}><Keyboard size={15} /><span>Skróty</span></button>
           <div className={`app-help-menu ${helpMenuOpen ? 'open' : ''}`} ref={helpMenuRef}>
             <button ref={helpButtonRef} className="app-help-trigger" type="button" title="Pomoc i ustawienia" aria-label="Pomoc i ustawienia" aria-haspopup="menu" aria-expanded={helpMenuOpen} onClick={() => setHelpMenuOpen((open) => !open)}><CircleHelp size={15} /><span>Pomoc</span><ChevronDown size={12} /></button>

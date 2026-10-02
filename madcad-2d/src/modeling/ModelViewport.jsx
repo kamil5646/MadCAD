@@ -20,6 +20,7 @@ import { configureCadMouseNavigation, shouldHandlePrimaryViewportPointer, VIEWPO
 import { resolveReferenceSketchIds } from './sketch-visibility.js';
 import { createCurvatureColors, createCurvatureCombVertices } from './surface-analysis.js';
 import { mapSketchPoint, projectWorldPoint, resolveSketchFrame } from '../cad-core/sketch-frame.js';
+import { sketchDimensionAnnotations } from '../cad-core/sketch-dimension-annotations.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -62,6 +63,56 @@ function disposeObject(object) {
     const materials = Array.isArray(child.material) ? child.material : [child.material].filter(Boolean);
     materials.forEach((material) => { material.map?.dispose(); material.dispose(); });
   });
+}
+
+function dimensionLabelSprite(text, selected) {
+  const font = '600 30px -apple-system, "Segoe UI", sans-serif';
+  const canvas = window.document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+  context.font = font;
+  const width = Math.ceil(context.measureText(text).width) + 20;
+  canvas.width = width;
+  canvas.height = 44;
+  context.font = font;
+  context.fillStyle = selected ? 'rgba(255, 200, 87, 0.95)' : 'rgba(21, 27, 33, 0.88)';
+  context.fillRect(0, 0, width, 44);
+  context.fillStyle = selected ? '#1b1f24' : '#f1f5f8';
+  context.textBaseline = 'middle';
+  context.fillText(text, 10, 23);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, sizeAttenuation: false, depthTest: false, depthWrite: false, transparent: true }));
+  // Constant on-screen size, like dimension text in Fusion: height is a fraction of the viewport.
+  const height = 0.022;
+  sprite.scale.set(height * (width / 44), height, 1);
+  sprite.renderOrder = 30;
+  return sprite;
+}
+
+// Driving sketch dimensions drawn at the geometry: lines in the sketch plane and a clickable value label.
+function addSketchDimensionAnnotations(group, sketch, parameters, plane, { planeOffset = 0, frame = null, selectedConstraintId = null } = {}) {
+  const labels = [];
+  for (const annotation of sketchDimensionAnnotations(sketch, parameters)) {
+    const selected = Boolean(selectedConstraintId) && annotation.constraintId === selectedConstraintId;
+    if (annotation.segments.length) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(annotation.segments.flatMap(([start, end]) => [
+        ...mapPlanePoint(start[0], start[1], plane, 0.08, planeOffset, frame),
+        ...mapPlanePoint(end[0], end[1], plane, 0.08, planeOffset, frame),
+      ]), 3));
+      const lines = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: selected ? 0xffc857 : 0xb8c7d3, transparent: true, opacity: 0.9, depthTest: false }));
+      lines.renderOrder = 29;
+      group.add(lines);
+    }
+    const sprite = dimensionLabelSprite(annotation.text, selected);
+    if (!sprite) continue;
+    sprite.position.set(...mapPlanePoint(annotation.label[0], annotation.label[1], plane, 0.1, planeOffset, frame));
+    sprite.userData = { sketchConstraintId: annotation.constraintId, sketchDimensionId: annotation.dimensionId, dimensionText: annotation.text };
+    group.add(sprite);
+    if (annotation.constraintId) labels.push(sprite);
+  }
+  return labels;
 }
 
 function faceDecalProjector(faceGroup, mesh, decal) {
@@ -710,6 +761,7 @@ export default function ModelViewport({
   const sketchMoveRef = useRef(onSketchMove);
   const sketch3DHandleMoveRef = useRef(onSketch3DHandleMove);
   const sketchModifyRef = useRef(onSketchModify);
+  const constraintSelectRef = useRef(onSketchConstraintSelection);
   const formControlPointSelectionRef = useRef(onFormControlPointSelection);
   const formControlPointMoveRef = useRef(onFormControlPointMove);
   const formControlEdgeSelectionRef = useRef(onFormControlEdgeSelection);
@@ -824,6 +876,7 @@ export default function ModelViewport({
   }
   const directEnabled = Boolean((selectedProfile || directManipulator) && !activeSketchId);
   selectRef.current = onSelectBody;
+  constraintSelectRef.current = onSketchConstraintSelection;
   topologySelectRef.current = onSelectTopology;
   originPlaneSelectRef.current = onSelectOriginPlane;
   draftChangeRef.current = onDraftChange;
@@ -926,13 +979,19 @@ export default function ModelViewport({
       controls.addEventListener('change', () => { window.__madcadViewportNavigationState.changes += 1; });
     }
 
-    scene.add(new THREE.HemisphereLight(0xf1f7fb, 0x28323d, sceneSettings.ambientIntensity));
+    // The model is Z-up; the default hemisphere axis (+Y) left faces looking along -Y almost black.
+    const hemisphere = new THREE.HemisphereLight(0xf1f7fb, 0x56626e, sceneSettings.ambientIntensity);
+    hemisphere.position.set(0, 0, 1);
+    scene.add(hemisphere);
     const key = new THREE.DirectionalLight(0xffffff, sceneSettings.keyIntensity);
     const azimuth = sceneSettings.keyAzimuth * Math.PI / 180;
     const elevation = sceneSettings.keyElevation * Math.PI / 180;
     key.position.set(Math.cos(azimuth) * Math.cos(elevation) * 420, Math.sin(azimuth) * Math.cos(elevation) * 420, Math.sin(elevation) * 420);
     key.castShadow = sceneSettings.shadows;
     key.shadow.mapSize.set(2048, 2048);
+    // Without bias bodies shadow themselves in stripes (shadow acne) on faces facing the light.
+    key.shadow.bias = -0.0005;
+    key.shadow.normalBias = 0.6;
     key.shadow.camera.left = -400;
     key.shadow.camera.right = 400;
     key.shadow.camera.top = 400;
@@ -1612,10 +1671,11 @@ export default function ModelViewport({
         const edgeGeometry = new THREE.BufferGeometry();
         edgeGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
         const edgeSelected = selectedTopologySet.has(edgeGroup.topologyId);
-        const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : body.bodyKind === 'surface' ? 0x5de1ff : 0x26333b), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : body.bodyKind === 'surface' ? 0.92 : 0.72, clippingPlanes });
+        // Dark, opaque edges like Fusion's shaded-with-edges; a selected body keeps them visible against its light faces.
+        const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0x0b4a63 : body.bodyKind === 'surface' ? 0x5de1ff : 0x10181e), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : body.bodyKind === 'surface' ? 0.92 : 0.95, clippingPlanes });
         const edgeObject = new THREE.LineSegments(edgeGeometry, edgeMaterial);
         if (surfaceAnalysis?.enabled) edgeObject.visible = surfaceAnalysis.showEdges !== false;
-        edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, topologyKind: 'edge', topologyId: edgeGroup.topologyId, baseColor: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b) };
+        edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, topologyKind: 'edge', topologyId: edgeGroup.topologyId, baseColor: edgeSelected ? 0xffc857 : (selected ? 0x0b4a63 : 0x10181e) };
         placeObject(edgeObject);
         modelGroup.add(edgeObject);
         pickables.push(edgeObject);
@@ -1941,6 +2001,7 @@ export default function ModelViewport({
     let sketchPreviewLine = null;
     let sketchRender = null;
     let sketchProfileRender = null;
+    let sketchDimensionLabels = [];
     if (activeSketch) {
       const axisLength = gridSize / 2;
       const xAxisGeometry = new THREE.BufferGeometry();
@@ -1977,6 +2038,27 @@ export default function ModelViewport({
         layers,
         underConstrainedPointIds: activeSketchIs3D ? [] : freedomDiagnostics.affectedPointIds,
       });
+      if (showSketchDimensions && !activeSketchIs3D) {
+        sketchDimensionLabels = addSketchDimensionAnnotations(sketchGroup, activeSketch, parameters, activePlane, {
+          planeOffset: activePlaneOffset,
+          frame: activeFrame,
+          selectedConstraintId: selectedSketchConstraintId,
+        });
+      }
+      if (new URLSearchParams(window.location.search).has('verify')) {
+        window.__madcadVerifySketchDimensionLabels = () => {
+          const rect = renderer.domElement.getBoundingClientRect();
+          return sketchDimensionLabels.map((sprite) => {
+            const projected = sprite.getWorldPosition(new THREE.Vector3()).project(camera);
+            return {
+              constraintId: sprite.userData.sketchConstraintId,
+              text: sprite.userData.dimensionText,
+              x: rect.left + (((projected.x + 1) * rect.width) / 2),
+              y: rect.top + (((1 - projected.y) * rect.height) / 2),
+            };
+          });
+        };
+      }
       if (draftProfile) addSketchLine(sketchGroup, draftProfile, parameters, activePlane, true, activePlaneOffset, activeFrame);
       if (sketchTool && polylineDraft?.lastPoint) {
         const previewGeometry = new THREE.BufferGeometry();
@@ -2636,6 +2718,12 @@ export default function ModelViewport({
       }
       if (activeSketch && sketchRender) {
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
+        const dimensionHit = sketchDimensionLabels.length ? raycaster.intersectObjects(sketchDimensionLabels, false)[0] : null;
+        if (dimensionHit) {
+          event.preventDefault();
+          constraintSelectRef.current?.(dimensionHit.object.userData.sketchConstraintId);
+          return;
+        }
         const hit = selectionFilter === 'profile' ? null : pickSketchEntity(event);
         const profileHit = selectionFilter === 'profile' || !hit ? pickSketchProfile() : null;
         if (!worldPoint) return;
@@ -3354,7 +3442,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeUsesFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, sceneSelectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, solidFeaVisualization, manufacturingVisualization, printRiskAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeUsesFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, sceneSelectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, selectedSketchConstraintId, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, solidFeaVisualization, manufacturingVisualization, printRiskAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;
@@ -3511,7 +3599,7 @@ export default function ModelViewport({
           onSketchConstraintValueChange?.(selectedSketchConstraintId, new FormData(event.currentTarget).get('constraintValue'));
         }}>
           <label>Wartość więzu</label>
-          <input name="constraintValue" defaultValue={activeSketch.constraints.find((constraint) => constraint.id === selectedSketchConstraintId)?.value} aria-label="Wartość wybranego więzu" autoFocus />
+          <input name="constraintValue" defaultValue={activeSketch.constraints.find((constraint) => constraint.id === selectedSketchConstraintId)?.value} aria-label="Wartość wybranego więzu" autoFocus onFocus={(event) => event.currentTarget.select()} />
           <button type="submit">Zastosuj</button>
         </form>
       )}
