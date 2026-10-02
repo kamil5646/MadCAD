@@ -1,5 +1,6 @@
 export const drawingProjectionGroupKey = (ids) => JSON.stringify([...new Set(ids)].sort());
 export const drawingSectionKey = (view) => JSON.stringify([view.orientation || 'front', Number(view.sectionPosition) || 0.5, [...(view.bodyIds || [])].sort()]);
+export const drawingProjectionTolerance = (sheets) => 0.001 / Math.max(1, ...sheets.flatMap((sheet) => (sheet.views || []).map((view) => Number(view.scale)).filter(Number.isFinite)));
 
 export function uniqueDrawingSegments(segments) {
   const seen = new Set();
@@ -28,9 +29,9 @@ export function attachDrawingProjections(bodies, data) {
 }
 
 // Never export the transient tessellation fallback or a projection of an older model.
-export async function prepareDrawingExport({ bodies, revision, getCurrentRevision, project, groups, requiredBodyIds, sections = [] }) {
+export async function prepareDrawingExport({ bodies, revision, getCurrentRevision, project, groups, requiredBodyIds, sections = [], tolerance = 0.001 }) {
   if (getCurrentRevision() !== revision) throw new Error('Model zmienił się lub trwa jego przebudowa. Ponów eksport po jej ukończeniu.');
-  const data = await project(['front', 'top', 'right', 'isometric'], groups, sections);
+  const data = await project(['front', 'top', 'right', 'isometric'], groups, sections, tolerance);
   if (getCurrentRevision() !== revision) throw new Error('Model zmienił się podczas przygotowania rysunku. Ponów eksport.');
   for (const body of bodies) {
     if (requiredBodyIds && !requiredBodyIds.includes(body.id)) continue;

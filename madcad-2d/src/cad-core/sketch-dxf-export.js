@@ -27,7 +27,7 @@ export const nearestAciColor = aciFromHex;
 
 function pairs(...items) { return items.map(String).join('\n'); }
 
-function ltypeTable(used) {
+export function dxfLineTypeTable(used) {
   const records = [...used].map((id) => LINE_TYPES[id] || LINE_TYPES.continuous).map((type) => {
     const total = type.pattern.reduce((sum, item) => sum + Math.abs(item), 0);
     return pairs('0', 'LTYPE', '2', type.name, '70', '0', '3', type.description, '72', '65', '73', type.pattern.length, '40', number(total), ...type.pattern.flatMap((item) => ['49', number(item)]));
@@ -95,7 +95,7 @@ export function sketchDxf(sketch, { parameters = [], layers = [], includeConstru
   const text = [
     pairs('0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1009', '9', '$INSUNITS', '70', unitsCode, '0', 'ENDSEC'),
     pairs('0', 'SECTION', '2', 'TABLES'),
-    ltypeTable(usedLineTypes),
+    dxfLineTypeTable(usedLineTypes),
     pairs('0', 'TABLE', '2', 'LAYER', '70', layerRecords.length),
     layerRecords.join('\n'),
     '0\nENDTAB\n0\nENDSEC',

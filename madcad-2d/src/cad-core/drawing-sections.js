@@ -4,8 +4,7 @@ import { viewCoordinates } from './drawing-sheets.js';
 
 // PDF/DXF use curves of the actual B-Rep section, never display triangles.
 // Curve flattening targets 0.001 mm chord error for line-based drawing formats.
-export function sectionCurveSegments(pointAt, orientation, tolerance = 0.001, linear = false) {
-  const point = (parameter) => viewCoordinates(pointAt(parameter), orientation).slice(0, 2);
+export function flattenDrawingCurve(point, tolerance = 0.001, linear = false) {
   const segments = [];
   const refine = (a, b, first, last, depth) => {
     const middle = point((a + b) / 2);
@@ -24,7 +23,11 @@ export function sectionCurveSegments(pointAt, orientation, tolerance = 0.001, li
   return segments;
 }
 
-export function projectExactSections(kernelBodies, views) {
+export function sectionCurveSegments(pointAt, orientation, tolerance = 0.001, linear = false) {
+  return flattenDrawingCurve((parameter) => viewCoordinates(pointAt(parameter), orientation).slice(0, 2), tolerance, linear);
+}
+
+export function projectExactSections(kernelBodies, views, tolerance = 0.001) {
   const projections = {};
   const oc = getOC();
   for (const view of views) {
@@ -56,14 +59,14 @@ export function projectExactSections(kernelBodies, views) {
                 segments.push(...sectionCurveSegments((parameter) => {
                   const vector = edge.pointAt(parameter);
                   try { return [vector.x, vector.y, vector.z]; } finally { vector.delete(); }
-                }, view.orientation, 0.001, edge.geomType === 'LINE'));
+                }, view.orientation, tolerance, edge.geomType === 'LINE'));
               } finally { edge.delete(); }
             }
           } finally { shape?.delete(); operation.delete(); }
         }
       } finally { plane.delete(); }
     }
-    projections[drawingSectionKey(view)] = { segments: uniqueDrawingSegments(segments), tolerance: 0.001 };
+    projections[drawingSectionKey(view)] = { segments: uniqueDrawingSegments(segments), tolerance };
   }
   return projections;
 }

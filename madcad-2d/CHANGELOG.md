@@ -6,6 +6,7 @@
 
 - parser wymiarów odrzuca brakujące operatory, błędną kolejność wartości i niepełne nawiasy zamiast obliczać przypadkowy wynik;
 - przekroje PDF/DXF powstają z przecięcia B-Rep, nie z siatki podglądu; eksport odrzuca także model oczekujący na przebudowę w oknie debounce;
+- krzywe rzutów są dzielone adaptacyjnie do tolerancji na papierze z uwzględnieniem skali widoku; DXF definiuje przerywany typ linii dla warstwy HIDDEN;
 - ujemne wyrażenia parametryczne (`-depth`, `0-depth`) automatycznie wybierają Wytnij dla szkicu na ścianie; zmiana kierunku zachowuje wyrażenie parametryczne;
 - PDF/DXF oraz podgląd wydruku czekają na dokładny rzut aktualnego modelu; błędy kernela lub zmiana modelu zatrzymują eksport z komunikatem;
 - wiele brył w widoku arkusza zasłania się wzajemnie, a pokrywające się krawędzie są rysowane tylko raz;

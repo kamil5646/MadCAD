@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { attachDrawingProjections, drawingProjectionGroups, prepareDrawingExport } from '../cad-core/drawing-projections.js';
+import { attachDrawingProjections, drawingProjectionGroups, drawingProjectionTolerance, prepareDrawingExport } from '../cad-core/drawing-projections.js';
 import {
   ArrowLeft,
   ArrowRight,
@@ -1598,7 +1598,7 @@ export default function ModelingWorkspace() {
     if (workspace !== 'drawing' || engine.status !== 'ready' || !engine.bodies.length || (drawingProjections.revision === engine.revision && drawingProjections.groupsKey === projectionGroupsKey)) return undefined;
     let active = true;
     const revision = engine.revision;
-    projectDrawingViews(['front', 'top', 'right', 'isometric'], projectionGroups, document.drawings.flatMap((sheet) => sheet.views.filter((view) => view.type === 'section')))
+    projectDrawingViews(['front', 'top', 'right', 'isometric'], projectionGroups, document.drawings.flatMap((sheet) => sheet.views.filter((view) => view.type === 'section')), drawingProjectionTolerance(document.drawings))
       .then((data) => {
         if (!active) return;
         setDrawingProjections({ revision, groupsKey: projectionGroupsKey, data });
@@ -6379,6 +6379,7 @@ export default function ModelingWorkspace() {
         getCurrentRevision: engine.getCurrentRevision,
         project: projectDrawingViews,
         sections: activeDrawingSheet.views.filter((view) => view.type === 'section'),
+        tolerance: drawingProjectionTolerance([activeDrawingSheet]),
         groups: drawingProjectionGroups([activeDrawingSheet], engine.bodies),
         requiredBodyIds: engine.bodies.filter((body) => activeDrawingSheet.views.some((view) => view.type !== 'sketch' && (!view.bodyIds?.length || view.bodyIds.includes(body.id)))).map((body) => body.id),
       });

@@ -135,6 +135,13 @@ Wyciągnięcie szkicu na ścianie rozpoznaje znak wyrażeń `-depth` i `0-depth`
 automatycznie wybiera Wytnij/Połącz i zachowuje zależność parametryczną.
 Test Electron potwierdza dalszą przebudowę, Cofnij/Ponów i zapis/otwarcie.
 
+Druga kontrola eksportu: adaptacyjne dzielenie krzywych obejmuje także HLR,
+zamiast stałych 24 próbek. Tolerancja uwzględnia największą skalę widoku,
+więc powiększony detal nie zwiększa błędu na papierze. Test okręgu ⌀200 przy
+skali 10× potwierdza błąd cięciwy poniżej 0,001 mm na arkuszu. DXF zawiera
+tabele LTYPE/LAYER, a HIDDEN korzysta z DASHED; test ponownego importu
+potwierdza zachowanie przerywanego typu linii.
+
 ## Migracja w produkcyjnym pakiecie i nawigacja
 
 Przez natywne okno otwarto kopię fixture v26 w produkcyjnym pakiecie macOS

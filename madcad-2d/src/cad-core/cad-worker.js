@@ -43,7 +43,7 @@ import { evaluateFeatureHistoryCooperatively } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
 import { DRAWING_PROJECTION_CAMERAS, removeHiddenOverlaps } from './drawing-sheets.js';
 import { drawingProjectionGroupKey, uniqueDrawingSegments } from './drawing-projections.js';
-import { projectExactSections } from './drawing-sections.js';
+import { flattenDrawingCurve, projectExactSections } from './drawing-sections.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
@@ -3067,21 +3067,20 @@ async function validateExportRoundTrip(kernelBodies, blobs, format) {
 
 // Hidden-line removal for 2D drawing views: visible and hidden edges per body and orientation,
 // as 2D segments in the drawing's view coordinates. Mesh imports keep the tessellation fallback.
-function projectEdgesToSegments(edges, scale) {
+function projectEdgesToSegments(edges, scale, tolerance) {
   const segments = [];
   for (const edge of edges) {
     try {
-      const steps = edge.geomType === 'LINE' ? 1 : 24;
-      const points = [];
-      for (let index = 0; index <= steps; index += 1) {
-        const vector = edge.pointAt(index / steps);
-        points.push([vector.x * scale, -vector.y * scale]);
-        vector.delete?.();
-      }
+      const flattened = flattenDrawingCurve((parameter) => {
+        const vector = edge.pointAt(parameter);
+        try { return [vector.x * scale, -vector.y * scale]; } finally { vector.delete(); }
+      }, tolerance, edge.geomType === 'LINE');
+      if (!flattened.length) continue;
+      const points = [flattened[0][0], ...flattened.map((segment) => segment[1])];
       // A curve seen edge-on (e.g. a fillet arc from the side) projects to a straight line: keep one segment.
       const [start, end] = [points[0], points.at(-1)];
       const chord = Math.hypot(end[0] - start[0], end[1] - start[1]);
-      const straight = chord > 1e-9 && points.every((point) => Math.abs(((end[0] - start[0]) * (point[1] - start[1])) - ((end[1] - start[1]) * (point[0] - start[0]))) / chord <= 1e-6 * Math.max(1, chord));
+      const straight = chord > 1e-9 && points.every((point) => Math.abs(((end[0] - start[0]) * (point[1] - start[1])) - ((end[1] - start[1]) * (point[0] - start[0]))) / chord <= tolerance / 4);
       const path = straight ? [start, end] : points;
       for (let index = 1; index < path.length; index += 1) {
         if (Math.hypot(path[index][0] - path[index - 1][0], path[index][1] - path[index - 1][1]) > 1e-9) segments.push([path[index - 1], path[index]]);
@@ -3093,7 +3092,7 @@ function projectEdgesToSegments(edges, scale) {
   return segments;
 }
 
-function projectDrawingBodies(kernelBodies, orientations = [], groups = []) {
+function projectDrawingBodies(kernelBodies, orientations = [], groups = [], tolerance = 0.001) {
   const projections = {};
   const compounds = [];
   const sources = [...kernelBodies];
@@ -3118,10 +3117,10 @@ function projectDrawingBodies(kernelBodies, orientations = [], groups = []) {
           const { visible, hidden } = makeProjectedEdges(body.shape, camera);
           const target = body.group ? (projections.__groups ||= {}) : projections;
           target[body.id] = target[body.id] || {};
-          const visibleSegments = uniqueDrawingSegments(projectEdgesToSegments(visible, settings.scale));
+          const visibleSegments = uniqueDrawingSegments(projectEdgesToSegments(visible, settings.scale, tolerance));
           target[body.id][orientation] = {
             visible: visibleSegments,
-            hidden: uniqueDrawingSegments(removeHiddenOverlaps(visibleSegments, projectEdgesToSegments(hidden, settings.scale))),
+            hidden: uniqueDrawingSegments(removeHiddenOverlaps(visibleSegments, projectEdgesToSegments(hidden, settings.scale, tolerance))),
           };
         } finally {
           camera.delete?.();
@@ -3192,11 +3191,13 @@ async function handleMessage(data) {
   if (type === 'project-drawing') {
     const evaluated = await resolveRevision(document, revision, 'display');
     const cache = evaluated.drawingProjectionCache ||= new Map();
-    const key = JSON.stringify([data.orientations || [], data.groups || [], data.sections || []]);
+    const tolerance = data.tolerance ?? 0.001;
+    if (!Number.isFinite(tolerance) || tolerance <= 0) throw new Error('Nieprawidłowa tolerancja rysunku.');
+    const key = JSON.stringify([data.orientations || [], data.groups || [], data.sections || [], tolerance]);
     let projections = cache.get(key);
     if (!projections) {
-      projections = projectDrawingBodies(evaluated.kernelBodies, data.orientations, data.groups);
-      projections.__sections = projectExactSections(evaluated.kernelBodies, data.sections || []);
+      projections = projectDrawingBodies(evaluated.kernelBodies, data.orientations, data.groups, tolerance);
+      projections.__sections = projectExactSections(evaluated.kernelBodies, data.sections || [], tolerance);
       cache.set(key, projections);
       // Bound variants of body selections; this cache dies with the model revision.
       if (cache.size > 4) cache.delete(cache.keys().next().value);

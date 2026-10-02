@@ -2,6 +2,7 @@ import { createId } from './ids.js';
 import { componentBomEntries } from './components.js';
 import { sketchDrawingSegments } from './sketch-topology.js';
 import { drawingProjectionGroupKey, drawingSectionKey } from './drawing-projections.js';
+import { dxfLineTypeTable } from './sketch-dxf-export.js';
 
 export const DRAWING_PAGE_SIZES = Object.freeze({
   A4: Object.freeze({ width: 297, height: 210 }),
@@ -1100,7 +1101,10 @@ export function drawingSheetDxf(sheet, bodies = [], { components = [], component
     table.columns.forEach((column, index) => addText(column.label, starts[index] + 1, table.y + 8.5, 2.2, 'TABLE'));
     table.rows.forEach((row, rowIndex) => row.forEach((cell, columnIndex) => addText(cell, starts[columnIndex] + 1, table.y + 13.5 + rowIndex * table.rowHeight, 2.2, 'TABLE')));
   });
-  return `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1027\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('\n')}\n0\nENDSEC\n0\nEOF\n`;
+  const layerNames = ['0', 'GEOMETRY', 'HIDDEN', 'HATCH', 'ANNOTATION', 'TEXT', 'BALLOON', 'GD&T', 'TABLE'];
+  const layerRecords = layerNames.map((name) => `0\nLAYER\n2\n${name}\n70\n0\n62\n7\n6\n${name === 'HIDDEN' ? 'DASHED' : 'CONTINUOUS'}`).join('\n');
+  const tables = `${dxfLineTypeTable(new Set(['continuous', 'dashed']))}\n0\nTABLE\n2\nLAYER\n70\n${layerNames.length}\n${layerRecords}\n0\nENDTAB`;
+  return `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1027\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n${tables}\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('\n')}\n0\nENDSEC\n0\nEOF\n`;
 }
 
 export function drawingPageDimensions(sheet) {

@@ -5888,7 +5888,12 @@ test('arkusz używa rzutu z usuwaniem linii ukrytych i rysuje je przerywaną lin
   sheet.views.push(createBaseDrawingView({ bodyIds: [body.id], orientation: 'front', scale: 1, sheet }));
   assert.equal(drawingSheetScene(sheet, [body]).views[0].hiddenSegments.length, 2);
   assert.match(drawingSheetHtml(sheet, [body]), /class="hidden"/);
-  assert.match(drawingSheetDxf(sheet, [body]), /\n8\nHIDDEN\n/);
+  const hiddenDxf = drawingSheetDxf(sheet, [body]);
+  assert.match(hiddenDxf, /\n8\nHIDDEN\n/);
+  assert.match(hiddenDxf, /0\nLTYPE\n2\nDASHED\n/);
+  assert.match(hiddenDxf, /0\nLAYER\n2\nHIDDEN\n70\n0\n62\n7\n6\nDASHED\n/);
+  const reimported = parseSketchImport(hiddenDxf, 'dxf');
+  assert.equal(reimported.layers.find((layer) => layer.name === 'HIDDEN')?.lineType, 'dashed');
   // A hidden back edge under a visible edge split into pieces is not drawn twice.
   const kept = removeHiddenOverlaps([[[0, 0], [0, -6]], [[0, -6], [0, -10]]], [[[0, 0], [0, -10]], [[2, 0], [2, -10]]]);
   assert.deepEqual(kept, [[[2, 0], [2, -10]]]);

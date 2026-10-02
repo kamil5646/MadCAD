@@ -228,10 +228,10 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     evaluatedGeometrySignatureRef.current === latestGeometrySignatureRef.current && evaluatedRevisionRef.current === revisionRef.current ? revisionRef.current : null
   ), []);
 
-  const projectDrawingViews = useCallback(async (orientations, groups = [], sections = []) => {
+  const projectDrawingViews = useCallback(async (orientations, groups = [], sections = [], tolerance = 0.001) => {
     const revision = revisionRef.current;
     if (getCurrentRevision() !== revision) throw engineError('Poczekaj na ukończenie przebudowy modelu przed eksportem rysunku.', 'PROJECTION_MODEL_PENDING');
-    const result = await send({ type: 'project-drawing', document, revision, orientations, groups, sections });
+    const result = await send({ type: 'project-drawing', document, revision, orientations, groups, sections, tolerance });
     if (result.revision !== revision || getCurrentRevision() !== revision) throw engineError('Silnik zwrócił rzut arkusza z innej rewizji dokumentu.', 'PROJECTION_REVISION_MISMATCH');
     return result.projections;
   }, [document, send, getCurrentRevision]);
