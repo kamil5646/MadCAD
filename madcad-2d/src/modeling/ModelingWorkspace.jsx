@@ -149,7 +149,7 @@ import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-impor
 import { sketchDxf } from '../cad-core/sketch-dxf-export.js';
 import { createId } from '../cad-core/ids.js';
 import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
-import { createAngleDrawingDimension, createPointDrawingDimension, createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
+import { createAngleDrawingDimension, createDiameterDrawingDimension, createPointDrawingDimension, createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { DEFAULT_LAYER_ID, assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink, setJointSlide } from '../cad-core/assembly-joints.js';
@@ -7071,6 +7071,8 @@ export default function ModelingWorkspace() {
     setDrawingPointPick({ viewId: selectedDrawingView.id, points: [], kind });
     setNotice(kind === 'angle'
       ? 'Wymiar kątowy: kliknij wierzchołek kąta, a potem po jednym punkcie na każdym ramieniu. Esc anuluje.'
+      : kind === 'diameter'
+      ? 'Wymiar średnicy: kliknij trzy punkty na okręgu albo łuku. Esc anuluje.'
       : 'Wymiar między punktami: kliknij dwa wierzchołki widoku (przyciągane do najbliższego). Esc anuluje.');
   };
 
@@ -7082,7 +7084,8 @@ export default function ModelingWorkspace() {
       return;
     }
     const angle = pick.kind === 'angle';
-    const required = angle ? 3 : 2;
+    const diameter = pick.kind === 'diameter';
+    const required = angle || diameter ? 3 : 2;
     if (pick.points.some((existing) => Math.hypot(existing[0] - point[0], existing[1] - point[1]) < 1e-6)) {
       setNotice('Wskaż inny wierzchołek.');
       return;
@@ -7090,10 +7093,20 @@ export default function ModelingWorkspace() {
     const points = [...pick.points, point];
     if (points.length < required) {
       setDrawingPointPick({ ...pick, points });
-      setNotice(angle ? (points.length === 1 ? 'Wymiar kątowy: wskaż punkt na pierwszym ramieniu.' : 'Wymiar kątowy: wskaż punkt na drugim ramieniu.') : 'Wymiar między punktami: wskaż drugi wierzchołek.');
+      setNotice(diameter ? `Wymiar średnicy: wskaż punkt ${points.length + 1} z 3 na okręgu.` : angle ? (points.length === 1 ? 'Wymiar kątowy: wskaż punkt na pierwszym ramieniu.' : 'Wymiar kątowy: wskaż punkt na drugim ramieniu.') : 'Wymiar między punktami: wskaż drugi wierzchołek.');
       return;
     }
-    const annotation = angle
+    let annotation;
+    try {
+      annotation = diameter
+        ? createDiameterDrawingDimension({ viewId: pick.viewId, points })
+        : null;
+    } catch (error) {
+      setDrawingPointPick({ ...pick, points: [] });
+      setNotice(`${error.message} Wskaż trzy punkty jeszcze raz.`);
+      return;
+    }
+    annotation ||= angle
       ? createAngleDrawingDimension({ viewId: pick.viewId, points, radius: 12, precision: 1 })
       : createPointDrawingDimension({ viewId: pick.viewId, points, offset: 10, precision: 2 });
     commit((next) => {
@@ -7103,7 +7116,7 @@ export default function ModelingWorkspace() {
     setDrawingPointPick(null);
     setSelectedDrawingViewId(null);
     setSelectedDrawingAnnotationId(annotation.id);
-    setNotice(angle ? 'Dodano wymiar kątowy skojarzony z widokiem.' : 'Dodano wymiar między punktami skojarzony z widokiem.');
+    setNotice(diameter ? 'Dodano wymiar średnicy skojarzony z widokiem.' : angle ? 'Dodano wymiar kątowy skojarzony z widokiem.' : 'Dodano wymiar między punktami skojarzony z widokiem.');
   };
 
   const addDrawingAnnotation = (type) => {
@@ -8099,6 +8112,7 @@ export default function ModelingWorkspace() {
                   { icon: Ruler, label: 'Wymiar Y', onClick: () => addDrawingAnnotation('dimension-vertical'), disabled: readOnly || !selectedDrawingView },
                   { icon: Ruler, label: 'Wymiar między punktami', onClick: () => startDrawingPointDimension('point'), disabled: readOnly || !selectedDrawingView, disabledReason: 'Zaznacz widok na arkuszu.' },
                   { icon: Ruler, label: 'Wymiar kątowy', onClick: () => startDrawingPointDimension('angle'), disabled: readOnly || !selectedDrawingView, disabledReason: 'Zaznacz widok na arkuszu.' },
+                  { icon: Ruler, label: 'Wymiar średnicy', onClick: () => startDrawingPointDimension('diameter'), disabled: readOnly || !selectedDrawingView, disabledReason: 'Zaznacz widok na arkuszu.' },
                 ]} /><ToolMenuButton icon={CircleDotDashed} label="Osie i środki" description="Dodaj oś symetrii albo znacznik środka." items={[
                   { icon: Minus, label: 'Oś', onClick: () => addDrawingAnnotation('centerline'), disabled: readOnly || !selectedDrawingView },
                   { icon: CircleDotDashed, label: 'Środek', onClick: () => addDrawingAnnotation('center-mark'), disabled: readOnly || !selectedDrawingView },

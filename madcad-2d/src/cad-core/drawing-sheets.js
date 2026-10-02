@@ -28,7 +28,7 @@ function formatDecimal(value, precision, style) {
 export const DRAWING_VIEW_ORIENTATIONS = Object.freeze(['front', 'top', 'right', 'isometric']);
 export const DRAWING_VIEW_TYPES = Object.freeze(['base', 'sketch', 'projected', 'section', 'detail']);
 export const DRAWING_VIEW_ALIGNMENTS = Object.freeze(['horizontal', 'vertical', 'free']);
-export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'point-dimension', 'angle-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame', 'balloon']);
+export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'point-dimension', 'angle-dimension', 'diameter-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame', 'balloon']);
 export const DRAWING_TABLE_TYPES = Object.freeze(['bom', 'hole-table', 'bend-table']);
 
 const PAGE_MARGIN = 10;
@@ -121,6 +121,33 @@ export function createAngleDrawingDimension({ viewId, points, radius = 12, preci
     radius: Math.max(3, Math.min(100, Number(radius) || 12)),
     precision: Math.max(0, Math.min(3, Math.trunc(Number(precision) || 0))),
   };
+}
+
+// Diameter of the circle through three picked points of a projected circle or arc.
+export function createDiameterDrawingDimension({ viewId, points, mode = 'diameter', leaderAngle = 45, precision = 2 } = {}) {
+  const parsed = (points || []).map((point) => [Number(point?.[0]) || 0, Number(point?.[1]) || 0]);
+  if (parsed.length !== 3) throw new Error('Wymiar średnicy wymaga trzech punktów na okręgu.');
+  if (!circleThroughPoints(parsed)) throw new Error('Punkty wymiaru średnicy leżą na jednej prostej.');
+  return {
+    id: createId('drawing-annotation'),
+    type: 'diameter-dimension',
+    viewId,
+    points: parsed,
+    mode: mode === 'radius' ? 'radius' : 'diameter',
+    leaderAngle: ((Number(leaderAngle) || 0) % 360 + 360) % 360,
+    precision: Math.max(0, Math.min(4, Math.trunc(Number(precision) || 0))),
+  };
+}
+
+export function circleThroughPoints([a, b, c]) {
+  const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+  if (Math.abs(d) < 1e-12) return null;
+  const sq = (point) => point[0] * point[0] + point[1] * point[1];
+  const center = [
+    (sq(a) * (b[1] - c[1]) + sq(b) * (c[1] - a[1]) + sq(c) * (a[1] - b[1])) / d,
+    (sq(a) * (c[0] - b[0]) + sq(b) * (a[0] - c[0]) + sq(c) * (b[0] - a[0])) / d,
+  ];
+  return { center, radius: Math.hypot(a[0] - center[0], a[1] - center[1]) };
 }
 
 // Nearest projected vertex of a rendered view to a sheet point, in projection coordinates.
@@ -701,6 +728,30 @@ function renderedAngleDimension(source, view, style) {
   return { ...source, value, text: `${formatDecimal(value, precision, style)}°`, textHeight: style.textHeight, textX: vertex[0] + Math.cos(middle) * textRadius, textY: vertex[1] + Math.sin(middle) * textRadius, textRotation: 0, segments };
 }
 
+function renderedDiameterDimension(source, view, style) {
+  const scale = Math.max(0.001, Number(view.scale) || 1);
+  const tolerance = Math.max(0.05, Math.max(view.modelWidth, view.modelHeight) * 0.01);
+  const points = (source.points || []).map((point) => snapToVertex(point, view.vertices, tolerance));
+  const circle = points.length === 3 ? circleThroughPoints(points) : null;
+  if (!circle || !view.projectionCenter) return null;
+  const toSheet = ([u, v]) => [view.x + (u - view.projectionCenter[0]) * scale, view.y + (v - view.projectionCenter[1]) * scale];
+  const center = toSheet(circle.center);
+  const radius = circle.radius * scale;
+  const angle = (Number(source.leaderAngle) || 0) * Math.PI / 180;
+  const direction = [Math.cos(angle), -Math.sin(angle)];
+  const far = [center[0] + direction[0] * radius, center[1] + direction[1] * radius];
+  const near = source.mode === 'radius' ? center : [center[0] - direction[0] * radius, center[1] - direction[1] * radius];
+  const tail = [far[0] + direction[0] * (style.textHeight * 2.5), far[1] + direction[1] * (style.textHeight * 2.5)];
+  const shelf = [tail[0] + (direction[0] >= 0 ? 1 : -1) * style.textHeight * 4, tail[1]];
+  const arrow = style.textHeight * 0.75;
+  const precision = Math.max(0, Math.min(4, Math.trunc(Number(source.precision) || 0)));
+  const value = source.mode === 'radius' ? circle.radius : circle.radius * 2;
+  const text = `${source.mode === 'radius' ? 'R' : '⌀'}${formatDecimal(value, precision, style)}`;
+  const segments = [[near, tail], [tail, shelf], ...arrowSegments(far, [-direction[0], -direction[1]], arrow)];
+  if (source.mode !== 'radius') segments.push(...arrowSegments(near, direction, arrow));
+  return { ...source, value, text, textHeight: style.textHeight, textX: (tail[0] + shelf[0]) / 2, textY: tail[1] - style.textHeight * 0.4, textRotation: 0, segments };
+}
+
 function renderedAnnotation(source, view, bodies, style = DEFAULT_DIMENSION_STYLE) {
   if (!view) return null;
   const arrow = style.textHeight * 0.75;
@@ -709,6 +760,7 @@ function renderedAnnotation(source, view, bodies, style = DEFAULT_DIMENSION_STYL
   const halfHeight = Math.max(0.01, view.modelHeight * view.scale / 2);
   if (source.type === 'point-dimension') return renderedPointDimension(source, view, style);
   if (source.type === 'angle-dimension') return renderedAngleDimension(source, view, style);
+  if (source.type === 'diameter-dimension') return renderedDiameterDimension(source, view, style);
   if (source.type === 'linear-dimension') {
     const vertical = source.axis === 'vertical';
     const offset = Math.max(-100, Math.min(100, Number(source.offset) || 10));

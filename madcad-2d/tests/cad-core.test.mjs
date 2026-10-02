@@ -144,6 +144,8 @@ import {
   drawingSheetScene,
   createPointDrawingDimension,
   createAngleDrawingDimension,
+  createDiameterDrawingDimension,
+  circleThroughPoints,
   drawingViewSnapPoint,
   drawingPageDimensions,
   ensureDocumentDrawings,
@@ -6975,4 +6977,27 @@ test('wymiar kątowy mierzy kąt przy wierzchołku widoku i rysuje łuk ze strza
   const document = createDocument('Kąty');
   document.drawings = [sheet];
   assert.deepEqual(validateDocument(document).issues.filter((issue) => /annotations/.test(issue.path)), []);
+});
+
+test('wymiar średnicy i promienia z trzech punktów okręgu w widoku szkicu', () => {
+  const center = createSketchPoint({ x: 40, y: 20 });
+  const circle = createSketchCircleEntity({ centerPointId: center.id, radius: 6 });
+  const sketch = createSketch({ name: 'Otwór', entities: [center, circle] });
+  const sheet = createDrawingSheet({ pageSize: 'A4' });
+  const view = createSketchDrawingView({ sketchId: sketch.id, name: sketch.name, scale: 2, sheet });
+  sheet.views.push(view);
+  const options = { sketches: [sketch], parameters: [], layers: [] };
+  const rendered = drawingSheetScene(sheet, [], options).views[0];
+  assert.ok(rendered.vertices.length >= 16);
+  const picks = [rendered.vertices[0], rendered.vertices[Math.floor(rendered.vertices.length / 3)], rendered.vertices[Math.floor(rendered.vertices.length * 2 / 3)]];
+  const fitted = circleThroughPoints(picks);
+  assert.ok(Math.abs(fitted.radius - 6) < 0.05);
+  sheet.annotations.push(createDiameterDrawingDimension({ viewId: view.id, points: picks, precision: 1 }));
+  const diameter = drawingSheetScene(sheet, [], options).annotations.find((item) => item.type === 'diameter-dimension');
+  assert.match(diameter.text, /^⌀12\.0$/);
+  sheet.annotations[0] = { ...sheet.annotations[0], mode: 'radius' };
+  const radius = drawingSheetScene(sheet, [], options).annotations.find((item) => item.type === 'diameter-dimension');
+  assert.match(radius.text, /^R6\.0$/);
+  assert.equal(circleThroughPoints([[0, 0], [1, 1], [2, 2]]), null);
+  assert.throws(() => createDiameterDrawingDimension({ viewId: view.id, points: [[0, 0], [1, 1], [2, 2]] }), /prostej/);
 });

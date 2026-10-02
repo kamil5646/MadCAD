@@ -21,6 +21,7 @@ const ANNOTATION_TYPE_LABELS = {
   'linear-dimension': 'Wymiar gabarytowy',
   'point-dimension': 'Wymiar między punktami',
   'angle-dimension': 'Wymiar kątowy',
+  'diameter-dimension': 'Wymiar średnicy',
   centerline: 'Oś',
   'center-mark': 'Znacznik środka',
   'hole-note': 'Opis otworu',
@@ -135,6 +136,11 @@ function AnnotationControls({ annotation, rendered, bodies, allBodies, component
     <small className="drawing-association-status">Aktualizowane z widokiem źródłowym</small>
     {annotation.type === 'point-dimension' && <label><span>Kierunek</span><select data-point-dimension-axis value={annotation.axis} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ axis: event.target.value })}><option value="horizontal">Poziomy</option><option value="vertical">Pionowy</option><option value="aligned">Wyrównany</option></select></label>}
     {(annotation.type === 'linear-dimension' || annotation.type === 'centerline') && <label><span>Kierunek</span><select value={annotation.axis} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ axis: event.target.value })}><option value="horizontal">Poziomy</option><option value="vertical">Pionowy</option></select></label>}
+    {annotation.type === 'diameter-dimension' && <>
+      <div className="drawing-property-row"><label><span>Rodzaj</span><select data-diameter-mode value={annotation.mode} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ mode: event.target.value })}><option value="diameter">Średnica ⌀</option><option value="radius">Promień R</option></select></label><label><span>Kąt odnośnika [°]</span><input type="number" min="0" max="359" value={annotation.leaderAngle} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ leaderAngle: ((Number(event.target.value) || 0) % 360 + 360) % 360 })} /></label></div>
+      <label><span>Dokładność</span><select value={annotation.precision} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ precision: Number(event.target.value) })}><option value="0">0</option><option value="1">0,0</option><option value="2">0,00</option><option value="3">0,000</option></select></label>
+      <small className="drawing-calculated-value">Wartość z widoku: {rendered?.text || '—'}</small>
+    </>}
     {annotation.type === 'angle-dimension' && <>
       <div className="drawing-property-row"><label><span>Promień łuku [mm]</span><input data-angle-radius type="number" min="3" max="100" value={annotation.radius} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ radius: Math.max(3, Math.min(100, Number(event.target.value) || 12)) })} /></label><label><span>Dokładność</span><select value={annotation.precision} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ precision: Number(event.target.value) })}><option value="0">1°</option><option value="1">0,1°</option><option value="2">0,01°</option></select></label></div>
       <small className="drawing-calculated-value">Kąt z widoku: {rendered?.text || '—'}</small>
