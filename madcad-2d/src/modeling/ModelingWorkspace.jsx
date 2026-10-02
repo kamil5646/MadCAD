@@ -3933,6 +3933,7 @@ export default function ModelingWorkspace() {
       setWorkspace('solid');
       setSelection({ kind: 'document', id: opened.document.id });
       setCommand(null);
+      setNotice(`Otwarto projekt ${opened.document.name}.`);
     };
     window.__madcadVerifyLoadPointHoleFixture = () => {
       const fixture = createDocument('Otwór z punktu');

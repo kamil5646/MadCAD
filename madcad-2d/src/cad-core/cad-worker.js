@@ -2757,6 +2757,11 @@ function meshBody(body, index, quality = 'display') {
     const vertexDescriptors = [...new Map(stableEdges.flatMap((edge) => (edge.descriptor.endpoints || []).map((point) => [JSON.stringify(point), { point }]))).values()];
     const stableVertices = assignStableTopologyIds(body.id, 'vertex', vertexDescriptors, previousTopology.vertices);
     const edgeIds = new Map(stableEdges.map((edge) => [edge.sourceHash, edge.id]));
+    // In a closed solid an edge bordered by a single face is that face's seam (cylinder, sphere,
+    // torus); CAD views hide seams because they are not real edges of the part.
+    const seamEdgeHashes = new Set((body.bodyKind || 'solid') === 'solid'
+      ? stableEdges.filter((edge) => (faceHashesByEdgeHash.get(edge.sourceHash)?.size || 0) === 1).map((edge) => edge.sourceHash)
+      : []);
     const renderBody = {
       id: body.id,
       name: body.name,
@@ -2783,6 +2788,7 @@ function meshBody(body, index, quality = 'display') {
         count: group.count,
         sourceHash: group.edgeId,
         topologyId: edgeIds.get(group.edgeId) || null,
+        ...(seamEdgeHashes.has(group.edgeId) ? { seam: true } : {}),
       })),
       topology: {
         faces: faces.map(({ sourceHash, ...face }) => ({ ...face, sourceHash })),
