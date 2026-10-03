@@ -69,7 +69,7 @@ jobs:
 
       - name: Audit app dependencies
         working-directory: madcad-2d
-        run: npm audit --audit-level=high
+        run: npm run audit:deps
 
       - name: Run CAD core tests
         working-directory: madcad-2d
