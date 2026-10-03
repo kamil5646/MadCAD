@@ -271,7 +271,19 @@ async function waitForUi(window, expression, label, timeoutMs = 12000) {
     if (await window.webContents.executeJavaScript(`Boolean(${expression})`)) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error(`Interfejs nie osiągnął stanu: ${label}.`);
+  // Flakes seen only on CI need the state at the moment of the timeout.
+  const snapshot = await window.webContents.executeJavaScript(`(() => {
+    const engine = window.__madcadVerifyEngineState;
+    const timeline = engine?.timeline?.at(-1);
+    return JSON.stringify({
+      notice: [...document.querySelectorAll('[role=status]')].map((item) => item.textContent.trim()).filter(Boolean).slice(-2),
+      command: window.__madcadVerifyDocumentState?.command?.type || null,
+      selection: window.__madcadVerifyDocumentState?.selection?.items?.length ?? null,
+      engine: engine ? { status: engine.status, revision: engine.revision, bodies: engine.bodies?.length } : null,
+      timeline: timeline ? { status: timeline.status, error: timeline.error || null } : null,
+    });
+  })()`).catch((error) => `snapshot unavailable: ${error.message}`);
+  throw new Error(`Interfejs nie osiągnął stanu: ${label}. Stan: ${snapshot}`);
 }
 
 async function waitForStableEngine(window, timeoutMs = modelingTimeoutMs) {
