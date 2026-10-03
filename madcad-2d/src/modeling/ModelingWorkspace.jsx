@@ -2817,8 +2817,8 @@ export default function ModelingWorkspace() {
 
   const finishSketch = () => {
     const sketch = document.sketches.find((item) => item.id === activeSketchId);
-    const lastProfile = sketch?.profiles.at(-1);
-    const finishedSource = sketch ? resolveExtrudeSource({ sketches: [sketch], selection: { kind: 'sketch', id: sketch.id } }) : { kind: 'none' };
+    const finishedSource = sketch ? resolveExtrudeSource({ sketches: [sketch], selection: { kind: 'sketch', id: sketch.id }, features: document.features }) : { kind: 'none' };
+    const lastProfile = finishedSource.kind === 'profile' ? finishedSource.profile : null;
     const selectedPoint = selectedSketchEntityIds.length === 1
       ? sketch?.entities.find((entity) => entity.id === selectedSketchEntityIds[0]
         && entity.type === 'point'
@@ -4478,7 +4478,7 @@ export default function ModelingWorkspace() {
       setNotice('Zakończ szkic. Ostatni zamknięty profil zostanie zaznaczony automatycznie do wyciągnięcia.');
       return;
     }
-    const source = resolveExtrudeSource({ sketches: document.sketches, selection });
+    const source = resolveExtrudeSource({ sketches: document.sketches, selection, features: document.features });
     if (source.kind === 'profile') {
       setSelection({ kind: 'profile', id: source.profile.id, sketchId: source.sketch.id });
       beginOrUpdateExtrude(10, source);
@@ -5540,7 +5540,9 @@ export default function ModelingWorkspace() {
     setSelection({ kind: 'feature', id: command.previewFeature.id });
     setWorkspace('solid');
     setCommand(null);
-    setNotice('Operacja została dodana do parametrycznej osi czasu.');
+    setNotice(command.editId
+      ? `Zaktualizowano ${command.previewFeature.name || 'operację'}; model przeliczono od tego kroku.`
+      : `${command.previewFeature.name || 'Operacja'} dodano do parametrycznej osi czasu.`);
   };
 
   // Double-click passes its own target so it never acts on a selection that has not rendered yet.

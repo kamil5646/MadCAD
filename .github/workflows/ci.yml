@@ -44,7 +44,7 @@ jobs:
       - name: Verify product completeness manifest
         run: npm run verify:product-completeness
       - name: Audit production and build dependencies
-        run: npm audit --audit-level=high
+        run: npm run audit:deps
 
   core:
     name: Core tests and UI build (${{ matrix.os }})

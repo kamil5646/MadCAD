@@ -31,4 +31,22 @@ describe('resolveExtrudeSource', () => {
     const disconnected = { id: 'sketch-1', profiles: [], entities: [line('a', 'p1', 'p2'), line('b', 'p3', 'p4')] };
     expect(resolveExtrudeSource({ sketches: [disconnected] })).toEqual({ kind: 'incomplete', sketch: disconnected });
   });
+
+  it('pomija profil juz uzyty przez operacje i wybiera wolny', () => {
+    const used = { id: 'profile-used' };
+    const free = { id: 'profile-free' };
+    const sketch = { id: 'sketch-1', entities: [], profiles: [free, used] };
+    const features = [{ id: 'f1', type: 'extrude', profileIds: ['profile-used'] }];
+    expect(resolveExtrudeSource({ sketches: [sketch], features }).profile.id).toBe('profile-free');
+  });
+
+  it('szuka wolnego profilu w starszym szkicu, a do zuzytego wraca tylko gdy brak wolnych', () => {
+    const older = { id: 'sketch-1', entities: [], profiles: [{ id: 'old-free' }] };
+    const newer = { id: 'sketch-2', entities: [], profiles: [{ id: 'new-used' }] };
+    const features = [{ id: 'f1', profileIds: ['new-used'] }];
+    expect(resolveExtrudeSource({ sketches: [older, newer], features }).profile.id).toBe('old-free');
+    const allUsed = [{ id: 'f1', profileIds: ['new-used', 'old-free'] }];
+    expect(resolveExtrudeSource({ sketches: [older, newer], features: allUsed }).profile.id).toBe('new-used');
+    expect(resolveExtrudeSource({ sketches: [older, newer], features: [{ id: 'f1', profileIds: ['new-used'], suppressed: true }] }).profile.id).toBe('new-used');
+  });
 });

@@ -14,6 +14,7 @@
     "dev": "npm run serve & env -u ELECTRON_RUN_AS_NODE VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
     "serve": "vite",
     "build": "npm run build:ui",
+    "audit:deps": "node scripts/audit-dependencies.cjs",
     "build:ui": "vite build",
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
     "verify:large-projects": "npm run build:ui && electron scripts/verify-large-projects.cjs",
