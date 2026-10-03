@@ -1,5 +1,12 @@
 # Changelog
 
+## Niewydane — podstawy wyciągania
+
+- „Wyciągnij” bez zaznaczenia wybiera najnowszy profil, którego nie używa jeszcze żadna operacja (wcześniej brał ostatni profil, nawet już wyciągnięty, i druga operacja dublowała bryłę bez widocznego efektu); po zakończeniu szkicu zaznacza się wolny profil;
+- dwuklik na operacji w osi czasu otwiera jej edycję; pasek narzędzi zaznaczonej operacji stoi przy prawej krawędzi i nie przesuwa już elementów osi pod kursorem;
+- po edycji operacji komunikat mówi „Zaktualizowano …” zamiast „dodano do osi czasu”;
+- podpowiedź „Przeciągnij niebieską strzałkę” nie wyświetla się pod otwartym oknem operacji (to okno zawiera tę samą wskazówkę).
+
 ## 6.5.30 — widok modelu (2026-10-02)
 
 - szwy brył zamkniętych (walce, kule, torusy) nie są rysowane jako krawędzie części;

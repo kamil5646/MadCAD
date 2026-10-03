@@ -5651,14 +5651,20 @@
   color: white;
 }
 
+/* Pinned to the right end so selecting an operation never shifts the timeline items
+   under the cursor (the second click of a double-click must land on the same item). */
 .timeline-selection-tools {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  order: 1;
   display: flex;
   height: 29px;
   max-width: min(455px, 48vw);
   flex: 0 0 auto;
   align-items: center;
   gap: 1px;
-  margin-right: 4px;
+  margin-left: auto;
   padding: 2px 3px 2px 7px;
   border: 1px solid #52606d;
   border-radius: 2px;
@@ -7691,6 +7697,12 @@
 
 .modeling-content:has(.command-dialog.docked:not(.collapsed)) .view-cube {
   right: 308px;
+}
+
+/* The open command dialog already explains the drag handle; the floating copy
+   would sit under the dialog and the shifted ViewCube. */
+.modeling-content:has(.command-dialog.docked:not(.collapsed)) .direct-extrude-hint {
+  display: none;
 }
 
 @media (max-width: 760px) {

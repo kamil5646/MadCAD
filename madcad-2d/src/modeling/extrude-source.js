@@ -29,7 +29,10 @@ function isSingleOpenChain(lines) {
   return visited.size === adjacency.size;
 }
 
-export function resolveExtrudeSource({ sketches = [], selection = null } = {}) {
+// Profiles already consumed by a live feature are only a fallback: extruding the same
+// rectangle twice merges into the existing body and looks like "nothing happened".
+export function resolveExtrudeSource({ sketches = [], selection = null, features = [] } = {}) {
+  const usedProfileIds = new Set(features.filter((feature) => !feature.suppressed).flatMap((feature) => feature.profileIds || []));
   const selectedSketchId = selection?.sketchId || (selection?.kind === 'sketch' ? selection.id : null);
   const orderedSketches = [
     sketches.find((sketch) => sketch.id === selectedSketchId),
@@ -43,12 +46,18 @@ export function resolveExtrudeSource({ sketches = [], selection = null } = {}) {
     }
   }
 
+  let consumed = null;
   for (const sketch of orderedSketches) {
-    const profile = sketch.profiles?.at(-1);
+    const profiles = sketch.profiles || [];
+    const profile = profiles.findLast((candidate) => !usedProfileIds.has(candidate.id));
     if (profile) return { kind: 'profile', sketch, profile };
+    if (profiles.length) {
+      consumed ||= { kind: 'profile', sketch, profile: profiles.at(-1) };
+      continue;
+    }
     const lines = standardLineEntities(sketch);
     if (isSingleOpenChain(lines)) return { kind: 'open-chain', sketch, entityIds: lines.map((line) => line.id) };
-    if ((sketch.entities || []).length) return { kind: 'incomplete', sketch };
+    if ((sketch.entities || []).length) return consumed || { kind: 'incomplete', sketch };
   }
-  return { kind: 'none' };
+  return consumed || { kind: 'none' };
 }
