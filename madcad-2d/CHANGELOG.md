@@ -5,7 +5,7 @@
 - „Wyciągnij” bez zaznaczenia wybiera najnowszy profil, którego nie używa jeszcze żadna operacja (wcześniej brał ostatni profil, nawet już wyciągnięty, i druga operacja dublowała bryłę bez widocznego efektu); po zakończeniu szkicu zaznacza się wolny profil;
 - dwuklik na operacji w osi czasu otwiera jej edycję; pasek narzędzi zaznaczonej operacji stoi przy prawej krawędzi i nie przesuwa już elementów osi pod kursorem;
 - po edycji operacji komunikat mówi „Zaktualizowano …” zamiast „dodano do osi czasu”;
-- podpowiedź „Przeciągnij niebieską strzałkę” nie wyświetla się pod otwartym oknem operacji (to okno zawiera tę samą wskazówkę).
+- podpowiedź „Przeciągnij niebieską strzałkę” nie wyświetla się pod otwartym oknem operacji (to okno zawiera tę samą wskazówkę);
 - zmiana wymiaru wcześniejszej operacji (np. wysokości wyciągnięcia) nie psuje już dalszej historii: Offset Face, zaokrąglenia i szkice na ścianie podążają za ścianą lub krawędzią, która tylko się przesunęła albo wydłużyła; gdy wybór nie jest jednoznaczny, referencja nadal trafia do kreatora naprawy;
 - okno Odsuń ścianę opisuje ścianę („Płaska ściana · 812 mm² · Wyciągnięcie 1”) zamiast wewnętrznego ID;
 - figury szkicu są numerowane osobno dla każdego typu (pierwszy okrąg to „Okrąg 1”, nie „Okrąg 3”);
