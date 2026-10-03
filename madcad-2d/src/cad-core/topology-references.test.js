@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { inspectTopologyReferences, rebindMovedFaceSupportReferences, reassignTopologyReference } from './topology-references.js';
 
+const follow = (document) => ({ followMovedIds: new Set(document.references.map((reference) => reference.id)) });
+
 function fixture() {
   const descriptor = { geometry: 'PLANE', center: [25, 0, 7.5], normal: [1, 0, 0], area: 360 };
   return {
@@ -59,11 +61,40 @@ describe('rebinding moved face support references', () => {
     expect(inspectTopologyReferences(document, bodies)[0].status).toBe('resolved');
   });
 
-  it('leaves the reference lost when the support did not follow the face', () => {
+  it('leaves the reference lost when the moved face is not parallel to the sketch', () => {
     const { document, bodies } = moved();
     document.references[0].descriptor.center = [25, 0, 7.5];
     expect(rebindMovedFaceSupportReferences(document, bodies)).toEqual([]);
     expect(document.references[0].topologyId).toBe('face-1');
+  });
+
+  it('moves the sketch with a face that slid along its normal after an upstream edit', () => {
+    const { document, bodies } = moved();
+    document.sketches[0].plane = 'YZ';
+    document.sketches[0].planeOffset = '25';
+    document.references[0].descriptor.center = [25, 0, 7.5];
+    expect(rebindMovedFaceSupportReferences(structuredClone(document), bodies)).toEqual([]);
+    expect(rebindMovedFaceSupportReferences(document, bodies, follow(document))).toEqual(['support']);
+    expect(document.references[0].topologyId).toBe('face-moved');
+    expect(document.sketches[0].planeOffset).toBe('30');
+    expect(inspectTopologyReferences(document, bodies)[0].status).toBe('resolved');
+  });
+
+  it('follows a face moved on a -Y plane and refuses a parametric offset', () => {
+    const descriptor = { geometry: 'PLANE', center: [0, -10, 5], normal: [0, -1, 0], area: 100 };
+    const make = (planeOffset) => ({
+      document: {
+        features: [],
+        sketches: [{ id: 's', plane: 'XZ', planeOffset, support: { kind: 'face', referenceId: 'r' } }],
+        references: [{ id: 'r', kind: 'topology', topologyKind: 'face', topologyId: 'old', bodyId: 'b', descriptor }],
+      },
+      bodies: [{ id: 'b', topology: { faces: [{ id: 'new', descriptor: { ...descriptor, center: [0, -14, 5], area: 80 } }] } }],
+    });
+    const numeric = make('10');
+    expect(rebindMovedFaceSupportReferences(numeric.document, numeric.bodies, follow(numeric.document))).toEqual(['r']);
+    expect(numeric.document.sketches[0].planeOffset).toBe('14');
+    const parametric = make('depth');
+    expect(rebindMovedFaceSupportReferences(parametric.document, parametric.bodies, follow(parametric.document))).toEqual([]);
   });
 
   it('does not guess between two matching faces or steal a claimed face', () => {
