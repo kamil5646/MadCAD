@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { inspectTopologyReferences, rebindMovedFaceSupportReferences, reassignTopologyReference } from './topology-references.js';
 
+const follow = (document) => ({ followMovedIds: new Set(document.references.map((reference) => reference.id)) });
+
 function fixture() {
   const descriptor = { geometry: 'PLANE', center: [25, 0, 7.5], normal: [1, 0, 0], area: 360 };
   return {
@@ -71,7 +73,8 @@ describe('rebinding moved face support references', () => {
     document.sketches[0].plane = 'YZ';
     document.sketches[0].planeOffset = '25';
     document.references[0].descriptor.center = [25, 0, 7.5];
-    expect(rebindMovedFaceSupportReferences(document, bodies)).toEqual(['support']);
+    expect(rebindMovedFaceSupportReferences(structuredClone(document), bodies)).toEqual([]);
+    expect(rebindMovedFaceSupportReferences(document, bodies, follow(document))).toEqual(['support']);
     expect(document.references[0].topologyId).toBe('face-moved');
     expect(document.sketches[0].planeOffset).toBe('30');
     expect(inspectTopologyReferences(document, bodies)[0].status).toBe('resolved');
@@ -88,10 +91,10 @@ describe('rebinding moved face support references', () => {
       bodies: [{ id: 'b', topology: { faces: [{ id: 'new', descriptor: { ...descriptor, center: [0, -14, 5], area: 80 } }] } }],
     });
     const numeric = make('10');
-    expect(rebindMovedFaceSupportReferences(numeric.document, numeric.bodies)).toEqual(['r']);
+    expect(rebindMovedFaceSupportReferences(numeric.document, numeric.bodies, follow(numeric.document))).toEqual(['r']);
     expect(numeric.document.sketches[0].planeOffset).toBe('14');
     const parametric = make('depth');
-    expect(rebindMovedFaceSupportReferences(parametric.document, parametric.bodies)).toEqual([]);
+    expect(rebindMovedFaceSupportReferences(parametric.document, parametric.bodies, follow(parametric.document))).toEqual([]);
   });
 
   it('does not guess between two matching faces or steal a claimed face', () => {

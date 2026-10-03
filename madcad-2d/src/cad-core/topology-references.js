@@ -142,7 +142,10 @@ export function inspectTopologyReferences(document, bodies) {
 // ID. Rebind such a reference to the rebuilt face when exactly one coplanar
 // candidate sits where the tracked descriptor says it should be; anything
 // ambiguous stays lost and goes through the repair workflow.
-export function rebindMovedFaceSupportReferences(document, bodies) {
+// `followMovedIds` lists references that resolved before the current edit;
+// only those may follow a face that slid along its normal. A drift that is
+// already present when a file is opened goes through the repair workflow.
+export function rebindMovedFaceSupportReferences(document, bodies, { followMovedIds = null } = {}) {
   const supportIds = new Set((document?.sketches || []).filter((sketch) => sketch.support?.kind === 'face')
     .map((sketch) => sketch.support.referenceId));
   if (!supportIds.size) return [];
@@ -162,6 +165,7 @@ export function rebindMovedFaceSupportReferences(document, bodies) {
       && !claimed.has(candidate.id) && !facePlaneDrift(reference.descriptor, candidate.descriptor))
       .sort((left, right) => left.distance - right.distance);
     if (!matches.length) {
+      if (!followMovedIds?.has(reference.id)) continue;
       // The face slid along its normal because an upstream dimension changed
       // (Extrude 40 -> 50 lifts a face-on-face sketch by 10 mm). Follow it only
       // when one face of this body is the obvious successor.
@@ -212,6 +216,15 @@ function moveSupportedSketches(document, reference, descriptor) {
   if (!moves.length) return false;
   moves.forEach((move) => move());
   return true;
+}
+
+// Identifies a support reference together with the face position it recorded,
+// so a reference loaded with a different (stale) position is not mistaken for
+// one that was resolved a moment ago.
+export function supportReferenceKey(reference) {
+  const descriptor = reference?.descriptor;
+  const round = (values) => (Array.isArray(values) ? values.map((value) => Number(value).toFixed(6)).join(',') : '');
+  return `${reference?.id}|${round(descriptor?.center)}|${round(descriptor?.normal)}`;
 }
 
 export function reassignTopologyReference(reference, selection, descriptor = null) {

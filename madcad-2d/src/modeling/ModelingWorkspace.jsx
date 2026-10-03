@@ -120,7 +120,7 @@ import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_ST
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { resolveOpenChainProfile } from '../cad-core/evaluator.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
-import { createTopologyReference, inspectTopologyReferences, rebindMovedFaceSupportReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
+import { createTopologyReference, inspectTopologyReferences, rebindMovedFaceSupportReferences, reassignTopologyReference, supportReferenceKey } from '../cad-core/topology-references.js';
 import { moveTrackedFaceSketchSupports, placeSketchesOnReassignedFace } from '../cad-core/face-sketch-support.js';
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { frameFromNormal, normalizeSketchFrame } from '../cad-core/sketch-frame.js';
@@ -1808,12 +1808,21 @@ export default function ModelingWorkspace() {
     setNotice(`Project odświeżony automatycznie · ${result.updatedEntityIds.length} ${result.updatedEntityIds.length === 1 ? 'element' : 'elementów'}.`);
   }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
+  // Face-sketch supports that resolved in the last evaluation (id + recorded
+  // position). Only these may follow a face moved by an edit in this session.
+  const resolvedSupportKeysRef = useRef(new Set());
   useEffect(() => {
     if (readOnly || command?.previewFeature || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
+    const followMovedIds = new Set(document.references
+      .filter((reference) => resolvedSupportKeysRef.current.has(supportReferenceKey(reference)))
+      .map((reference) => reference.id));
+    resolvedSupportKeysRef.current = new Set(topologyReferenceStates
+      .filter((state) => state.status === 'resolved')
+      .map((state) => supportReferenceKey(state.reference)));
     const probe = cloneDocument(document);
-    if (!rebindMovedFaceSupportReferences(probe, actualBodies).length) return;
-    history.synchronize((next) => rebindMovedFaceSupportReferences(next, actualBodies));
-  }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
+    if (!rebindMovedFaceSupportReferences(probe, actualBodies, { followMovedIds }).length) return;
+    history.synchronize((next) => rebindMovedFaceSupportReferences(next, actualBodies, { followMovedIds }));
+  }, [document, actualBodies, topologyReferenceStates, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
   useEffect(() => {
     if (readOnly || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
