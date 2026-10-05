@@ -1810,15 +1810,19 @@ export default function ModelingWorkspace() {
 
   // Face-sketch supports that resolved in the last evaluation (id + recorded
   // position). Only these may follow a face moved by an edit in this session.
-  const resolvedSupportKeysRef = useRef({ generation: history.generation, keys: new Set() });
+  // `ready` marks that this document generation has been evaluated once; feature
+  // edits wait for it, since without a resolved baseline moved face supports
+  // could not follow. A ref, so a click right after evaluation sees it at once.
+  const resolvedSupportKeysRef = useRef({ generation: history.generation, keys: new Set(), ready: false });
   useEffect(() => {
     if (readOnly || command?.previewFeature || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
     // Another document (open, new, recovery) carries no edit from this session.
-    if (resolvedSupportKeysRef.current.generation !== history.generation) resolvedSupportKeysRef.current = { generation: history.generation, keys: new Set() };
+    if (resolvedSupportKeysRef.current.generation !== history.generation) resolvedSupportKeysRef.current = { generation: history.generation, keys: new Set(), ready: false };
     const followMovedIds = new Set(document.references
       .filter((reference) => resolvedSupportKeysRef.current.keys.has(supportReferenceKey(reference)))
       .map((reference) => reference.id));
     resolvedSupportKeysRef.current = {
+      ready: true,
       generation: history.generation,
       keys: new Set(topologyReferenceStates.filter((state) => state.status === 'resolved').map((state) => supportReferenceKey(state.reference))),
     };
@@ -5588,6 +5592,12 @@ export default function ModelingWorkspace() {
     if (target?.kind !== 'feature') return;
     const feature = document.features.find((item) => item.id === target.id);
     if (!feature) return;
+    const baselinePending = !resolvedSupportKeysRef.current.ready || resolvedSupportKeysRef.current.generation !== history.generation;
+    // Only while the first rebuild is still running; a failed rebuild must stay editable.
+    if (baselinePending && ['loading', 'computing', 'recovering'].includes(engine.status)) {
+      setNotice('Poczekaj, aż otwarty projekt przeliczy się pierwszy raz, a potem edytuj operację.');
+      return;
+    }
     if (feature.type === 'sheetUnfold' || feature.type === 'sheetRefold') {
       setNotice('Ta operacja nie ma osobnych parametrów. Zmień regułę blachy, kołnierz albo zawinięcie wcześniej na osi czasu.');
       return;
