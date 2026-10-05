@@ -25,7 +25,19 @@ try {
   if (!output) throw error;
 }
 
-const report = JSON.parse(output);
+let report;
+try {
+  report = JSON.parse(output);
+} catch {
+  console.error(`[audit] npm audit did not return a report:\n${String(output).slice(0, 2000)}`);
+  process.exit(1);
+}
+// A registry or network failure also exits non-zero with JSON on stdout, but
+// without a vulnerability report; treat it as a failed audit, never a pass.
+if (report.error || !report.vulnerabilities || typeof report.vulnerabilities !== 'object' || !report.metadata?.vulnerabilities) {
+  console.error(`[audit] npm audit failed: ${JSON.stringify(report.error || report).slice(0, 2000)}`);
+  process.exit(1);
+}
 const advisories = new Map();
 for (const [name, entry] of Object.entries(report.vulnerabilities || {})) {
   for (const via of entry.via || []) {

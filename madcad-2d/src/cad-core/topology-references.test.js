@@ -80,6 +80,18 @@ describe('rebinding moved face support references', () => {
     expect(inspectTopologyReferences(document, bodies)[0].status).toBe('resolved');
   });
 
+  it('moves every sketch that follows the same moved face', () => {
+    const descriptor = { geometry: 'PLANE', center: [0, 0, 30], normal: [0, 0, 1], area: 400 };
+    const document = {
+      features: [],
+      sketches: ['a', 'b'].map((id) => ({ id, plane: 'XY', planeOffset: '30', support: { kind: 'face', referenceId: `r-${id}` } })),
+      references: ['a', 'b'].map((id) => ({ id: `r-${id}`, kind: 'topology', topologyKind: 'face', topologyId: 'old', bodyId: 'b', descriptor: structuredClone(descriptor) })),
+    };
+    const bodies = [{ id: 'b', topology: { faces: [{ id: 'new', descriptor: { ...descriptor, center: [0, 0, 40] } }] } }];
+    expect(rebindMovedFaceSupportReferences(document, bodies, follow(document))).toEqual(['r-a', 'r-b']);
+    expect(document.sketches.map((sketch) => sketch.planeOffset)).toEqual(['40', '40']);
+  });
+
   it('follows a face moved on a -Y plane and refuses a parametric offset', () => {
     const descriptor = { geometry: 'PLANE', center: [0, -10, 5], normal: [0, -1, 0], area: 100 };
     const make = (planeOffset) => ({

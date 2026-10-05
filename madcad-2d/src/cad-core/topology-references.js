@@ -150,6 +150,9 @@ export function rebindMovedFaceSupportReferences(document, bodies, { followMoved
     .map((sketch) => sketch.support.referenceId));
   if (!supportIds.size) return [];
   const rebound = [];
+  // Face IDs held before this pass: several sketches may follow one moved face,
+  // so a face rebound for one of them must not count as claimed for the next.
+  const originalTopologyIds = new Map((document.references || []).map((other) => [other.id, other.topologyId]));
   for (const state of inspectTopologyReferences(document, bodies)) {
     const { reference } = state;
     if (state.status !== 'lost' || state.resolvedRecord || reference.topologyKind !== 'face'
@@ -170,7 +173,10 @@ export function rebindMovedFaceSupportReferences(document, bodies, { followMoved
       // (Extrude 40 -> 50 lifts a face-on-face sketch by 10 mm). Follow it only
       // when one face of this body is the obvious successor.
       const bodyCandidates = state.candidates.filter((candidate) => candidate.bodyId === reference.bodyId);
-      const excluded = new Set(bodyCandidates.flatMap((candidate, index) => (claimed.has(candidate.id) ? [index] : [])));
+      const claimedBefore = new Set(document.references
+        .filter((other) => other.id !== reference.id && other.kind === TOPOLOGY_REFERENCE_KIND && other.bodyId === reference.bodyId)
+        .map((other) => originalTopologyIds.get(other.id)));
+      const excluded = new Set(bodyCandidates.flatMap((candidate, index) => (claimedBefore.has(candidate.id) ? [index] : [])));
       const index = movedSupportFaceIndex(reference.descriptor, bodyCandidates.map((candidate) => candidate.descriptor), excluded);
       if (index < 0 || !moveSupportedSketches(document, reference, bodyCandidates[index].descriptor)) continue;
       reference.topologyId = bodyCandidates[index].id;

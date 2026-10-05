@@ -1810,17 +1810,24 @@ export default function ModelingWorkspace() {
 
   // Face-sketch supports that resolved in the last evaluation (id + recorded
   // position). Only these may follow a face moved by an edit in this session.
-  const resolvedSupportKeysRef = useRef(new Set());
+  const resolvedSupportKeysRef = useRef({ generation: history.generation, keys: new Set() });
   useEffect(() => {
     if (readOnly || command?.previewFeature || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
+    // Another document (open, new, recovery) carries no edit from this session.
+    if (resolvedSupportKeysRef.current.generation !== history.generation) resolvedSupportKeysRef.current = { generation: history.generation, keys: new Set() };
     const followMovedIds = new Set(document.references
-      .filter((reference) => resolvedSupportKeysRef.current.has(supportReferenceKey(reference)))
+      .filter((reference) => resolvedSupportKeysRef.current.keys.has(supportReferenceKey(reference)))
       .map((reference) => reference.id));
-    resolvedSupportKeysRef.current = new Set(topologyReferenceStates
-      .filter((state) => state.status === 'resolved')
-      .map((state) => supportReferenceKey(state.reference)));
+    resolvedSupportKeysRef.current = {
+      generation: history.generation,
+      keys: new Set(topologyReferenceStates.filter((state) => state.status === 'resolved').map((state) => supportReferenceKey(state.reference))),
+    };
     const probe = cloneDocument(document);
-    if (!rebindMovedFaceSupportReferences(probe, actualBodies, { followMovedIds }).length) return;
+    const rebound = rebindMovedFaceSupportReferences(probe, actualBodies, { followMovedIds });
+    if (!rebound.length) return;
+    // A reference rebound here matches the current geometry by definition; record
+    // it now so an edit started before the next evaluation can still be followed.
+    for (const reference of probe.references.filter((item) => rebound.includes(item.id))) resolvedSupportKeysRef.current.keys.add(supportReferenceKey(reference));
     history.synchronize((next) => rebindMovedFaceSupportReferences(next, actualBodies, { followMovedIds }));
   }, [document, actualBodies, topologyReferenceStates, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
