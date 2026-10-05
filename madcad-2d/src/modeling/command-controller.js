@@ -22,7 +22,7 @@ const COMMAND_DEFINITIONS = Object.freeze([
   { category: 'EDYTUJ 2D', shortcut: 'P', label: 'Project', toolLabel: 'Project', aliases: ['P', 'PROJECT', 'RZUTUJ'] },
   { category: 'EDYTUJ 2D', shortcut: 'DEL', label: 'Usuń', toolLabel: 'Usuń', aliases: ['DEL', 'DELETE', 'ERASE', 'USUN', 'USUŃ'] },
 
-  { category: 'MODELUJ 3D', shortcut: 'E', label: 'Wyciągnij', toolLabel: 'Wyciągnij', aliases: ['E', 'EXTRUDE', 'WYCIAGNIJ', 'WYCIĄGNIJ'] },
+  { category: 'MODELUJ 3D', shortcut: 'E', label: 'Wyciągnij', toolLabel: 'Wyciągnij', aliases: ['E', 'EXTRUDE', 'WYCIAGNIJ', 'WYCIĄGNIJ', 'PP', 'PRESSPULL', 'NACISNIJ', 'NACIŚNIJ'] },
   { category: 'POWIERZCHNIE', shortcut: 'PA', label: 'Patch', toolLabel: 'Patch', aliases: ['PA', 'PATCH', 'WYPELNIJPOWIERZCHNIE'] },
   { category: 'POWIERZCHNIE', shortcut: 'SE', label: 'Surface Extrude', toolLabel: 'Surface Extrude', aliases: ['SE', 'SURFACEEXTRUDE', 'WYCIAGNIJPOWIERZCHNIE'] },
   { category: 'POWIERZCHNIE', shortcut: 'SR', label: 'Surface Revolve', toolLabel: 'Surface Revolve', aliases: ['SR', 'SURFACEREVOLVE', 'OBROCPOWIERZCHNIE'] },
@@ -36,7 +36,6 @@ const COMMAND_DEFINITIONS = Object.freeze([
   { category: 'MODELUJ 3D', shortcut: 'REV', label: 'Revolve', toolLabel: 'Revolve', aliases: ['REV', 'REVOLVE', 'OBROT'] },
   { category: 'MODELUJ 3D', shortcut: 'SW', label: 'Sweep', toolLabel: 'Sweep', aliases: ['SW', 'SWEEP', 'PRZECIAGNIJ'] },
   { category: 'MODELUJ 3D', shortcut: 'LO', label: 'Loft', toolLabel: 'Loft', aliases: ['LO', 'LOFT'] },
-  { category: 'MODELUJ 3D', shortcut: 'PP', label: 'Press Pull', toolLabel: 'Press Pull', aliases: ['PP', 'PRESSPULL', 'PRESSPULL3D'] },
   { category: 'MODELUJ 3D', shortcut: 'BOX', label: 'Prymityw', toolLabel: 'Prymityw', aliases: ['BOX', 'PRIMITIVE', 'PRYMITYW'] },
   { category: 'MODELUJ 3D', shortcut: 'COIL', label: 'Coil', toolLabel: 'Coil', aliases: ['COIL', 'SPIRALA'] },
   { category: 'MODELUJ 3D', shortcut: 'TXT', label: 'Tekst 3D', toolLabel: 'Tekst 3D', aliases: ['TXT', 'TEXT3D', 'TEKST3D'] },

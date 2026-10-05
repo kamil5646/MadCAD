@@ -1,5 +1,15 @@
 # Changelog
 
+## Niewydane — porządek w interfejsie
+
+- jedno polecenie „Wyciągnij” dla profilu i płaskiej ściany (na ścianie wyciąga/wciska ścianę); usunięto dublujące je „Naciśnij / wyciągnij”, skrót PP prowadzi do Wyciągnij;
+- każde polecenie ma jedną nazwę we wstążce, menu i panelu kontekstowym, zgodną z nazwą operacji na osi czasu (np. „Bryła przejściowa” zamiast „Loft”, „Kratka” zamiast „Grille”, „Powierzchnia obrotowa” zamiast „Obróć” na karcie powierzchni, „Współrzędna X” zamiast „Wymiar X” w szkicu);
+- test `ui-naming` pilnuje, by żadne polecenie nie miało dwóch nazw ani nie występowało dwa razy w jednym panelu.
+- wyciąganie bocznej ściany: kliknięcie w wąską ścianę zaznacza ścianę, a nie jej krawędź (próg łapania krawędzi 4 px na ekranie zamiast stałych 1,6 mm w modelu);
+- „Wyciągnij” przy zaznaczonej krawędzi, bryle albo gdy wszystkie profile są już wyciągnięte mówi, co zaznaczyć — wcześniej po cichu wyciągał ponownie stary profil;
+- przeglądarka projektu jest domyślnie ukryta (więcej miejsca na model); otwiera ją przycisk w górnym pasku albo czynności, które jej potrzebują;
+- wyciągnięcie ściany wygląda jak wyciągnięcie profilu: okno „Wyciągnięcie”, domyślnie 10 mm (było 1 mm), podpowiedź o kierunku, nazwa „Wyciągnięcie N” na osi czasu.
+
 ## Niewydane — silnik OpenCascade 8
 
 - jądro geometrii przeniesione na replicad 1.1 / OpenCascade 8.0.1 (z 7.x): nowsze algorytmy operacji logicznych, zaokrągleń i przekrojów; objętości, pola i topologia wszystkich projektów testowych bez zmian;

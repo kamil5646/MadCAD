@@ -616,6 +616,8 @@ function viewportSketchFrame(sketch, planeOffset, constructionPlanes) {
   return resolveSketchFrame(support ? { frame: support } : { ...sketch, planeOffset });
 }
 
+const EDGE_PICK_PIXELS = 4;
+
 export default function ModelViewport({
   bodies,
   sketches = [],
@@ -1946,6 +1948,12 @@ export default function ModelViewport({
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
+      // Edge picking tolerance in screen pixels, like other CAD tools: a fixed
+      // world size (1.6 mm) covered most of a thin side face when zoomed out,
+      // so clicking the face selected one of its edges instead.
+      const depth = Math.max(camera.near, camera.position.distanceTo(controls.target));
+      const worldPerPixel = (2 * depth * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / Math.max(1, rect.height);
+      raycaster.params.Line.threshold = EDGE_PICK_PIXELS * worldPerPixel;
       return rect;
     };
     const pickOriginPlane = (event) => {

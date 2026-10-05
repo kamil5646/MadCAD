@@ -80,6 +80,9 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'sheetBase' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'zapisana baza blachowa');
 
+    // The project browser is hidden by default; open it to read the body badge.
+    await window.webContents.executeJavaScript(`document.querySelector('.model-browser') || document.querySelector('button[aria-label="Pokaż lub ukryj przeglądarkę"]')?.click()`);
+    await waitFor(window, `Boolean(document.querySelector('.model-browser .body-kind small'))`, 'otwarta przeglądarka z bryłą blachy');
     const result = await window.webContents.executeJavaScript(`(() => {
       const body = window.__madcadVerifyEngineState.bodies[0];
       const badge = [...document.querySelectorAll('.model-browser .body-kind small')].find((item) => item.textContent.includes('BLACHA'))?.textContent.trim();

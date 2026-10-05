@@ -208,7 +208,6 @@ import {
   PatternCadIcon,
   PlaneCadIcon,
   PointCadIcon,
-  PressPullCadIcon,
   PrimitiveCadIcon,
   ReplaceFaceCadIcon,
   RevolveCadIcon,
@@ -487,7 +486,9 @@ export default function ModelingWorkspace() {
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [surfaceAnalysis, setSurfaceAnalysis] = useState(null);
   const [meshToolsOpen, setMeshToolsOpen] = useState(false);
-  const [browserOpen, setBrowserOpen] = useState(true);
+  // Hidden by default (more room for the model); the top bar toggle and actions
+  // that need the tree (components, Go to) open it.
+  const [browserOpen, setBrowserOpen] = useState(false);
   const [compactViewport, setCompactViewport] = useState(() => window.matchMedia?.('(max-width: 900px)').matches || window.innerWidth <= 900);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
@@ -1544,7 +1545,6 @@ export default function ModelingWorkspace() {
   const pressPullFace = selectedFaceItems.length === 1
     ? engine.bodies.find((body) => body.id === selectedFaceItems[0].bodyId)?.topology?.faces?.find((face) => face.id === selectedFaceItems[0].id)
     : null;
-  const canPressPull = Boolean((selectedProfile && !activeSketchId) || pressPullFace?.descriptor?.geometry === 'PLANE');
   const splitFaceSupport = selectedProfileMatch?.sketch.support?.kind === 'face'
     ? document.references.find((reference) => reference.id === selectedProfileMatch.sketch.support.referenceId)
     : null;
@@ -2368,7 +2368,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'offsetFace') {
         next.previewFeature = createFeature('offsetFace', {
-          name: current.previewFeature?.name || nextFeatureName('Offset Face'),
+          name: current.previewFeature?.name || nextFeatureName(current.asExtrude ? 'Wyciągnięcie' : 'Offset Face'),
           targetBodyId: next.targetBodyId || targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           distance: next.distance,
@@ -2860,6 +2860,8 @@ export default function ModelingWorkspace() {
     else if (sketch) setSelection({ kind: 'sketch', id: sketch.id });
     setNotice(lastProfile
       ? 'Szkic zakończony. Ostatni profil jest zaznaczony i gotowy do operacji bryłowej.'
+      : finishedSource.kind === 'all-used'
+        ? 'Szkic zakończony. Jego profile są już użyte w operacjach, a zmiany przeliczyły model.'
       : finishedSource.kind === 'open-chain'
         ? 'Szkic zakończony. Otwarty łańcuch jest widoczny i gotowy do cienkiego wyciągnięcia.'
         : 'Szkic zakończony. Obrys nie jest domknięty; popraw przerwy, aby utworzyć profil bryłowy.');
@@ -4471,8 +4473,16 @@ export default function ModelingWorkspace() {
   const openExtrude = () => {
     if (readOnly) return readOnlyNotice();
     if (!activeSketchId && pressPullFace?.descriptor?.geometry === 'PLANE') {
-      openOffsetFace();
+      openOffsetFace({ asExtrude: true });
       setNotice('Wyciąganie ściany jest aktywne. Przeciągnij uchwyt albo wpisz odległość; wartość ujemna wciska ścianę do środka.');
+      return;
+    }
+    if (!activeSketchId && selection?.kind !== 'profile' && (selectedEdgeItems.length || selectedFaceItems.length || selectedBodyIds.length)) {
+      setNotice(selectedEdgeItems.length
+        ? 'Zaznaczona jest krawędź. Wyciągnij działa na płaskiej ścianie albo zamkniętym profilu — kliknij środek ściany.'
+        : selectedFaceItems.length
+          ? 'Wyciągnij działa na jednej płaskiej ścianie. Zaznacz płaską ścianę albo zamknięty profil szkicu.'
+          : 'Zaznacz płaską ścianę bryły albo zamknięty profil szkicu, który chcesz wyciągnąć.');
       return;
     }
     if (canExtrudeOpenChain) {
@@ -4513,6 +4523,10 @@ export default function ModelingWorkspace() {
     }
     if (source.kind === 'open-chain') {
       beginOpenChainExtrude(source.sketch.id, source.entityIds);
+      return;
+    }
+    if (source.kind === 'all-used') {
+      setNotice('Wszystkie profile są już wyciągnięte. Zaznacz płaską ścianę bryły, wskaż profil albo narysuj nowy szkic.');
       return;
     }
     if (source.kind === 'incomplete') {
@@ -5198,7 +5212,9 @@ export default function ModelingWorkspace() {
     window.setTimeout(() => updateCommand(next), 0);
   };
 
-  const openOffsetFace = () => {
+  // `asExtrude`: opened by Extrude on a planar face, so it reads like Extrude
+  // (title, 10 mm default, "Wyciągnięcie N" in the timeline) instead of Offset Face.
+  const openOffsetFace = ({ asExtrude = false } = {}) => {
     if (readOnly) return readOnlyNotice();
     const selectedFace = selectedFaceItems.length === 1 ? selectedFaceItems[0] : null;
     const body = selectedFace && engine.bodies.find((candidate) => candidate.id === selectedFace.bodyId);
@@ -5208,24 +5224,9 @@ export default function ModelingWorkspace() {
       return;
     }
     const reference = { ...createTopologyReference({ selection: selectedFace, descriptor: record.descriptor, label: 'Offset Face — ściana' }), scope: 'feature-input' };
-    const next = { type: 'offsetFace', targetBodyId: selectedFace.bodyId, distance: '1', faceLabel: `Płaska ściana${Number(record.descriptor?.area) > 0 ? ` · ${Number(record.descriptor.area).toLocaleString('pl-PL', { maximumFractionDigits: 2 })} mm²` : ''}${body.name ? ` · ${body.name}` : ''}`, topologyReferences: [reference], previewFeature: null };
+    const next = { type: 'offsetFace', asExtrude, targetBodyId: selectedFace.bodyId, distance: asExtrude ? '10' : '1', faceLabel: `Płaska ściana${Number(record.descriptor?.area) > 0 ? ` · ${Number(record.descriptor.area).toLocaleString('pl-PL', { maximumFractionDigits: 2 })} mm²` : ''}${body.name ? ` · ${body.name}` : ''}`, topologyReferences: [reference], previewFeature: null };
     setCommand(next);
     window.setTimeout(() => updateCommand(next), 0);
-  };
-
-  const openPressPull = () => {
-    if (readOnly) return readOnlyNotice();
-    if (selectedProfile && !activeSketchId) {
-      openExtrude();
-      setNotice('Press Pull profilu używa parametrycznego Extrude. Ustaw odległość i operację bryłową.');
-      return;
-    }
-    if (pressPullFace?.descriptor?.geometry === 'PLANE') {
-      openOffsetFace();
-      setNotice('Press Pull planarnej ściany używa parametrycznego Offset Face. Znak odległości steruje kierunkiem.');
-      return;
-    }
-    setNotice('Press Pull wymaga zamkniętego profilu albo dokładnie jednej planarnej ściany.');
   };
 
   const openEdgeCommand = (type) => {
@@ -5671,7 +5672,7 @@ export default function ModelingWorkspace() {
     else if (feature.type === 'primitive') setCommand({ type: 'primitive', editId: feature.id, name: feature.name, primitiveType: feature.primitiveType, x: feature.x, y: feature.y, z: feature.z, width: feature.width || '20', depth: feature.depth || '20', height: feature.height || '20', radius: feature.radius || '10', majorRadius: feature.majorRadius || '15', minorRadius: feature.minorRadius || '4', previewFeature: feature });
     else if (feature.type === 'formBody') setCommand({ type: 'formBody', editId: feature.id, name: feature.name, width: feature.width, depth: feature.depth, height: feature.height, subdivisions: feature.subdivisions, symmetry: feature.symmetry || 'none', controlOffsets: feature.controlOffsets || Array.from({ length: 8 }, () => ['0', '0', '0']), selectedControlKind: 'point', selectedControlPoint: 0, selectedControlEdge: 0, selectedControlFace: 0, creaseEdges: feature.creaseEdges || [], insertEdgeEnabled: feature.insertEdgeEnabled === true, insertEdgeIndex: feature.insertEdgeIndex || 0, insertEdgePosition: feature.insertEdgePosition || '0.5', insertEdgeOffsets: feature.insertEdgeOffsets || [], bridgeEnabled: feature.bridgeEnabled === true, bridgeFirstFace: feature.bridgeFirstFace || 0, bridgeSecondFace: feature.bridgeSecondFace ?? 1, bridgeInset: feature.bridgeInset || '0.45', bridgeOffsets: feature.bridgeOffsets || [], fillHoleEnabled: feature.fillHoleEnabled === true, fillHoleFace: feature.fillHoleFace || 0, fillHoleOffsets: feature.fillHoleOffsets || [], x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', previewFeature: feature });
     else if (feature.type === 'transform') setCommand({ type: 'transform', editId: feature.id, targetBodyId: feature.targetBodyId, mode: feature.mode, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', angle: feature.angle || '0', originX: feature.originX || '0', originY: feature.originY || '0', originZ: feature.originZ || '0', previewFeature: feature });
-    else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: `Płaska ściana · ${actualBodies.find((body) => body.id === feature.targetBodyId)?.name || 'bryła'}`, previewFeature: feature });
+    else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', asExtrude: /^Wyciągnięcie\b/.test(feature.name || ''), editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: `Płaska ściana · ${actualBodies.find((body) => body.id === feature.targetBodyId)?.name || 'bryła'}`, previewFeature: feature });
     else if (feature.type === 'textSolid') setCommand({ type: 'textSolid', editId: feature.id, text: feature.text, fontSize: feature.fontSize, depth: feature.depth, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', operation: feature.operation, targetBodyId: feature.targetBodyId || null, placement: feature.placement || 'world', topologyReferences: (feature.referenceIds || []).map((id) => document.references.find((reference) => reference.id === id)).filter(Boolean), previewFeature: feature });
     else if (feature.type === 'hole') {
       const holeOptions = { holeType: feature.holeType || 'simple', extent: feature.extent || 'distance', diameter: feature.diameter, depth: feature.depth || '10', counterboreDiameter: feature.counterboreDiameter || '10', counterboreDepth: feature.counterboreDepth || '3', countersinkDiameter: feature.countersinkDiameter || '10', countersinkAngle: feature.countersinkAngle || '90', threadMode: feature.threadMode || 'none', threadDiameter: feature.threadDiameter || '10', threadPitch: feature.threadPitch || '1.5', threadLength: feature.threadLength || feature.depth || '8', threadDirection: feature.threadDirection || 'right', holeStandard: feature.holeStandard || 'custom', holeApplication: feature.holeApplication || 'custom', standardSize: feature.standardSize || 'M6', clearanceClass: feature.clearanceClass || 'medium', threadClass: feature.threadClass ?? '6H', threadDesignation: feature.threadDesignation || '', threadInspection: feature.threadInspection || '', pipePreparation: feature.pipePreparation || 'conical', threadTaper: feature.threadTaper || '0', threadProfileAngle: feature.threadProfileAngle || '60', diameterToleranceLower: feature.diameterToleranceLower ?? '', diameterToleranceUpper: feature.diameterToleranceUpper ?? '', clearanceProfile: feature.clearanceProfile || 'nominal', clearance: feature.clearance || '0.2' };
@@ -6949,7 +6950,7 @@ export default function ModelingWorkspace() {
   } else if (command?.type === 'offsetFace') {
     const referenceId = command.previewFeature?.referenceIds?.[0];
     const reference = command.topologyReferences?.[0] || document.references.find((item) => item.id === referenceId);
-    directManipulator = { kind: 'offsetFace', value: command.distance, origin: reference?.descriptor?.center || [0, 0, 0], axis: reference?.descriptor?.normal || [0, 0, 1], min: -100000, max: 100000, label: 'Offset Face', hint: 'Przeciągnij wspólny uchwyt, aby odsunąć wskazaną ścianę', onCommit: (value) => updateCommand({ distance: String(value) }) };
+    directManipulator = { kind: 'offsetFace', value: command.distance, origin: reference?.descriptor?.center || [0, 0, 0], axis: reference?.descriptor?.normal || [0, 0, 1], min: -100000, max: 100000, label: 'Offset Face', displayLabel: 'Odsuń ścianę', hint: 'Przeciągnij wspólny uchwyt, aby odsunąć wskazaną ścianę', onCommit: (value) => updateCommand({ distance: String(value) }) };
   }
   const draftProfile = command?.type === 'rectangle' && command.definition === 'center'
     ? { type: 'rectangle', geometry: { width: command.width, height: command.height, x: command.x, y: command.y } }
@@ -6994,8 +6995,8 @@ export default function ModelingWorkspace() {
     if (canAddSymmetry) recommended.push({ icon: Frame, label: 'Symetria', onClick: () => addSelectedSketchConstraint('symmetry'), primary: true });
     if (canAddCurvature) recommended.push({ icon: CircleDotDashed, label: 'Krzywizna G2', onClick: () => addSelectedSketchConstraint('curvature'), primary: true });
     if (canAddOrdinate) {
-      recommended.push({ icon: Ruler, label: 'Wymiar X', onClick: () => openSketchDimension('ordinateX'), primary: true });
-      more.push({ icon: Ruler, label: 'Wymiar Y', onClick: () => openSketchDimension('ordinateY') });
+      recommended.push({ icon: Ruler, label: 'Współrzędna X', onClick: () => openSketchDimension('ordinateX'), primary: true });
+      more.push({ icon: Ruler, label: 'Współrzędna Y', onClick: () => openSketchDimension('ordinateY') });
     }
     if (canAddLinearDimension) {
       recommended.push({ icon: Ruler, label: 'Wymiar poziomy', onClick: () => openSketchDimension('horizontal'), primary: true });
@@ -7023,18 +7024,17 @@ export default function ModelingWorkspace() {
         subtitle: 'Utwórz z niego bryłę albo powierzchnię',
         actions: [
           { icon: ExtrudeCadIcon, label: 'Wyciągnij', onClick: openExtrude, primary: true },
-          { icon: PressPullCadIcon, label: 'Naciśnij / wyciągnij', onClick: openPressPull },
-          { icon: PlaneCadIcon, label: 'Patch', onClick: openSurfacePatch },
+          { icon: PlaneCadIcon, label: 'Wypełnij profil', onClick: openSurfacePatch },
           { icon: RevolveCadIcon, label: 'Bryła obrotowa', onClick: openRevolve },
         ],
         moreActions: [
           { icon: Ruler, label: 'Właściwości', onClick: openMeasure },
-          { icon: ExtrudeCadIcon, label: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude },
-          { icon: RevolveCadIcon, label: 'Obróć powierzchnię', onClick: openSurfaceRevolve },
+          { icon: ExtrudeCadIcon, label: 'Powierzchnia wyciągnięta', onClick: openSurfaceExtrude },
+          { icon: RevolveCadIcon, label: 'Powierzchnia obrotowa', onClick: openSurfaceRevolve },
           { icon: SweepCadIcon, label: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep },
           { icon: LoftCadIcon, label: 'Powierzchnia przejściowa', onClick: openSurfaceLoft },
-          { icon: SweepCadIcon, label: 'Po ścieżce', onClick: openSweep },
-          { icon: LoftCadIcon, label: 'Loft', onClick: openLoft },
+          { icon: SweepCadIcon, label: 'Bryła po ścieżce', onClick: openSweep },
+          { icon: LoftCadIcon, label: 'Bryła przejściowa', onClick: openLoft },
         ],
         onClear: clearModelSelection,
       };
@@ -7044,15 +7044,15 @@ export default function ModelingWorkspace() {
         subtitle: 'Modeluj bezpośrednio na zaznaczonej geometrii',
         actions: [
           ...(selectedFaceItems.length === 1 ? [{ icon: SketchCadIcon, label: 'Szkic na ścianie', onClick: startSketch, primary: true }] : []),
-          ...(canPressPull ? [{ icon: PressPullCadIcon, label: 'Naciśnij / wyciągnij', onClick: openPressPull }] : []),
-          ...(selectedFaceItems.length === 1 ? [{ icon: OffsetFaceCadIcon, label: 'Odsuń ścianę', onClick: openOffsetFace }] : []),
+          // One Extrude for profiles and planar faces (on a face it offsets the face).
+          ...(pressPullFace?.descriptor?.geometry === 'PLANE' ? [{ icon: ExtrudeCadIcon, label: 'Wyciągnij', onClick: openExtrude }] : []),
         ],
         moreActions: [
           { icon: Ruler, label: 'Właściwości', onClick: openMeasure },
-          ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss }, { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit }, { icon: Grid2X2, label: 'Grille', onClick: openPlasticGrille }] : []),
+          ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss }, { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit }, { icon: Grid2X2, label: 'Kratka', onClick: openPlasticGrille }] : []),
           { icon: ShellCadIcon, label: 'Powłoka', onClick: openShell },
-          { icon: DraftCadIcon, label: 'Pochylenie', onClick: openDraft },
-          { icon: DeleteFaceCadIcon, label: 'Usuń i napraw', onClick: openDeleteFace, danger: true },
+          { icon: DraftCadIcon, label: 'Pochylenie ścian', onClick: openDraft },
+          { icon: DeleteFaceCadIcon, label: 'Usuń i napraw ścianę', onClick: openDeleteFace, danger: true },
           ...(selectedFaceItems.length === 2 ? [{ icon: ReplaceFaceCadIcon, label: 'Zastąp ścianę', onClick: openReplaceFace }] : []),
         ],
         onClear: clearModelSelection,
@@ -7078,14 +7078,14 @@ export default function ModelingWorkspace() {
         title: surfaceSelection ? 'Powierzchnia' : multipleSurfaceSelection ? `${selectedBodyIds.length} powierzchnie` : trimSelection ? 'Powierzchnia + bryła' : selectedBodyIds.length === 1 ? 'Bryła' : `${selectedBodyIds.length} bryły`,
         subtitle: surfaceSelection ? 'Zamień ją w bryłę albo zmień położenie' : multipleSurfaceSelection ? 'Połącz wspólne krawędzie w jeden płaszcz' : trimSelection ? 'Przytnij powierzchnię bryłą' : selectedBodyIds.length > 1 ? 'Wykonaj operację na wspólnym wyborze' : 'Przekształć albo powiel bryłę',
         actions: [
-          ...(surfaceSelection ? [{ icon: ShellCadIcon, label: 'Pogrub', onClick: openThickenSurface, primary: true }, { icon: Layers3, label: 'Odsuń powierzchnię', onClick: openSurfaceOffset }] : []),
+          ...(surfaceSelection ? [{ icon: ShellCadIcon, label: 'Pogrub powierzchnię', onClick: openThickenSurface, primary: true }, { icon: Layers3, label: 'Odsuń powierzchnię', onClick: openSurfaceOffset }] : []),
           ...(multipleSurfaceSelection ? [{ icon: Layers3, label: 'Zszyj powierzchnie', onClick: openSurfaceStitch, primary: true }] : []),
           ...(trimSelection ? [{ icon: Scissors, label: 'Przytnij powierzchnię', onClick: openSurfaceTrim, primary: true }] : []),
           ...(canBooleanSelectedBodies ? [{ icon: BooleanCadIcon, label: 'Połącz / odejmij', onClick: openBoolean, primary: true }] : []),
           ...(selectedFacetedBrepFeature ? [{ icon: ScanSearch, label: 'Przywróć siatkę', onClick: restoreSelectedBrepToMesh, primary: true }] : []),
           ...(selectedBodyIds.length === 1 ? [
-            { icon: MoveBodyCadIcon, label: 'Przesuń', onClick: () => openTransform('move'), primary: !surfaceSelection },
-            { icon: RotateBodyCadIcon, label: 'Obróć', onClick: () => openTransform('rotate') },
+            { icon: MoveBodyCadIcon, label: 'Przesuń bryłę', onClick: () => openTransform('move'), primary: !surfaceSelection },
+            { icon: RotateBodyCadIcon, label: 'Obróć bryłę', onClick: () => openTransform('rotate') },
             ...(!surfaceSelection ? [{ icon: PatternCadIcon, label: 'Szyk', onClick: openPattern }] : []),
           ] : []),
         ],
@@ -7270,8 +7270,8 @@ export default function ModelingWorkspace() {
                   <RibbonGroup label="BRYŁA ZE SZKICU">
                   <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii aktywnego szkicu." items={[
                     { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Powierzchnia wyciągnięta', onClick: openSurfaceExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Powierzchnia obrotowa', onClick: openSurfaceRevolve, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
                     { icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !canExtrudeOpenChain || !sweepPathOptions(activeSketchId).length, disabledReason: 'Zaznacz profil i przygotuj osobny szkic ścieżki.' },
                     { icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
                     { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
@@ -7351,18 +7351,18 @@ export default function ModelingWorkspace() {
             ) : designTab === 'surface' ? (
               <>
                 <RibbonGroup label="UTWÓRZ">
-                  <ToolButton icon={SurfacePatchCadIcon} label="Patch" displayLabel="Wypełnij" onClick={openSurfacePatch} primary disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz zamknięty profil i zakończ szkic." />
-                  <ToolButton icon={ExtrudeCadIcon} label="Surface Extrude" displayLabel="Wyciągnij" onClick={openSurfaceExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} disabledReason="Zaznacz profil albo otwarty łańcuch." />
-                  <ToolButton icon={RevolveCadIcon} label="Surface Revolve" displayLabel="Obróć" onClick={openSurfaceRevolve} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} disabledReason="Zaznacz profil albo otwarty łańcuch." />
-                  <ToolButton icon={SweepCadIcon} label="Surface Sweep" displayLabel="Po ścieżce" onClick={openSurfaceSweep} disabled={readOnly || !selectedProfile || !sweepPathOptions().length} disabledReason="Przygotuj profil i osobny szkic ścieżki." />
-                  <ToolButton icon={LoftCadIcon} label="Surface Loft" displayLabel="Przejście" onClick={openSurfaceLoft} disabled={readOnly || !selectedProfile || !loftProfileOptions().length} disabledReason="Przygotuj co najmniej dwa profile." />
+                  <ToolButton icon={SurfacePatchCadIcon} label="Patch" displayLabel="Wypełnij profil" onClick={openSurfacePatch} primary disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz zamknięty profil i zakończ szkic." />
+                  <ToolButton icon={ExtrudeCadIcon} label="Surface Extrude" displayLabel="Powierzchnia wyciągnięta" onClick={openSurfaceExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} disabledReason="Zaznacz profil albo otwarty łańcuch." />
+                  <ToolButton icon={RevolveCadIcon} label="Surface Revolve" displayLabel="Powierzchnia obrotowa" onClick={openSurfaceRevolve} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} disabledReason="Zaznacz profil albo otwarty łańcuch." />
+                  <ToolButton icon={SweepCadIcon} label="Surface Sweep" displayLabel="Powierzchnia po ścieżce" onClick={openSurfaceSweep} disabled={readOnly || !selectedProfile || !sweepPathOptions().length} disabledReason="Przygotuj profil i osobny szkic ścieżki." />
+                  <ToolButton icon={LoftCadIcon} label="Surface Loft" displayLabel="Powierzchnia przejściowa" onClick={openSurfaceLoft} disabled={readOnly || !selectedProfile || !loftProfileOptions().length} disabledReason="Przygotuj co najmniej dwa profile." />
                 </RibbonGroup>
                 <RibbonGroup label="ZMIEŃ">
-                  <ToolButton icon={Layers3} label="Surface Offset" displayLabel="Odsuń" onClick={openSurfaceOffset} disabled={readOnly || !selectedSurfaceBody} disabledReason="Zaznacz jedną powierzchnię." />
-                  <ToolButton icon={Layers3} label="Stitch" displayLabel="Zszyj" onClick={openSurfaceStitch} disabled={readOnly || !canStitchSelectedSurfaces} disabledReason="Zaznacz co najmniej dwie powierzchnie." />
-                  <ToolButton icon={Scissors} label="Surface Trim" displayLabel="Przytnij" onClick={openSurfaceTrim} disabled={readOnly || !canTrimSelectedSurface} disabledReason="Zaznacz powierzchnię i bryłę tnącą." />
-                  <ToolButton icon={Scissors} label="Surface Extend" displayLabel="Przedłuż" onClick={openSurfaceExtend} disabled={readOnly || !canExtendSelectedSurface} disabledReason="Zaznacz prostą krawędź powierzchni." />
-                  <ToolButton icon={ShellCadIcon} label="Thicken" displayLabel="Pogrub" onClick={openThickenSurface} disabled={readOnly || !selectedSurfaceBody} disabledReason="Zaznacz jedną powierzchnię." />
+                  <ToolButton icon={Layers3} label="Surface Offset" displayLabel="Odsuń powierzchnię" onClick={openSurfaceOffset} disabled={readOnly || !selectedSurfaceBody} disabledReason="Zaznacz jedną powierzchnię." />
+                  <ToolButton icon={Layers3} label="Stitch" displayLabel="Zszyj powierzchnie" onClick={openSurfaceStitch} disabled={readOnly || !canStitchSelectedSurfaces} disabledReason="Zaznacz co najmniej dwie powierzchnie." />
+                  <ToolButton icon={Scissors} label="Surface Trim" displayLabel="Przytnij powierzchnię" onClick={openSurfaceTrim} disabled={readOnly || !canTrimSelectedSurface} disabledReason="Zaznacz powierzchnię i bryłę tnącą." />
+                  <ToolButton icon={Scissors} label="Surface Extend" displayLabel="Przedłuż powierzchnię" onClick={openSurfaceExtend} disabled={readOnly || !canExtendSelectedSurface} disabledReason="Zaznacz prostą krawędź powierzchni." />
+                  <ToolButton icon={ShellCadIcon} label="Thicken" displayLabel="Pogrub powierzchnię" onClick={openThickenSurface} disabled={readOnly || !selectedSurfaceBody} disabledReason="Zaznacz jedną powierzchnię." />
                 </RibbonGroup>
                 <RibbonGroup label="SPRAWDŹ"><ToolButton icon={ScanSearch} label="Analiza powierzchni" onClick={openSurfaceAnalysis} disabled={!engine.bodies.length} /></RibbonGroup>
               </>
@@ -7417,12 +7417,12 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} />
                   {expandedDesignRibbon && <ToolButton icon={PrimitiveCadIcon} label="Prymityw" onClick={openPrimitive} disabled={readOnly} />}
                   {expandedDesignRibbon && <ToolButton icon={RevolveCadIcon} label="Revolve" displayLabel="Bryła obrotowa" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz zamknięty profil i zakończ szkic." />}
-                  {expandedDesignRibbon && <ToolButton icon={SweepCadIcon} label="Sweep" displayLabel="Po ścieżce" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz profil i osobną ścieżkę." />}
+                  {expandedDesignRibbon && <ToolButton icon={SweepCadIcon} label="Sweep" displayLabel="Bryła po ścieżce" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz profil i osobną ścieżkę." />}
                   <ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
                   ...(!expandedDesignRibbon ? [{ icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly }] : []),
                   { icon: Shapes, label: 'Form', onClick: openFormBody, disabled: readOnly || Boolean(activeSketchId), disabledReason: 'Zakończ aktywny szkic.' },
                   ...(!expandedDesignRibbon ? [{ icon: RevolveCadIcon, label: 'Revolve', displayLabel: 'Bryła obrotowa', onClick: openRevolve, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' }] : []),
-                  ...(!expandedDesignRibbon ? [{ icon: SweepCadIcon, label: 'Sweep', displayLabel: 'Przeciągnięcie po ścieżce', onClick: openSweep, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz profil i osobną ścieżkę.' }] : []),
+                  ...(!expandedDesignRibbon ? [{ icon: SweepCadIcon, label: 'Sweep', displayLabel: 'Bryła po ścieżce', onClick: openSweep, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz profil i osobną ścieżkę.' }] : []),
                   { icon: LoftCadIcon, label: 'Loft', displayLabel: 'Bryła przejściowa', onClick: openLoft, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Przygotuj co najmniej dwa profile.' },
                   { icon: CoilCadIcon, label: 'Coil', displayLabel: 'Spirala', onClick: openCoil, disabled: readOnly || Boolean(activeSketchId), disabledReason: 'Zakończ aktywny szkic.' },
                   { icon: Type, label: 'Tekst 3D', onClick: openTextSolid, disabled: readOnly },
@@ -7430,8 +7430,8 @@ export default function ModelingWorkspace() {
                 ]} />
                   <ToolMenuButton icon={Shapes} label="Narzędzia zaawansowane" displayLabel="Zaawansowane" description="Powierzchnie, blachy, siatki i elementy z tworzyw — bez przełączania przestrzeni roboczej." items={[
                     { section: 'Powierzchnie', icon: SurfacePatchCadIcon, label: 'Patch', displayLabel: 'Wypełnij profil', onClick: openSurfacePatch, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
-                    { section: 'Powierzchnie', icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz profil albo otwarty łańcuch.' },
-                    { section: 'Powierzchnie', icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz profil albo otwarty łańcuch.' },
+                    { section: 'Powierzchnie', icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Powierzchnia wyciągnięta', onClick: openSurfaceExtrude, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz profil albo otwarty łańcuch.' },
+                    { section: 'Powierzchnie', icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Powierzchnia obrotowa', onClick: openSurfaceRevolve, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz profil albo otwarty łańcuch.' },
                     { section: 'Powierzchnie', icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !selectedProfile || !sweepPathOptions().length, disabledReason: 'Przygotuj profil i osobny szkic ścieżki.' },
                     { section: 'Powierzchnie', icon: LoftCadIcon, label: 'Surface Loft', displayLabel: 'Powierzchnia przejściowa', onClick: openSurfaceLoft, disabled: readOnly || !selectedProfile || !loftProfileOptions().length, disabledReason: 'Przygotuj co najmniej dwa profile.' },
                     { section: 'Powierzchnie', icon: Layers3, label: 'Surface Offset', displayLabel: 'Odsuń powierzchnię', onClick: openSurfaceOffset, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
@@ -7453,7 +7453,7 @@ export default function ModelingWorkspace() {
                     { section: 'Tworzywa', icon: Grid2X2, label: 'Grille', displayLabel: 'Kratka', onClick: openPlasticGrille, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły.' },
                   ]} />
                 </RibbonGroup>
-                <RibbonGroup label="ZMIEŃ"><ToolButton icon={PressPullCadIcon} label="Press Pull" displayLabel="Naciśnij / wyciągnij" onClick={openPressPull} disabled={readOnly || !canPressPull} disabledReason="Zaznacz zamknięty profil albo płaską ścianę." /><ToolButton icon={FilletCadIcon} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź bryły." />
+                <RibbonGroup label="ZMIEŃ"><ToolButton icon={FilletCadIcon} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź bryły." />
                   {expandedDesignRibbon && <ToolButton icon={ChamferCadIcon} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź." />}
                   {expandedDesignRibbon && <ToolButton icon={ShellCadIcon} label="Shell" displayLabel="Powłoka" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} disabledReason="Zaznacz ścianę do usunięcia." />}
                   {expandedDesignRibbon && <ToolButton icon={PatternCadIcon} label="Pattern" displayLabel="Szyk" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} disabledReason="Zaznacz obsługiwaną bryłę i zakończ szkic." />}

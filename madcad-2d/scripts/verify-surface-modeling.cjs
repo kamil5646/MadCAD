@@ -73,8 +73,8 @@ app.whenReady().then(async () => {
       if (!trigger) throw new Error('Brak menu Utwórz 3D.');
       trigger.click();
     })()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Obróć powierzchnię' && !button.disabled)`, 'aktywne polecenie Surface Revolve');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Obróć powierzchnię' && !button.disabled).click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia obrotowa' && !button.disabled)`, 'aktywne polecenie Surface Revolve');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia obrotowa' && !button.disabled).click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceRevolve' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'surface'`, 'podgląd obrotu powierzchni');
     const revolveSurfaceMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);

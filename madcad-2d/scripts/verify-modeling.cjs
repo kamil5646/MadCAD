@@ -1171,7 +1171,7 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.concavePointId)}); return Number(point?.geometry?.x) === 15; })()`, 'dokładna zmiana wierzchołka');
   await clickTool('Zakończ szkic');
-  await clickTool('Press Pull');
+  await clickTool('Wyciągnij');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wyciągnięcie profilu L');
   await setCommandField('Odległość', '8');
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -2037,7 +2037,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetSelection)}, 'replace')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(offsetSelection.id)}`, 'ściana wskazana do Press Pull');
   await clickTool('Wyciągnij');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Odsuń ścianę') && document.querySelector('.direct-handle-hit')`, 'wyciąganie zaznaczonej ściany wspólnym manipulatorem');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'offsetFace' && document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie') && document.querySelector('.direct-handle-hit')`, 'wyciąganie zaznaczonej ściany wspólnym manipulatorem');
   await setCommandField('Odległość', '2');
   await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok'`, 'podgląd odsuniętej ściany', modelingTimeoutMs);
   await confirmDialog();
