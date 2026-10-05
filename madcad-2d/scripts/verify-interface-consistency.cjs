@@ -178,7 +178,7 @@ app.whenReady().then(async () => {
     const expectedStartGroups = ['ZACZNIJ', 'KONSTRUKCJA'];
     if (emptyModelGroups.join('|') !== expectedStartGroups.join('|')) throw new Error(`Pusty projekt nie prowadzi jednoznacznie do pierwszego kroku: ${emptyModelGroups.join('|')}`);
     const startTools = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-visible-groups > .ribbon-group .ribbon-tool')].map((item) => item.dataset.toolLabel).filter(Boolean)`);
-    const expectedStartTools = ['Utwórz szkic', 'Szkic 3D', 'Prymityw', 'Więcej brył', 'Płaszczyzny', 'Osie', 'Punkty'];
+    const expectedStartTools = ['Utwórz szkic', 'Szkic 3D', 'Prymityw', 'Więcej brył', 'Konstrukcja'];
     if (startTools.join('|') !== expectedStartTools.join('|')) throw new Error(`Pusty projekt pokazuje przypadkowe narzędzia: ${startTools.join('|')}`);
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
@@ -213,8 +213,9 @@ app.whenReady().then(async () => {
         commandLineRemoved: !document.querySelector('.command-line'),
       };
     })()`);
-    const expectedDesignMenus = ['Więcej brył', 'Zaawansowane', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
-    const expectedWideTools = ['Prymityw', 'Revolve', 'Sweep', 'Fazuj', 'Shell', 'Pattern', 'Boolean'];
+    const expectedDesignMenus = ['Więcej brył', 'Zaawansowane', 'Więcej zmian', 'Konstrukcja', 'Analiza'];
+    // Fazuj and Powłoka stay on the ribbon at every width now.
+    const expectedWideTools = ['Prymityw', 'Revolve', 'Sweep', 'Pattern', 'Boolean'];
     const requiredAdvancedTools = ['Patch', 'Surface Extrude', 'Surface Offset', 'Baza blachowa', 'Rozwiń blachę', 'Importuj model', 'Narzędzia siatki', 'Boss', 'Snap-fit', 'Grille'];
     if (!designStructure.legacyTabsRemoved || !designStructure.persistentDomainTabsRemoved || !designStructure.domainPickerRemoved || designStructure.advancedSections.join('|') !== 'Powierzchnie|Blacha|Siatka|Tworzywa' || !requiredAdvancedTools.every((label) => designStructure.advancedTools.includes(label)) || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !expectedWideTools.every((label) => designStructure.directTools.includes(label)) || designStructure.horizontalOverflow || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.commandLineRemoved || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 21 || designStructure.iconSize > 23 || designStructure.featuredIconSize < 27 || designStructure.featuredIconSize > 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
     await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
@@ -346,6 +347,9 @@ app.whenReady().then(async () => {
     if (!selectionFilterLayout.collapsed || !selectionFilterLayout.bottomAligned || !selectionFilterLayout.separateFromNavigation || selectionFilterLayout.activeBackground === 'rgb(169, 33, 45)') throw new Error(`Filtr wyboru nadal konkuruje z płótnem zamiast wspierać nawigację: ${JSON.stringify(selectionFilterLayout)}`);
     await window.webContents.executeJavaScript(`document.querySelector('.timeline-item')?.click()`);
     await waitFor(window, `document.querySelector('.timeline-item.selected')`, 'zaznaczenie operacji na osi czasu');
+    // The project browser is hidden by default; open it to inspect the tree.
+    await window.webContents.executeJavaScript(`document.querySelector('.model-browser') || document.querySelector('button[aria-label="Pokaż lub ukryj przeglądarkę"]')?.click()`);
+    await waitFor(window, `document.querySelector('.model-browser .tree-folder')`, 'otwarta przeglądarka projektu');
     const browserTimeline = await window.webContents.executeJavaScript(`(() => {
       const reference = document.querySelector('.tree-reference-row');
       const visibility = reference?.querySelector('.tree-reference-visibility')?.getBoundingClientRect();
@@ -477,7 +481,7 @@ app.whenReady().then(async () => {
     await fs.writeFile(designScreenshotPath, designCapture);
     await fs.writeFile(designAfterScreenshotPath, designCapture);
 
-    if (!(await clickText(window, '.ribbon-tool-menu-trigger', 'Płaszczyzny'))) throw new Error('Brak menu Płaszczyzny.');
+    if (!(await clickText(window, '.ribbon-tool-menu-trigger', 'Konstrukcja'))) throw new Error('Brak menu Konstrukcja.');
     await waitFor(window, `document.querySelector('.ribbon-tool-submenu')`, 'menu konstrukcji');
     const constructionMenu = await window.webContents.executeJavaScript(`(() => {
       const menu = document.querySelector('.ribbon-tool-submenu');
@@ -492,10 +496,10 @@ app.whenReady().then(async () => {
         descriptionsReadable: [...menu.querySelectorAll('small')].every((item) => item.scrollWidth <= item.clientWidth + 1 && item.scrollHeight <= item.clientHeight + 1),
       };
     })()`);
-    if (constructionMenu.items.join('|') !== 'Płaszczyzna odsunięta|Płaszczyzna środkowa|Przez 3 punkty|Pod kątem|Styczna|Na ścieżce' || !constructionMenu.visible || !constructionMenu.onTop || !constructionMenu.descriptionsReadable) throw new Error(`Niepełne lub niewidoczne menu płaszczyzn: ${JSON.stringify(constructionMenu)}`);
+    if (constructionMenu.items.join('|') !== 'Płaszczyzna odsunięta|Płaszczyzna środkowa|Przez 3 punkty|Pod kątem|Styczna|Na ścieżce|Oś z krawędzi|Oś walca|Oś 2 punkty|Oś przecięcia|Oś normalna|Punkt wierzchołka|Punkt centrum|Punkt przecięcia|Punkt środkowy|Punkt na osi' || !constructionMenu.visible || !constructionMenu.onTop || !constructionMenu.descriptionsReadable) throw new Error(`Niepełne lub niewidoczne menu płaszczyzn: ${JSON.stringify(constructionMenu)}`);
     await new Promise((resolve) => setTimeout(resolve, 200));
     await fs.writeFile(constructionScreenshotPath, (await window.webContents.capturePage()).toPNG());
-    await clickText(window, '.ribbon-tool-menu-trigger', 'Płaszczyzny');
+    await clickText(window, '.ribbon-tool-menu-trigger', 'Konstrukcja');
 
     window.setContentSize(760, 697);
     await new Promise((resolve) => setTimeout(resolve, 300));

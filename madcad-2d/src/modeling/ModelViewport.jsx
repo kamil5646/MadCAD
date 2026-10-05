@@ -617,6 +617,11 @@ function viewportSketchFrame(sketch, planeOffset, constructionPlanes) {
 }
 
 const EDGE_PICK_PIXELS = 4;
+const CONSTRAINT_NAMES = {
+  fixed: 'Zablokowany', coincident: 'Zbieżność', horizontal: 'Poziomo', vertical: 'Pionowo', distance: 'Odległość', distanceX: 'Wymiar X', distanceY: 'Wymiar Y',
+  angle: 'Kąt', radius: 'Promień', diameter: 'Średnica', tangent: 'Styczność', equal: 'Równe', collinear: 'Współliniowe', symmetry: 'Symetria',
+  curvature: 'Krzywizna G2', coordinateX: 'Współrzędna X', coordinateY: 'Współrzędna Y', arcLength: 'Długość łuku',
+};
 
 export default function ModelViewport({
   bodies,
@@ -3218,14 +3223,15 @@ export default function ModelViewport({
         </section>
       )}
       {activeSketchId && activeSketch?.constraints?.length > 0 && (showSketchConstraints || showSketchDimensions) && (
-        <div className="sketch-constraint-badges" aria-label="Wiązania szkicu">
+        <div className="sketch-constraint-badges" aria-label="Więzy szkicu">
+          <span className="sketch-constraint-badges-caption">Więzy</span>
           {activeSketch.constraints.filter((constraint) => {
             const isDimension = activeSketch.dimensions?.some((dimension) => dimension.constraintId === constraint.id);
             return isDimension ? showSketchDimensions : showSketchConstraints;
           }).map((constraint) => {
             const labels = { fixed: 'F', coincident: '●', horizontal: 'H', vertical: 'V', distance: '↔', distanceX: 'X', distanceY: 'Y', angle: '∠', radius: 'R', diameter: 'Ø', tangent: 'T', equal: '=', collinear: 'C', symmetry: 'S', curvature: 'κ', coordinateX: 'OX', coordinateY: 'OY', arcLength: '⌒' };
             const conflicting = solverAnalysis?.conflictConstraintIds?.includes(constraint.id);
-            return <button key={constraint.id} className={`${selectedSketchConstraintId === constraint.id ? 'selected' : ''} ${conflicting ? 'conflict' : ''}`} type="button" title={`${constraint.type}${constraint.value !== undefined ? `: ${constraint.value}` : ''}`} onClick={() => onSketchConstraintSelection?.(constraint.id)}>{labels[constraint.type] || '?'}</button>;
+            return <button key={constraint.id} className={`${selectedSketchConstraintId === constraint.id ? 'selected' : ''} ${conflicting ? 'conflict' : ''}`} type="button" data-constraint-type={constraint.type} title={`${CONSTRAINT_NAMES[constraint.type] || constraint.type}${constraint.value !== undefined ? `: ${constraint.value}${['angle'].includes(constraint.type) ? '°' : ' mm'}` : ''} · kliknij, aby zaznaczyć`} onClick={() => onSketchConstraintSelection?.(constraint.id)}>{labels[constraint.type] || '?'}</button>;
           })}
         </div>
       )}

@@ -100,12 +100,12 @@ async function stop(child) {
       if (!page) await delay(150);
     }
     if (!page) throw new Error('Nie załadowano interfejsu spakowanej aplikacji.');
-    await waitFor(page, `Boolean(document.querySelector('.license-info-dialog'))`, 'ekran licencji');
-    await waitFor(page, `[...document.querySelectorAll('.license-info-dialog button')].some((button) => button.textContent.includes('Przejdź do programu'))`, 'aktywny zalogowany profil', 15000);
-    const accountState = await evaluate(page, `({ entry: [...document.querySelectorAll('.license-info-dialog button')].some((button) => button.textContent.includes('Przejdź do programu')), verificationHook: typeof window.__madcadVerifyDocumentState, account: Boolean(document.querySelector('.license-account')) })`);
-    if (!accountState.entry || accountState.verificationHook !== 'undefined') throw new Error(`Skopiowany profil nie udostępnia zalogowanego wejścia albo pakiet zawiera hook testowy: ${JSON.stringify(accountState)}.`);
-    await evaluate(page, `[...document.querySelectorAll('.license-info-dialog button')].find((button) => button.textContent.includes('Przejdź do programu')).click()`);
-    await waitFor(page, `!document.querySelector('.license-info-dialog')`, 'wejście do programu po zalogowaniu');
+    // A signed-in profile goes straight to the program: the licence window opens
+    // only when the account check reports missing access.
+    await waitFor(page, `Boolean(document.querySelector('.modeling-shell'))`, 'interfejs programu', 15000);
+    await delay(2500);
+    const accountState = await evaluate(page, `({ dialog: Boolean(document.querySelector('.license-info-dialog')), verificationHook: typeof window.__madcadVerifyDocumentState })`);
+    if (accountState.dialog || accountState.verificationHook !== 'undefined') throw new Error(`Zalogowany profil nie wszedł od razu do programu albo pakiet zawiera hook testowy: ${JSON.stringify(accountState)}.`);
     await evaluate(page, `document.querySelector('button[aria-label^="Prymityw"]')?.click()`);
     await waitFor(page, `Boolean(document.querySelector('.command-dialog .confirm'))`, 'polecenie bryły w pakiecie');
     await evaluate(page, `document.querySelector('.command-dialog .confirm').click()`);

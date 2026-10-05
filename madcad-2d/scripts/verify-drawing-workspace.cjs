@@ -82,7 +82,7 @@ app.whenReady().then(async () => {
 
     await selectWorkspace(window, 'drawing');
     await waitFor(window, `document.querySelector('.drawing-empty')`, 'pusty obszar dokumentacji');
-    await waitFor(window, `document.querySelector('.modeling-shell')?.classList.contains('drawing-mode') && !document.querySelector('.model-browser') && !document.querySelector('.timeline') && ![...document.querySelectorAll('.app-menu button')].some((button) => button.textContent.trim() === 'Panel')`, 'odseparowany obszar arkusza bez przeglądarki modelu i osi historii');
+    await waitFor(window, `document.querySelector('.modeling-shell')?.classList.contains('drawing-mode') && !document.querySelector('.model-browser') && !document.querySelector('.timeline') && ![...document.querySelectorAll('.app-menu button')].some((button) => button.textContent.trim() === 'Przeglądarka')`, 'odseparowany obszar arkusza bez przeglądarki modelu i osi historii');
     if (!(await clickText(window, '.ribbon-tool', 'Nowy arkusz'))) throw new Error('Brak polecenia Nowy arkusz.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.length === 1 && document.querySelector('.drawing-paper')`, 'utworzony arkusz');
     if (!(await clickRibbonCommand(window, 'Tabliczka rysunkowa'))) throw new Error('Brak polecenia Tabliczka rysunkowa.');
