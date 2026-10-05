@@ -2366,7 +2366,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'offsetFace') {
         next.previewFeature = createFeature('offsetFace', {
-          name: current.previewFeature?.name || nextFeatureName('Offset Face'),
+          name: current.previewFeature?.name || nextFeatureName(current.asExtrude ? 'Wyciągnięcie' : 'Offset Face'),
           targetBodyId: next.targetBodyId || targetBodyId,
           referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           distance: next.distance,
@@ -2858,6 +2858,8 @@ export default function ModelingWorkspace() {
     else if (sketch) setSelection({ kind: 'sketch', id: sketch.id });
     setNotice(lastProfile
       ? 'Szkic zakończony. Ostatni profil jest zaznaczony i gotowy do operacji bryłowej.'
+      : finishedSource.kind === 'all-used'
+        ? 'Szkic zakończony. Jego profile są już użyte w operacjach, a zmiany przeliczyły model.'
       : finishedSource.kind === 'open-chain'
         ? 'Szkic zakończony. Otwarty łańcuch jest widoczny i gotowy do cienkiego wyciągnięcia.'
         : 'Szkic zakończony. Obrys nie jest domknięty; popraw przerwy, aby utworzyć profil bryłowy.');
@@ -4469,8 +4471,16 @@ export default function ModelingWorkspace() {
   const openExtrude = () => {
     if (readOnly) return readOnlyNotice();
     if (!activeSketchId && pressPullFace?.descriptor?.geometry === 'PLANE') {
-      openOffsetFace();
+      openOffsetFace({ asExtrude: true });
       setNotice('Wyciąganie ściany jest aktywne. Przeciągnij uchwyt albo wpisz odległość; wartość ujemna wciska ścianę do środka.');
+      return;
+    }
+    if (!activeSketchId && selection?.kind !== 'profile' && (selectedEdgeItems.length || selectedFaceItems.length || selectedBodyIds.length)) {
+      setNotice(selectedEdgeItems.length
+        ? 'Zaznaczona jest krawędź. Wyciągnij działa na płaskiej ścianie albo zamkniętym profilu — kliknij środek ściany.'
+        : selectedFaceItems.length
+          ? 'Wyciągnij działa na jednej płaskiej ścianie. Zaznacz płaską ścianę albo zamknięty profil szkicu.'
+          : 'Zaznacz płaską ścianę bryły albo zamknięty profil szkicu, który chcesz wyciągnąć.');
       return;
     }
     if (canExtrudeOpenChain) {
@@ -4511,6 +4521,10 @@ export default function ModelingWorkspace() {
     }
     if (source.kind === 'open-chain') {
       beginOpenChainExtrude(source.sketch.id, source.entityIds);
+      return;
+    }
+    if (source.kind === 'all-used') {
+      setNotice('Wszystkie profile są już wyciągnięte. Zaznacz płaską ścianę bryły, wskaż profil albo narysuj nowy szkic.');
       return;
     }
     if (source.kind === 'incomplete') {
@@ -5196,7 +5210,9 @@ export default function ModelingWorkspace() {
     window.setTimeout(() => updateCommand(next), 0);
   };
 
-  const openOffsetFace = () => {
+  // `asExtrude`: opened by Extrude on a planar face, so it reads like Extrude
+  // (title, 10 mm default, "Wyciągnięcie N" in the timeline) instead of Offset Face.
+  const openOffsetFace = ({ asExtrude = false } = {}) => {
     if (readOnly) return readOnlyNotice();
     const selectedFace = selectedFaceItems.length === 1 ? selectedFaceItems[0] : null;
     const body = selectedFace && engine.bodies.find((candidate) => candidate.id === selectedFace.bodyId);
@@ -5206,7 +5222,7 @@ export default function ModelingWorkspace() {
       return;
     }
     const reference = { ...createTopologyReference({ selection: selectedFace, descriptor: record.descriptor, label: 'Offset Face — ściana' }), scope: 'feature-input' };
-    const next = { type: 'offsetFace', targetBodyId: selectedFace.bodyId, distance: '1', faceLabel: `Płaska ściana${Number(record.descriptor?.area) > 0 ? ` · ${Number(record.descriptor.area).toLocaleString('pl-PL', { maximumFractionDigits: 2 })} mm²` : ''}${body.name ? ` · ${body.name}` : ''}`, topologyReferences: [reference], previewFeature: null };
+    const next = { type: 'offsetFace', asExtrude, targetBodyId: selectedFace.bodyId, distance: asExtrude ? '10' : '1', faceLabel: `Płaska ściana${Number(record.descriptor?.area) > 0 ? ` · ${Number(record.descriptor.area).toLocaleString('pl-PL', { maximumFractionDigits: 2 })} mm²` : ''}${body.name ? ` · ${body.name}` : ''}`, topologyReferences: [reference], previewFeature: null };
     setCommand(next);
     window.setTimeout(() => updateCommand(next), 0);
   };
@@ -5654,7 +5670,7 @@ export default function ModelingWorkspace() {
     else if (feature.type === 'primitive') setCommand({ type: 'primitive', editId: feature.id, name: feature.name, primitiveType: feature.primitiveType, x: feature.x, y: feature.y, z: feature.z, width: feature.width || '20', depth: feature.depth || '20', height: feature.height || '20', radius: feature.radius || '10', majorRadius: feature.majorRadius || '15', minorRadius: feature.minorRadius || '4', previewFeature: feature });
     else if (feature.type === 'formBody') setCommand({ type: 'formBody', editId: feature.id, name: feature.name, width: feature.width, depth: feature.depth, height: feature.height, subdivisions: feature.subdivisions, symmetry: feature.symmetry || 'none', controlOffsets: feature.controlOffsets || Array.from({ length: 8 }, () => ['0', '0', '0']), selectedControlKind: 'point', selectedControlPoint: 0, selectedControlEdge: 0, selectedControlFace: 0, creaseEdges: feature.creaseEdges || [], insertEdgeEnabled: feature.insertEdgeEnabled === true, insertEdgeIndex: feature.insertEdgeIndex || 0, insertEdgePosition: feature.insertEdgePosition || '0.5', insertEdgeOffsets: feature.insertEdgeOffsets || [], bridgeEnabled: feature.bridgeEnabled === true, bridgeFirstFace: feature.bridgeFirstFace || 0, bridgeSecondFace: feature.bridgeSecondFace ?? 1, bridgeInset: feature.bridgeInset || '0.45', bridgeOffsets: feature.bridgeOffsets || [], fillHoleEnabled: feature.fillHoleEnabled === true, fillHoleFace: feature.fillHoleFace || 0, fillHoleOffsets: feature.fillHoleOffsets || [], x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', previewFeature: feature });
     else if (feature.type === 'transform') setCommand({ type: 'transform', editId: feature.id, targetBodyId: feature.targetBodyId, mode: feature.mode, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', angle: feature.angle || '0', originX: feature.originX || '0', originY: feature.originY || '0', originZ: feature.originZ || '0', previewFeature: feature });
-    else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: `Płaska ściana · ${actualBodies.find((body) => body.id === feature.targetBodyId)?.name || 'bryła'}`, previewFeature: feature });
+    else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', asExtrude: /^Wyciągnięcie\b/.test(feature.name || ''), editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: `Płaska ściana · ${actualBodies.find((body) => body.id === feature.targetBodyId)?.name || 'bryła'}`, previewFeature: feature });
     else if (feature.type === 'textSolid') setCommand({ type: 'textSolid', editId: feature.id, text: feature.text, fontSize: feature.fontSize, depth: feature.depth, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', operation: feature.operation, targetBodyId: feature.targetBodyId || null, placement: feature.placement || 'world', topologyReferences: (feature.referenceIds || []).map((id) => document.references.find((reference) => reference.id === id)).filter(Boolean), previewFeature: feature });
     else if (feature.type === 'hole') {
       const holeOptions = { holeType: feature.holeType || 'simple', extent: feature.extent || 'distance', diameter: feature.diameter, depth: feature.depth || '10', counterboreDiameter: feature.counterboreDiameter || '10', counterboreDepth: feature.counterboreDepth || '3', countersinkDiameter: feature.countersinkDiameter || '10', countersinkAngle: feature.countersinkAngle || '90', threadMode: feature.threadMode || 'none', threadDiameter: feature.threadDiameter || '10', threadPitch: feature.threadPitch || '1.5', threadLength: feature.threadLength || feature.depth || '8', threadDirection: feature.threadDirection || 'right', holeStandard: feature.holeStandard || 'custom', holeApplication: feature.holeApplication || 'custom', standardSize: feature.standardSize || 'M6', clearanceClass: feature.clearanceClass || 'medium', threadClass: feature.threadClass ?? '6H', threadDesignation: feature.threadDesignation || '', threadInspection: feature.threadInspection || '', pipePreparation: feature.pipePreparation || 'conical', threadTaper: feature.threadTaper || '0', threadProfileAngle: feature.threadProfileAngle || '60', diameterToleranceLower: feature.diameterToleranceLower ?? '', diameterToleranceUpper: feature.diameterToleranceUpper ?? '', clearanceProfile: feature.clearanceProfile || 'nominal', clearance: feature.clearance || '0.2' };

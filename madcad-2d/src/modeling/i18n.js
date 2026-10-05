@@ -999,6 +999,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Brak skrótu': 'No shortcut',
   'Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.': 'Ready. Choose “Create sketch” to start modeling.',
   'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.': 'Ready. Start a 2D drawing or open a project.',
+  'Wartość dodatnia wyciąga ścianę na zewnątrz, ujemna wciska ją w bryłę.': 'A positive value pulls the face out; a negative one pushes it into the body.',
   'Bryła po ścieżce': 'Sweep',
   'Powierzchnia wyciągnięta': 'Surface Extrude',
   'Powierzchnia obrotowa': 'Surface Revolve',

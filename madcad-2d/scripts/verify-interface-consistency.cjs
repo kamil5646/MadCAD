@@ -439,7 +439,7 @@ app.whenReady().then(async () => {
         horizontalOverflow: Boolean(panel && panel.scrollWidth > panel.clientWidth + 1),
       };
     })()`);
-    if (commandPanel.title !== 'Odsuń ścianę' || !commandPanel.floatingRight || commandPanel.width < 270 || commandPanel.width > 310 || !commandPanel.footerPinned || !commandPanel.fields || !commandPanel.actions.includes('Anuluj') || !commandPanel.actions.some((label) => ['OK', 'Obliczanie…'].includes(label)) || commandPanel.horizontalOverflow) throw new Error(`Panel operacji nie zachowuje układu Fusion: ${JSON.stringify(commandPanel)}`);
+    if (commandPanel.title !== 'Wyciągnięcie' || !commandPanel.floatingRight || commandPanel.width < 270 || commandPanel.width > 310 || !commandPanel.footerPinned || !commandPanel.fields || !commandPanel.actions.includes('Anuluj') || !commandPanel.actions.some((label) => ['OK', 'Obliczanie…'].includes(label)) || commandPanel.horizontalOverflow) throw new Error(`Panel operacji nie zachowuje układu Fusion: ${JSON.stringify(commandPanel)}`);
     await fs.writeFile(commandPanelScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog.docked [aria-label="Zamknij polecenie"]')?.click()`);
     await waitFor(window, `!document.querySelector('.command-dialog.docked')`, 'zamknięcie panelu operacji');

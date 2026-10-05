@@ -2037,7 +2037,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetSelection)}, 'replace')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(offsetSelection.id)}`, 'ściana wskazana do Press Pull');
   await clickTool('Wyciągnij');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Odsuń ścianę') && document.querySelector('.direct-handle-hit')`, 'wyciąganie zaznaczonej ściany wspólnym manipulatorem');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'offsetFace' && document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie') && document.querySelector('.direct-handle-hit')`, 'wyciąganie zaznaczonej ściany wspólnym manipulatorem');
   await setCommandField('Odległość', '2');
   await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok'`, 'podgląd odsuniętej ściany', modelingTimeoutMs);
   await confirmDialog();
