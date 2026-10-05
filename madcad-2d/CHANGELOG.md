@@ -1,5 +1,13 @@
 # Changelog
 
+## Niewydane — silnik OpenCascade 8
+
+- jądro geometrii przeniesione na replicad 1.1 / OpenCascade 8.0.1 (z 7.x): nowsze algorytmy operacji logicznych, zaokrągleń i przekrojów; objętości, pola i topologia wszystkich projektów testowych bez zmian;
+- wymiary brył (prostopadłościan ograniczający) są dokładne — wcześniej powiększone o tolerancję (np. 85,06 × 50,06 × 3,06 zamiast 85 × 50 × 3 mm);
+- pełne walce, sfery i torusy nie są już „nieznanymi” ścianami: mają typ, promień i oś (dotyczyło też starego silnika);
+- błędy jądra pokazują jego komunikat (np. Standard_OutOfRange) zamiast „[object WebAssembly.Exception]”; Project to Surface wyjaśnia, którego punktu nie da się rzutować;
+- linie przekrojów na arkuszach 2D i Project to Surface używają jednoznacznych wariantów funkcji jądra (połączone przeciążenia OCCT 8 wybierały inne warianty bez błędu).
+
 ## Niewydane — podstawy wyciągania
 
 - „Wyciągnij” bez zaznaczenia wybiera najnowszy profil, którego nie używa jeszcze żadna operacja (wcześniej brał ostatni profil, nawet już wyciągnięty, i druga operacja dublowała bryłę bez widocznego efektu); po zakończeniu szkicu zaznacza się wolny profil;

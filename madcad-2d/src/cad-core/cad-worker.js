@@ -1,5 +1,5 @@
 import opencascade from 'replicad-opencascadejs';
-import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url';
+import opencascadeWasm from 'replicad-opencascadejs/wasm?url';
 import manifoldModule from 'manifold-3d';
 import manifoldWasm from 'manifold-3d/manifold.wasm?url';
 import {
@@ -209,15 +209,15 @@ class RawMeshShape {
 
 function rationalConicCurve(segment) {
   const oc = getOC();
-  const poles = new oc.TColgp_Array1OfPnt2d_2(1, 3);
-  const weights = new oc.TColStd_Array1OfReal_2(1, 3);
-  const points = [segment.start, segment.control, segment.end].map(([x, y]) => new oc.gp_Pnt2d_3(x, y));
+  const poles = new oc.NCollection_Array1_gp_Pnt2d(1, 3);
+  const weights = new oc.NCollection_Array1_double(1, 3);
+  const points = [segment.start, segment.control, segment.end].map(([x, y]) => new oc.gp_Pnt2d(x, y));
   points.forEach((point, index) => poles.SetValue(index + 1, point));
   weights.SetValue(1, 1);
   weights.SetValue(2, segment.rho);
   weights.SetValue(3, 1);
-  const bezier = new oc.Geom2d_BezierCurve_2(poles, weights);
-  const curve = new Curve2D(new oc.Handle_Geom2d_Curve_2(bezier));
+  const bezier = new oc.Geom2d_BezierCurve(poles, weights);
+  const curve = new Curve2D(bezier);
   points.forEach((point) => point.delete());
   poles.delete();
   weights.delete();
@@ -465,7 +465,7 @@ function prismWireSurface(drawing, profile, distance) {
   const sketch = sketchDrawingOnProfile(drawing, profile);
   const wire = sketch.wire.clone();
   const vector = new Vector(profileNormal(profile).map((value) => value * distance));
-  const builder = new (getOC().BRepPrimAPI_MakePrism_1)(wire.wrapped, vector.wrapped, true, true);
+  const builder = new (getOC().BRepPrimAPI_MakePrism)(wire.wrapped, vector.wrapped, true, true);
   const shape = cast(builder.Shape());
   builder.delete();
   vector.delete();
@@ -485,7 +485,7 @@ function revolveWireSurface(drawing, profile, axis, angle) {
   const sketch = sketchDrawingOnProfile(drawing, profile);
   const wire = sketch.wire.clone();
   const revolutionAxis = makeAx1(axis.origin, axis.direction);
-  const builder = new (getOC().BRepPrimAPI_MakeRevol_1)(wire.wrapped, revolutionAxis, angle * Math.PI / 180, true);
+  const builder = new (getOC().BRepPrimAPI_MakeRevol)(wire.wrapped, revolutionAxis, angle * Math.PI / 180, true);
   const shape = cast(builder.Shape());
   builder.delete();
   revolutionAxis.delete();
@@ -506,7 +506,7 @@ function prismShape(shape, direction, distance, startOffset = 0) {
     ? shape.clone().translate(direction.map((value) => value * startOffset))
     : shape;
   const vector = new Vector(direction.map((value) => value * distance));
-  const builder = new (getOC().BRepPrimAPI_MakePrism_1)(moved.wrapped, vector.wrapped, true, true);
+  const builder = new (getOC().BRepPrimAPI_MakePrism)(moved.wrapped, vector.wrapped, true, true);
   const result = cast(builder.Shape());
   builder.delete();
   vector.delete();
@@ -723,18 +723,17 @@ function revolveProfile(profile, axis, angle) {
 
 function makeExactBSplineEdge(data, reversed = false) {
   const oc = getOC();
-  const poles = new oc.TColgp_Array1OfPnt_2(1, data.poles.length);
-  const weights = new oc.TColStd_Array1OfReal_2(1, data.weights.length);
-  const knots = new oc.TColStd_Array1OfReal_2(1, data.knots.length);
-  const multiplicities = new oc.TColStd_Array1OfInteger_2(1, data.multiplicities.length);
+  const poles = new oc.NCollection_Array1_gp_Pnt(1, data.poles.length);
+  const weights = new oc.NCollection_Array1_double(1, data.weights.length);
+  const knots = new oc.NCollection_Array1_double(1, data.knots.length);
+  const multiplicities = new oc.NCollection_Array1_int(1, data.multiplicities.length);
   const points = [];
   let spline;
-  let handle;
   let builder;
   let edge;
   try {
     data.poles.forEach((coordinates, index) => {
-      const point = new oc.gp_Pnt_3(coordinates[0], coordinates[1], coordinates[2]);
+      const point = new oc.gp_Pnt(coordinates[0], coordinates[1], coordinates[2]);
       points.push(point);
       poles.SetValue(index + 1, point);
       weights.SetValue(index + 1, data.weights[index]);
@@ -743,9 +742,8 @@ function makeExactBSplineEdge(data, reversed = false) {
       knots.SetValue(index + 1, value);
       multiplicities.SetValue(index + 1, data.multiplicities[index]);
     });
-    spline = new oc.Geom_BSplineCurve_2(poles, weights, knots, multiplicities, data.degree, Boolean(data.periodic), true);
-    handle = new oc.Handle_Geom_Curve_2(spline);
-    builder = new oc.BRepBuilderAPI_MakeEdge_25(handle, data.firstParameter, data.lastParameter);
+    spline = new oc.Geom_BSplineCurve(poles, weights, knots, multiplicities, data.degree, Boolean(data.periodic), true);
+    builder = new oc.BRepBuilderAPI_MakeEdge(spline, data.firstParameter, data.lastParameter);
     if (!builder.IsDone()) throw new Error('OpenCascade nie utworzył krawędzi z zapisanej B-spline.');
     edge = cast(builder.Edge());
     if (reversed) {
@@ -757,7 +755,7 @@ function makeExactBSplineEdge(data, reversed = false) {
   } finally {
     points.forEach((point) => point.delete());
     builder?.delete();
-    handle?.delete();
+    spline?.delete();
     multiplicities.delete();
     knots.delete();
     weights.delete();
@@ -810,7 +808,7 @@ function surfaceSweepDrawing(profileDrawing, path) {
   const xDir = crossDirection.multiply(-1);
   const profilePlane = new Plane(startPoint, xDir, normal);
   const profileSketch = profileDrawing.sketchOnPlane(profilePlane);
-  const builder = new (getOC().BRepOffsetAPI_MakePipe_1)(spine.wire.wrapped, profileSketch.wire.wrapped);
+  const builder = new (getOC().BRepOffsetAPI_MakePipe)(spine.wire.wrapped, profileSketch.wire.wrapped);
   const shape = cast(builder.Shape());
   builder.delete();
   profileSketch.delete();
@@ -884,7 +882,7 @@ function thickenLoftProfiles(profiles, loftMode, thickness, wallSide, surfaceOff
 function stitchSurfaceShapes(shapes, tolerance) {
   const oc = getOC();
   const sewing = new oc.BRepBuilderAPI_Sewing(tolerance, true, true, true, false);
-  const progress = new oc.Message_ProgressRange_1();
+  const progress = new oc.Message_ProgressRange();
   try {
     shapes.forEach((shape) => sewing.Add(shape.wrapped));
     sewing.Perform(progress);
@@ -945,20 +943,19 @@ function smoothBrepFromPatches(patches, tolerance = GEOMETRY_POLICY.linearTolera
       const rows = grid.length;
       const columns = grid[0]?.length || 0;
       if (rows < 3 || columns < 3 || grid.some((row) => row.length !== columns)) throw new Error('Gładki Form wymaga regularnej siatki punktów każdego płata.');
-      const points = new oc.TColgp_Array2OfPnt_2(1, rows, 1, columns);
+      const points = new oc.NCollection_Array2_gp_Pnt(1, rows, 1, columns);
       const allocatedPoints = [];
       const u = knotData(rows);
       const v = knotData(columns);
-      const uKnots = new oc.TColStd_Array1OfReal_2(1, u.values.length);
-      const vKnots = new oc.TColStd_Array1OfReal_2(1, v.values.length);
-      const uMultiplicities = new oc.TColStd_Array1OfInteger_2(1, u.multiplicities.length);
-      const vMultiplicities = new oc.TColStd_Array1OfInteger_2(1, v.multiplicities.length);
+      const uKnots = new oc.NCollection_Array1_double(1, u.values.length);
+      const vKnots = new oc.NCollection_Array1_double(1, v.values.length);
+      const uMultiplicities = new oc.NCollection_Array1_int(1, u.multiplicities.length);
+      const vMultiplicities = new oc.NCollection_Array1_int(1, v.multiplicities.length);
       let spline;
-      let surfaceHandle;
       let maker;
       try {
         grid.forEach((row, rowIndex) => row.forEach((coordinates, columnIndex) => {
-          const point = new oc.gp_Pnt_3(...coordinates);
+          const point = new oc.gp_Pnt(...coordinates);
           allocatedPoints.push(point);
           points.SetValue(rowIndex + 1, columnIndex + 1, point);
         }));
@@ -970,14 +967,13 @@ function smoothBrepFromPatches(patches, tolerance = GEOMETRY_POLICY.linearTolera
           vKnots.SetValue(index + 1, value);
           vMultiplicities.SetValue(index + 1, v.multiplicities[index]);
         });
-        spline = new oc.Geom_BSplineSurface_1(points, uKnots, vKnots, uMultiplicities, vMultiplicities, u.degree, v.degree, false, false);
-        surfaceHandle = new oc.Handle_Geom_Surface_2(spline);
-        maker = new oc.BRepBuilderAPI_MakeFace_8(surfaceHandle, Math.max(tolerance, 1e-6));
+        spline = new oc.Geom_BSplineSurface(points, uKnots, vKnots, uMultiplicities, vMultiplicities, u.degree, v.degree, false, false);
+        maker = new oc.BRepBuilderAPI_MakeFace(spline, Math.max(tolerance, 1e-6));
         if (!maker.IsDone()) throw new Error('OpenCascade nie utworzył ściany B-spline Form.');
         faces.push(cast(maker.Face()));
       } finally {
         maker?.delete();
-        surfaceHandle?.delete();
+        spline?.delete();
         vMultiplicities.delete();
         uMultiplicities.delete();
         vKnots.delete();
@@ -999,8 +995,8 @@ function smoothBrepFromPatches(patches, tolerance = GEOMETRY_POLICY.linearTolera
 
 function trimSurfaceWithSolid(surface, tool) {
   const oc = getOC();
-  const progress = new oc.Message_ProgressRange_1();
-  const cutter = new oc.BRepAlgoAPI_Cut_3(surface.wrapped, tool.wrapped, progress);
+  const progress = new oc.Message_ProgressRange();
+  const cutter = new oc.BRepAlgoAPI_Cut(surface.wrapped, tool.wrapped, progress);
   let result;
   try {
     cutter.Build(progress);
@@ -1061,18 +1057,18 @@ function extendPlanarSurfaceEdge(surface, reference, distance) {
     const extendedStart = start.map((value, axis) => value + outward[axis]);
     const extendedEnd = end.map((value, axis) => value + outward[axis]);
     const points = [start, end, extendedEnd, extendedStart].map((coordinates) => {
-      const point = new oc.gp_Pnt_3(...coordinates);
+      const point = new oc.gp_Pnt(...coordinates);
       pointHandles.push(point);
       return point;
     });
-    for (let index = 0; index < 4; index += 1) edgeBuilders.push(new oc.BRepBuilderAPI_MakeEdge_3(points[index], points[(index + 1) % 4]));
-    wireBuilder = new oc.BRepBuilderAPI_MakeWire_5(...edgeBuilders.map((builder) => builder.Edge()));
+    for (let index = 0; index < 4; index += 1) edgeBuilders.push(new oc.BRepBuilderAPI_MakeEdge(points[index], points[(index + 1) % 4]));
+    wireBuilder = new oc.BRepBuilderAPI_MakeWire(...edgeBuilders.map((builder) => builder.Edge()));
     if (!wireBuilder.IsDone()) throw new Error('OpenCascade nie utworzył obrysu przedłużenia.');
-    faceBuilder = new oc.BRepBuilderAPI_MakeFace_15(wireBuilder.Wire(), true);
+    faceBuilder = new oc.BRepBuilderAPI_MakeFace(wireBuilder.Wire(), true);
     if (!faceBuilder.IsDone()) throw new Error('OpenCascade nie utworzył płata przedłużenia.');
     strip = cast(faceBuilder.Face());
-    progress = new oc.Message_ProgressRange_1();
-    fuser = new oc.BRepAlgoAPI_Fuse_3(surface.wrapped, strip.wrapped, progress);
+    progress = new oc.Message_ProgressRange();
+    fuser = new oc.BRepAlgoAPI_Fuse(surface.wrapped, strip.wrapped, progress);
     fuser.Build(progress);
     if (!fuser.IsDone()) throw new Error('OpenCascade nie połączył przedłużenia z powierzchnią.');
     fuser.SimplifyResult(true, true, GEOMETRY_POLICY.linearTolerance);
@@ -1390,7 +1386,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
     else if (feature.primitiveType === 'torus') {
       if (feature.minorRadiusValue >= feature.majorRadiusValue) throw new Error('Promień przekroju Torus musi być mniejszy od promienia głównego.');
       const axis = makeAx2([x, y, z], [0, 0, 1]);
-      const builder = new (getOC().BRepPrimAPI_MakeTorus_5)(axis, feature.majorRadiusValue, feature.minorRadiusValue);
+      const builder = new (getOC().BRepPrimAPI_MakeTorus)(axis, feature.majorRadiusValue, feature.minorRadiusValue);
       shape = cast(builder.Shape());
       builder.delete();
       axis.delete();
@@ -1518,7 +1514,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
       const center = face.center.toTuple();
       const normal = face.normalAt(center).toTuple();
       const vector = new Vector(normal.map((value) => value * feature.distanceValue));
-      const builder = new (getOC().BRepPrimAPI_MakePrism_1)(face.wrapped, vector.wrapped, true, true);
+      const builder = new (getOC().BRepPrimAPI_MakePrism)(face.wrapped, vector.wrapped, true, true);
       const tool = cast(builder.Shape());
       target.shape = feature.distanceValue > 0 ? target.shape.fuse(tool) : target.shape.cut(tool);
       tool.delete();
@@ -2074,15 +2070,15 @@ function runFeature(feature, bodyMap, bodyOrder) {
       const descriptors = faces.map((face) => faceDescriptor(face));
       const indices = new Set((feature.topologyReferences || []).map((reference) => matchingFaceIndex(reference, descriptors)));
       if (!indices.size) throw new Error('Draft wymaga co najmniej jednej wskazanej ściany.');
-      origin = new oc.gp_Pnt_3(...feature.neutralPlane.origin);
-      direction = new oc.gp_Dir_4(...feature.neutralPlane.normal);
-      neutralPlane = new oc.gp_Pln_3(origin, direction);
-      drafter = new oc.BRepOffsetAPI_DraftAngle_2(target.shape.wrapped);
+      origin = new oc.gp_Pnt(...feature.neutralPlane.origin);
+      direction = new oc.gp_Dir(...feature.neutralPlane.normal);
+      neutralPlane = new oc.gp_Pln(origin, direction);
+      drafter = new oc.BRepOffsetAPI_DraftAngle(target.shape.wrapped);
       for (const index of indices) {
         drafter.Add(faces[index].wrapped, direction, feature.angleValue * Math.PI / 180, neutralPlane, false);
         if (!drafter.AddDone()) throw new Error(`OpenCascade odrzucił ścianę Draft (status ${drafter.Status()}).`);
       }
-      progress = new oc.Message_ProgressRange_1();
+      progress = new oc.Message_ProgressRange();
       drafter.Build(progress);
       if (!drafter.IsDone()) throw new Error(`OpenCascade nie zbudował Draft (status ${drafter.Status()}).`);
       target.shape = cast(drafter.Shape());
@@ -2189,8 +2185,8 @@ function runFeature(feature, bodyMap, bodyOrder) {
       const depth = Math.max(GEOMETRY_POLICY.linearTolerance * 100, Math.min(...dimensions) * 0.05);
       tool = extrudeProfile(feature.profile, { startDelta: 0, distance: -Math.sign(alignment) * depth }, feature);
       sourceProperties = measureShapeVolumeProperties(source);
-      progress = new (getOC().Message_ProgressRange_1)();
-      fuser = new (getOC().BRepAlgoAPI_Fuse_3)(source.wrapped, tool.wrapped, progress);
+      progress = new (getOC().Message_ProgressRange)();
+      fuser = new (getOC().BRepAlgoAPI_Fuse)(source.wrapped, tool.wrapped, progress);
       fuser.Build(progress);
       if (!fuser.IsDone()) throw new Error('OpenCascade nie utworzył podziału ściany.');
       result = cast(fuser.Shape());
@@ -2243,7 +2239,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
         }
       }
       const oc = getOC();
-      upgrader = new oc.ShapeUpgrade_UnifySameDomain_2(source.wrapped, true, true, false);
+      upgrader = new oc.ShapeUpgrade_UnifySameDomain(source.wrapped, true, true, false);
       upgrader.SetLinearTolerance(GEOMETRY_POLICY.linearTolerance);
       upgrader.SetAngularTolerance(GEOMETRY_POLICY.angularTolerance);
       edges.filter((edge) => !mergeEdgeHashes.has(edge.hashCode)).forEach((edge) => upgrader.KeepShape(edge.wrapped));
@@ -2299,7 +2295,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
       const distance = sourceNormal.reduce((sum, value, index) => sum + value * (destinationCenter[index] - sourceCenter[index]), 0);
       if (Math.abs(distance) <= GEOMETRY_POLICY.linearTolerance) throw new Error('Powierzchnia docelowa Replace Face pokrywa się z zastępowaną ścianą.');
       vector = new Vector(sourceNormal.map((value) => value * distance));
-      builder = new (getOC().BRepPrimAPI_MakePrism_1)(sourceFace.wrapped, vector.wrapped, true, true);
+      builder = new (getOC().BRepPrimAPI_MakePrism)(sourceFace.wrapped, vector.wrapped, true, true);
       tool = cast(builder.Shape());
       target.shape = distance > 0 ? target.shape.fuse(tool) : target.shape.cut(tool);
       const resultFaces = target.shape.faces;
@@ -2413,6 +2409,24 @@ function selectedFaceHashes(shape, references) {
   }
 }
 
+// The centre of mass of a full cylinder, sphere or torus lies on its axis, off
+// the face; projecting it onto the surface is undefined and OpenCascade throws,
+// which used to turn every such face into UNKNOWN_FACE. Fall back to the normal
+// at the face's parametric middle.
+function faceNormalNear(face, point) {
+  let normal;
+  try {
+    normal = face.normalAt(point);
+  } catch {
+    normal = face.normalAt();
+  }
+  try {
+    const vector = normal.toTuple();
+    const length = Math.hypot(...vector);
+    return length > 1e-12 ? vector.map((value) => value / length) : vector;
+  } finally { normal.delete?.(); }
+}
+
 function faceDescriptor(face) {
   let properties;
   try {
@@ -2423,7 +2437,7 @@ function faceDescriptor(face) {
       center,
       area: properties.area,
       centerOfMass: [...properties.centerOfMass],
-      normal: face.normalAt(center).toTuple(),
+      normal: faceNormalNear(face, center),
       orientation: face.orientation,
     };
     if (descriptor.geometry === 'CYLINDRE') {
@@ -2448,12 +2462,17 @@ function faceDescriptor(face) {
       adaptor.delete();
     } else if (descriptor.geometry === 'TORUS') {
       const adaptor = face._geomAdaptor();
-      const torus = adaptor.Torus();
-      descriptor.majorRadius = torus.MajorRadius();
-      descriptor.minorRadius = torus.MinorRadius();
-      descriptor.radius = descriptor.minorRadius;
-      torus.delete();
-      adaptor.delete();
+      try {
+        const torus = adaptor.Torus();
+        descriptor.majorRadius = torus.MajorRadius();
+        descriptor.minorRadius = torus.MinorRadius();
+        descriptor.radius = descriptor.minorRadius;
+        torus.delete();
+      } catch {
+        // Some kernel builds do not expose gp_Torus; keep the face typed without radii.
+      } finally {
+        adaptor.delete();
+      }
     }
     return descriptor;
   } catch (_error) {
@@ -2467,7 +2486,6 @@ function edgeDescriptor(edge) {
   let adaptor;
   let circle;
   let circleCenter;
-  let bsplineHandle;
   let bspline;
   try {
     const start = edge.startPoint.toTuple();
@@ -2499,8 +2517,7 @@ function edgeDescriptor(edge) {
     }
     if (descriptor.geometry === 'BSPLINE_CURVE' && !descriptor.closed) {
       adaptor = adaptor || edge._geomAdaptor();
-      bsplineHandle = adaptor.BSpline();
-      bspline = bsplineHandle.get();
+      bspline = adaptor.BSpline();
       descriptor.samples = Array.from({ length: 25 }, (_unused, index) => samplePoint(index / 24));
       descriptor.bspline = {
         degree: bspline.Degree(),
@@ -2523,9 +2540,23 @@ function edgeDescriptor(edge) {
   } finally {
     circleCenter?.delete();
     circle?.delete();
-    bsplineHandle?.delete();
+    bspline?.delete();
     adaptor?.delete();
   }
+}
+
+// OCCT 8 bindings raise native WebAssembly exceptions without a message;
+// decode them so the user sees the kernel's reason instead of "[object ...]".
+function kernelErrorText(error) {
+  if (typeof WebAssembly !== 'undefined' && WebAssembly.Exception && error instanceof WebAssembly.Exception) {
+    try {
+      const [type, message] = getOC().getExceptionMessage(error);
+      return `${message || type || 'błąd jądra OpenCascade'}${message && type ? ` (${type})` : ''}`;
+    } catch {
+      return 'Błąd jądra OpenCascade.';
+    }
+  }
+  return error?.message || String(error);
 }
 
 function projectPointsToSurface(evaluated, { bodyId, faceId, points } = {}) {
@@ -2539,29 +2570,36 @@ function projectPointsToSurface(evaluated, { bodyId, faceId, points } = {}) {
   const faces = evaluated.kernelBodies[bodyIndex].shape.faces;
   const face = faces[faceIndex];
   const oc = getOC();
-  const uvArray = new oc.TColgp_Array1OfPnt2d_2(1, points.length);
+  const uvArray = new oc.NCollection_Array1_gp_Pnt2d(1, points.length);
   const uvPoints = [];
   let approximation;
   let bspline2dHandle;
-  let curve2dHandle;
   let surfaceHandle;
   let builder;
   let projectedEdge;
   try {
     points.forEach((point, index) => {
-      const [u, v] = face.uvCoordinates(point);
+      let u;
+      let v;
+      try {
+        [u, v] = face.uvCoordinates(point);
+      } catch (error) {
+        throw new Error(`Punktu ${point.map((value) => Number(value.toFixed(3))).join(', ')} nie da się jednoznacznie rzutować na tę ścianę (${kernelErrorText(error)}). Wybierz inną ścianę albo przesuń krzywą.`);
+      }
       if (![u, v].every(Number.isFinite)) throw new Error('Nie udało się wyznaczyć współrzędnych UV na powierzchni.');
-      const uvPoint = new oc.gp_Pnt2d_3(u, v);
+      const uvPoint = new oc.gp_Pnt2d(u, v);
       uvPoints.push(uvPoint);
       uvArray.SetValue(index + 1, uvPoint);
     });
     const degree = Math.min(3, points.length - 1);
-    approximation = new oc.Geom2dAPI_PointsToBSpline_2(uvArray, degree, degree, oc.GeomAbs_Shape.GeomAbs_C0, GEOMETRY_POLICY.linearTolerance);
+    // The 5-argument constructor resolves to the weighted overload under the
+    // OCCT 8 bindings (degree 5 instead of the requested one); Init is exact.
+    approximation = new oc.Geom2dAPI_PointsToBSpline();
+    approximation.Init(uvArray, degree, degree, oc.GeomAbs_Shape.GeomAbs_C0, GEOMETRY_POLICY.linearTolerance);
     if (!approximation.IsDone()) throw new Error('OpenCascade nie utworzył krzywej UV na powierzchni.');
     bspline2dHandle = approximation.Curve();
-    curve2dHandle = new oc.Handle_Geom2d_Curve_2(bspline2dHandle.get());
-    surfaceHandle = oc.BRep_Tool.Surface_2(face.wrapped);
-    builder = new oc.BRepBuilderAPI_MakeEdge_30(curve2dHandle, surfaceHandle);
+    surfaceHandle = oc.BRep_Tool.Surface(face.wrapped);
+    builder = new oc.BRepBuilderAPI_MakeEdge(bspline2dHandle, surfaceHandle);
     if (!builder.IsDone()) throw new Error('OpenCascade nie utworzył krawędzi związanej z powierzchnią.');
     projectedEdge = cast(builder.Edge());
     if (!oc.BRepLib.BuildCurve3d(projectedEdge.wrapped, GEOMETRY_POLICY.linearTolerance, oc.GeomAbs_Shape.GeomAbs_C2, 14, 64)) {
@@ -2574,7 +2612,6 @@ function projectPointsToSurface(evaluated, { bodyId, faceId, points } = {}) {
     projectedEdge?.delete();
     builder?.delete();
     surfaceHandle?.delete();
-    curve2dHandle?.delete();
     bspline2dHandle?.delete();
     approximation?.delete();
     uvPoints.forEach((point) => point.delete());
@@ -2595,7 +2632,7 @@ function evaluateSurfaceProjections(document, evaluated, parameters) {
         const descriptor = projectPointsToSurface(evaluated, { bodyId: reference.bodyId, faceId: reference.topologyId, points: path.geometry.points });
         updates.push({ entityId: curve.id, descriptor });
       } catch (error) {
-        updates.push({ entityId: curve.id, error: error.message });
+        updates.push({ entityId: curve.id, error: kernelErrorText(error) });
       }
     }
   }
@@ -3257,7 +3294,7 @@ self.addEventListener('message', (event) => {
       type: data.type,
       code: error?.code || 'CAD_ENGINE_ERROR',
       canceled: error?.code === 'STALE_REVISION',
-      error: error?.message || String(error),
+      error: kernelErrorText(error),
     });
   });
 });

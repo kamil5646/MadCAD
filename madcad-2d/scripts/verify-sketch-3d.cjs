@@ -402,7 +402,9 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSurface' && Boolean(document.querySelector('.command-dialog'))`, 'panel Project to Surface');
     const surfaceCommandFace = await window.webContents.executeJavaScript(`(() => {
       const body = window.__madcadVerifyEngineState.bodies[0];
-      const face = body.topology.faces.find((item) => !['PLANE', 'UNKNOWN_FACE'].includes(item.descriptor.geometry));
+      // The source chain starts on the pipe axis, so the swept cylinder is a degenerate
+      // target (every direction is equally near); project onto the free-form segment.
+      const face = body.topology.faces.find((item) => item.descriptor.geometry === 'BSPLINE_SURFACE');
       if (!face) throw new Error('Brak zakrzywionej ściany dla polecenia Project to Surface.');
       window.__madcadVerifyTopologySelection({ kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
       return face.id;
