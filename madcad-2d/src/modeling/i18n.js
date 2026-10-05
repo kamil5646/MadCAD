@@ -304,7 +304,6 @@ const ENGLISH_TEXT = Object.freeze({
   'Przeciągnięcie po ścieżce': 'Sweep',
   'Bryła przejściowa': 'Loft',
   'Spirala': 'Coil',
-  'Naciśnij / wyciągnij': 'Press Pull',
   'Powłoka': 'Shell',
   'Pochylenie ścian': 'Draft',
   'Odsuń ścianę': 'Offset Face',
