@@ -107,8 +107,8 @@
     "manifold-3d": "3.5.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "replicad": "^0.23.1",
-    "replicad-opencascadejs": "^0.23.0",
+    "replicad": "^1.1.0",
+    "replicad-opencascadejs": "^1.1.0",
     "three": "^0.185.1",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"

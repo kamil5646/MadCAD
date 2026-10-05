@@ -46,11 +46,13 @@ export function kernelDrawingCurveSegments(edge, projectPoint, tolerance, projec
     try { return projectPoint([vector.x, vector.y, vector.z]); } finally { vector.delete(); }
   }, tolerance, true);
   const oc = getOC();
-  const adaptor = new oc.BRepAdaptor_Curve_2(edge.wrapped);
+  const adaptor = new oc.BRepAdaptor_Curve(edge.wrapped);
   let discretizer;
   try {
     // Kernel deflection follows the curve's geometry/knot spans, not a few JS probes.
-    discretizer = new oc.GCPnts_TangentialDeflection_2(adaptor, 0.05, tolerance / (2 * Math.max(1, projectionScale)), 2, 1e-10, 1e-10);
+    // Explicit parameter range: with OCCT 8 consolidated overloads the 6-number
+    // form is ambiguous with (curve, first, last, angular, curvature, points).
+    discretizer = new oc.GCPnts_TangentialDeflection(adaptor, adaptor.FirstParameter(), adaptor.LastParameter(), 0.05, tolerance / (2 * Math.max(1, projectionScale)), 2, 1e-10, 1e-10);
     const count = discretizer.NbPoints();
     if (count < 2 || count > 32769) throw new Error('Kernel przekroczył limit punktów krzywej rysunku.');
     const points = [];
@@ -84,10 +86,10 @@ export function projectExactSections(kernelBodies, views, tolerance = 0.001) {
       const min = Math.min(...bounds);
       const depth = min + (Math.max(...bounds) - min) * Math.max(0.05, Math.min(0.95, Number(view.sectionPosition) || 0.5));
       const normal = view.orientation === 'top' ? [0, 0, 1] : view.orientation === 'right' ? [1, 0, 0] : view.orientation === 'isometric' ? [-1, 1, -1].map((value) => value / Math.sqrt(3)) : [0, 1, 0];
-      const plane = new oc.gp_Pln_4(...normal, -depth);
+      const plane = new oc.gp_Pln(...normal, -depth);
       try {
         for (const body of selected) {
-          const operation = new oc.BRepAlgoAPI_Section_5(body.shape.wrapped, plane, true);
+          const operation = new oc.BRepAlgoAPI_Section(body.shape.wrapped, plane, true);
           let shape;
           try {
             if (!operation.IsDone()) throw new Error('Kernel nie ukończył dokładnego przekroju B-Rep.');
