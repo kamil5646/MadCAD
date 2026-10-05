@@ -679,7 +679,7 @@ app.whenReady().then(async () => {
     if (!chainTop) throw new Error('Brak górnej ściany do Offset Face.');
     await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(chainTop)}, 'replace')`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'ściana do odsunięcia');
-    await clickShelf('Odsuń ścianę');
+    await clickShelf('Wyciągnij');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'offsetFace'`, 'okno Odsuń ścianę');
     await setCommandField(window, 'Odległość', '-5');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady`, 'podgląd Offset Face', 30000);
