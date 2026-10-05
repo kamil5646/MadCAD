@@ -169,7 +169,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(window.__madcadVerifyDocumentState.sketches[0].id)`);
     await waitFor(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'ponownie edytowany szkic');
     await window.webContents.executeJavaScript(`(() => {
-      const badge = document.querySelector('.sketch-constraint-badges button[title^="distanceX:"]');
+      const badge = document.querySelector('.sketch-constraint-badges button[data-constraint-type="distanceX"]');
       if (!badge) throw new Error('Brak widocznego wymiaru poziomego do edycji');
       badge.click();
     })()`);
@@ -480,7 +480,7 @@ app.whenReady().then(async () => {
     const sideEditRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(window.__madcadVerifyDocumentState.sketches[0].id)`);
     await waitFor(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'edycja szkicu źródłowego bocznej ściany');
-    await window.webContents.executeJavaScript(`document.querySelector('.sketch-constraint-badges button[title^="distanceX:"]')?.click()`);
+    await window.webContents.executeJavaScript(`document.querySelector('.sketch-constraint-badges button[data-constraint-type="distanceX"]')?.click()`);
     await waitFor(window, `Boolean(document.querySelector('.sketch-constraint-editor input[name="constraintValue"]'))`, 'wymiar źródłowego szkicu bocznej ściany');
     await window.webContents.executeJavaScript(`(() => {
       const input = document.querySelector('.sketch-constraint-editor input[name="constraintValue"]');

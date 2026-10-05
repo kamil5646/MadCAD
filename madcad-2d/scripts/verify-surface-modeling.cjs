@@ -131,6 +131,9 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 3 && window.__madcadVerifyDocumentState.featureData[2].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie Surface Loft');
     const loftSolidMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
 
+    // The project browser is hidden by default; open it to check the folders.
+    await window.webContents.executeJavaScript(`document.querySelector('.model-browser') || document.querySelector('button[aria-label="Pokaż lub ukryj przeglądarkę"]')?.click()`);
+    await waitFor(window, `document.querySelector('.model-browser .tree-folder')`, 'otwarta przeglądarka projektu');
     const result = await window.webContents.executeJavaScript(`(() => ({
       featureTypes: window.__madcadVerifyDocumentState.featureData.map((feature) => feature.type),
       bodyKinds: window.__madcadVerifyDocumentState.bodyKinds,

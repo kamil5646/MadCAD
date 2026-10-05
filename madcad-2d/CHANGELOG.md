@@ -2,6 +2,13 @@
 
 ## Niewydane — porządek w interfejsie
 
+- okno licencji przy starcie tylko wtedy, gdy konto nie ma dostępu; zalogowany użytkownik wchodzi od razu do programu;
+- paleta szkicu domyślnie zwinięta (nie zasłania płótna ani okien poleceń);
+- pasek więzów szkicu podpisany „Więzy”, podpowiedzi po polsku z wartością („Wymiar X: 40 mm”);
+- bez dymka „PROJEKTUJ · szkic 2D i model 3D”, gdy model jest gotowy (kroki, przeliczanie i błędy nadal widoczne);
+- przycisk „Przeglądarka” z ikoną drzewa zamiast „Panel”;
+- Tuleja, Zatrzask, Kratka (zamiast Boss, Snap-fit, Grille) na końcu menu ściany;
+- „Otwór”, „Fazuj” i „Powłoka” zawsze na wstążce; Płaszczyzny, Osie i Punkty w jednym menu „Konstrukcja”.
 - jedno polecenie „Wyciągnij” dla profilu i płaskiej ściany (na ścianie wyciąga/wciska ścianę); usunięto dublujące je „Naciśnij / wyciągnij”, skrót PP prowadzi do Wyciągnij;
 - każde polecenie ma jedną nazwę we wstążce, menu i panelu kontekstowym, zgodną z nazwą operacji na osi czasu (np. „Bryła przejściowa” zamiast „Loft”, „Kratka” zamiast „Grille”, „Powierzchnia obrotowa” zamiast „Obróć” na karcie powierzchni, „Współrzędna X” zamiast „Wymiar X” w szkicu);
 - test `ui-naming` pilnuje, by żadne polecenie nie miało dwóch nazw ani nie występowało dwa razy w jednym panelu.

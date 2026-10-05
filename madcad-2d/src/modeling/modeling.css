@@ -7883,3 +7883,27 @@
   .document-tab { max-width: 240px; }
   .document-tab > svg { display: none; }
 }
+
+.sketch-constraint-badges-caption {
+  align-self: center;
+  margin-right: 2px;
+  color: #8f9aa6;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Nothing to say when the model is ready: keep the live region for screen
+   readers but do not cover the canvas with a pill repeating the tab name. */
+.workspace-guidebar.idle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+}

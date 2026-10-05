@@ -53,6 +53,7 @@ import {
   Undo2,
   Upload,
   X,
+  ListTree,
 } from 'lucide-react';
 import {
   DOCUMENT_SCHEMA_VERSION,
@@ -359,7 +360,12 @@ const BASIC_CONSTRAINT_HINTS = Object.freeze({
 
 export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
-  const [licenseInfoOpen, setLicenseInfoOpen] = useState(true);
+  // Opened only once the account check says access is missing: a signed-in user
+  // goes straight to the program; plans, licence text and donations live in Pomoc.
+  // Verification runs (?verify) keep the dialog open from the first render so
+  // scripts can close it deterministically.
+  const [licenseInfoOpen, setLicenseInfoOpen] = useState(() => new URLSearchParams(window.location.search).has('verify'));
+  const [licenseStatusKnown, setLicenseStatusKnown] = useState(false);
   const [fullLicenseOpen, setFullLicenseOpen] = useState(false);
   const [licensePlan, setLicensePlan] = useState(DEFAULT_LICENSE_STATUS);
   const [licenseBusy, setLicenseBusy] = useState(false);
@@ -386,10 +392,14 @@ export default function ModelingWorkspace() {
       setLicenseBusy(false);
     }
   }, []);
-  useEffect(() => { runLicenseAction('licenseGetStatus'); }, [runLicenseAction]);
   useEffect(() => {
-    if (!licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true);
-  }, [licensePlan.accessAllowed, licenseVerificationMode]);
+    let active = true;
+    Promise.resolve(runLicenseAction('licenseGetStatus')).finally(() => { if (active) setLicenseStatusKnown(true); });
+    return () => { active = false; };
+  }, [runLicenseAction]);
+  useEffect(() => {
+    if (licenseStatusKnown && !licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true);
+  }, [licenseStatusKnown, licensePlan.accessAllowed, licenseVerificationMode]);
   const [expandedSketchRibbon, setExpandedSketchRibbon] = useState(() => window.matchMedia('(min-width: 1600px)').matches);
   const [expandedDesignRibbon, setExpandedDesignRibbon] = useState(() => window.matchMedia('(min-width: 1900px)').matches);
   useEffect(() => {
@@ -2087,7 +2097,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'plasticBoss') {
         next.previewFeature = createFeature('plasticBoss', {
-          name: current.previewFeature?.name || nextFeatureName('Boss'),
+          name: current.previewFeature?.name || nextFeatureName('Tuleja'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           outerDiameter: next.outerDiameter,
@@ -2102,7 +2112,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'plasticSnapFit') {
         next.previewFeature = createFeature('plasticSnapFit', {
-          name: current.previewFeature?.name || nextFeatureName('Snap-fit'),
+          name: current.previewFeature?.name || nextFeatureName('Zatrzask'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           length: next.length,
@@ -2119,7 +2129,7 @@ export default function ModelingWorkspace() {
       }
       if (next.type === 'plasticGrille') {
         next.previewFeature = createFeature('plasticGrille', {
-          name: current.previewFeature?.name || nextFeatureName('Grille'),
+          name: current.previewFeature?.name || nextFeatureName('Kratka'),
           targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
           referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
           ribCount: next.ribCount,
@@ -6985,7 +6995,7 @@ export default function ModelingWorkspace() {
             ? hasSketchProfile
               ? { title: 'KROK 2 · utwórz bryłę z zamkniętego szkicu', text: selectedProfile ? 'Profil jest zaznaczony. Kliknij Wyciągnij i podaj wysokość.' : 'Kliknij wnętrze zamkniętego profilu, a następnie wybierz Wyciągnij.', action: selectedProfile ? 'Wyciągnij profil' : `Edytuj: ${lastSketch.name}`, onAction: selectedProfile ? openExtrude : () => editSketch(lastSketch.id) }
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
-            : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
+            : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel, idle: true };
   const showProjectBrowser = browserOpen && workspace !== 'drawing' && !startPageVisible;
   let adaptiveContext = null;
   if (!command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId)) {
@@ -7049,11 +7059,12 @@ export default function ModelingWorkspace() {
         ],
         moreActions: [
           { icon: Ruler, label: 'Właściwości', onClick: openMeasure },
-          ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss }, { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit }, { icon: Grid2X2, label: 'Kratka', onClick: openPlasticGrille }] : []),
           { icon: ShellCadIcon, label: 'Powłoka', onClick: openShell },
           { icon: DraftCadIcon, label: 'Pochylenie ścian', onClick: openDraft },
           { icon: DeleteFaceCadIcon, label: 'Usuń i napraw ścianę', onClick: openDeleteFace, danger: true },
           ...(selectedFaceItems.length === 2 ? [{ icon: ReplaceFaceCadIcon, label: 'Zastąp ścianę', onClick: openReplaceFace }] : []),
+          // Plastic-part features are specialised; keep them below the everyday ones.
+          ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Tuleja', onClick: openPlasticBoss }, { icon: Blocks, label: 'Zatrzask', onClick: openPlasticSnapFit }, { icon: Grid2X2, label: 'Kratka', onClick: openPlasticGrille }] : []),
         ],
         onClear: clearModelSelection,
       };
@@ -7123,7 +7134,7 @@ export default function ModelingWorkspace() {
           <button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={15} /><span>Otwórz</span></button>
           <button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={15} /><span>Zapisz</span></button>
           <span className="app-menu-separator" aria-hidden="true" />
-          {workspace !== 'drawing' && <button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={15} /><span>Panel</span></button>}
+          {workspace !== 'drawing' && <button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><ListTree size={15} /><span>Przeglądarka</span></button>}
           <button id="projectSearchBtn" className={projectSearchOpen ? 'active' : ''} type="button" aria-label="Idź do obiektu projektu" aria-pressed={projectSearchOpen} title="Wyszukaj obiekt w projekcie · Ctrl/⌘ K" onClick={() => { if (projectSearchOpen) setProjectSearchOpen(false); else openProjectSearch(); }}><Search size={15} /><span>Szukaj</span></button>
         </div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
@@ -7324,27 +7335,23 @@ export default function ModelingWorkspace() {
                   ]} />
                 </RibbonGroup>
                 <RibbonGroup label="KONSTRUKCJA">
-                  <ToolMenuButton icon={PlaneCadIcon} label="Płaszczyzny" description="Utwórz pomocniczą płaszczyznę konstrukcyjną." items={[
-                    { icon: PlaneCadIcon, label: 'Płaszczyzna odsunięta', onClick: () => openConstructionPlane('offset'), disabled: readOnly },
-                    { icon: MidplaneCadIcon, label: 'Płaszczyzna środkowa', onClick: () => openConstructionPlane('midplane'), disabled: readOnly },
-                    { icon: ThreePointPlaneCadIcon, label: 'Przez 3 punkty', onClick: () => openConstructionPlane('three-points'), disabled: readOnly },
-                    { icon: AnglePlaneCadIcon, label: 'Pod kątem', onClick: () => openConstructionPlane('angle'), disabled: readOnly },
-                    { icon: TangentPlaneCadIcon, label: 'Styczna', onClick: () => openConstructionPlane('tangent'), disabled: readOnly },
-                    { icon: PathPlaneCadIcon, label: 'Na ścieżce', onClick: () => openConstructionPlane('path'), disabled: readOnly },
-                  ]} />
-                  <ToolMenuButton icon={AxisCadIcon} label="Osie" description="Utwórz pomocniczą oś konstrukcyjną." items={[
-                    { icon: AxisCadIcon, label: 'Oś z krawędzi', onClick: () => openConstructionAxis('edge'), disabled: readOnly },
-                    { icon: CylinderAxisCadIcon, label: 'Oś walca', onClick: () => openConstructionAxis('cylinder'), disabled: readOnly },
-                    { icon: AxisCadIcon, label: 'Oś 2 punkty', onClick: () => openConstructionAxis('two-points'), disabled: readOnly },
-                    { icon: AxisCadIcon, label: 'Oś przecięcia', onClick: () => openConstructionAxis('plane-intersection'), disabled: readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2 },
-                    { icon: AxisCadIcon, label: 'Oś normalna', onClick: () => openConstructionAxis('plane-normal'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-plane') },
-                  ]} />
-                  <ToolMenuButton icon={PointCadIcon} label="Punkty" description="Utwórz pomocniczy punkt konstrukcyjny." items={[
-                    { icon: PointCadIcon, label: 'Punkt wierzchołka', onClick: () => openConstructionPoint('vertex'), disabled: readOnly },
-                    { icon: PointCadIcon, label: 'Punkt centrum', onClick: () => openConstructionPoint('center'), disabled: readOnly },
-                    { icon: PointCadIcon, label: 'Punkt przecięcia', onClick: () => openConstructionPoint('intersection'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane') },
-                    { icon: PointCadIcon, label: 'Punkt środkowy', onClick: () => openConstructionPoint('midpoint'), disabled: readOnly },
-                    { icon: PointCadIcon, label: 'Punkt na osi', onClick: () => openConstructionPoint('on-axis'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') },
+                  <ToolMenuButton icon={PlaneCadIcon} label="Konstrukcja" description="Płaszczyzny, osie i punkty konstrukcyjne." items={[
+                    { section: 'Płaszczyzny', icon: PlaneCadIcon, label: 'Płaszczyzna odsunięta', onClick: () => openConstructionPlane('offset'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: MidplaneCadIcon, label: 'Płaszczyzna środkowa', onClick: () => openConstructionPlane('midplane'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: ThreePointPlaneCadIcon, label: 'Przez 3 punkty', onClick: () => openConstructionPlane('three-points'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: AnglePlaneCadIcon, label: 'Pod kątem', onClick: () => openConstructionPlane('angle'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: TangentPlaneCadIcon, label: 'Styczna', onClick: () => openConstructionPlane('tangent'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: PathPlaneCadIcon, label: 'Na ścieżce', onClick: () => openConstructionPlane('path'), disabled: readOnly },
+                    { section: 'Osie', icon: AxisCadIcon, label: 'Oś z krawędzi', onClick: () => openConstructionAxis('edge'), disabled: readOnly },
+                    { section: 'Osie', icon: CylinderAxisCadIcon, label: 'Oś walca', onClick: () => openConstructionAxis('cylinder'), disabled: readOnly },
+                    { section: 'Osie', icon: AxisCadIcon, label: 'Oś 2 punkty', onClick: () => openConstructionAxis('two-points'), disabled: readOnly },
+                    { section: 'Osie', icon: AxisCadIcon, label: 'Oś przecięcia', onClick: () => openConstructionAxis('plane-intersection'), disabled: readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2 },
+                    { section: 'Osie', icon: AxisCadIcon, label: 'Oś normalna', onClick: () => openConstructionAxis('plane-normal'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-plane') },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt wierzchołka', onClick: () => openConstructionPoint('vertex'), disabled: readOnly },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt centrum', onClick: () => openConstructionPoint('center'), disabled: readOnly },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt przecięcia', onClick: () => openConstructionPoint('intersection'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane') },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt środkowy', onClick: () => openConstructionPoint('midpoint'), disabled: readOnly },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt na osi', onClick: () => openConstructionPoint('on-axis'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') },
                   ]} />
                 </RibbonGroup>
               </>
@@ -7394,8 +7401,8 @@ export default function ModelingWorkspace() {
             ) : designTab === 'plastic' ? (
               <>
                 <RibbonGroup label="KONSTRUKCJA">
-                  <ToolButton icon={PlasticFeatureCadIcon} label="Boss" onClick={openPlasticBoss} primary disabled={readOnly || activeSketchId || selectedFaceItems.length !== 1} disabledReason="Zaznacz jedną planarną ścianę bryły." />
-                  <ToolButton icon={Blocks} label="Snap-fit" onClick={openPlasticSnapFit} disabled={readOnly || activeSketchId || selectedFaceItems.length !== 1} disabledReason="Zaznacz jedną planarną ścianę bryły." />
+                  <ToolButton icon={PlasticFeatureCadIcon} label="Boss" displayLabel="Tuleja" onClick={openPlasticBoss} primary disabled={readOnly || activeSketchId || selectedFaceItems.length !== 1} disabledReason="Zaznacz jedną planarną ścianę bryły." />
+                  <ToolButton icon={Blocks} label="Snap-fit" displayLabel="Zatrzask" onClick={openPlasticSnapFit} disabled={readOnly || activeSketchId || selectedFaceItems.length !== 1} disabledReason="Zaznacz jedną planarną ścianę bryły." />
                   <ToolButton icon={Grid2X2} label="Grille" displayLabel="Kratka" onClick={openPlasticGrille} disabled={readOnly || activeSketchId || selectedFaceItems.length !== 1} disabledReason="Zaznacz jedną planarną ścianę bryły." />
                 </RibbonGroup>
                 <RibbonGroup label="SPRAWDŹ"><ToolButton icon={GeometryCheckCadIcon} label="Sprawdź geometrię" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
@@ -7414,7 +7421,7 @@ export default function ModelingWorkspace() {
               </>
             ) : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} />
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolButton icon={HoleCadIcon} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} disabledReason="Zaznacz punkt szkicu albo płaską ścianę i dwie krawędzie odniesienia." />
                   {expandedDesignRibbon && <ToolButton icon={PrimitiveCadIcon} label="Prymityw" onClick={openPrimitive} disabled={readOnly} />}
                   {expandedDesignRibbon && <ToolButton icon={RevolveCadIcon} label="Revolve" displayLabel="Bryła obrotowa" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz zamknięty profil i zakończ szkic." />}
                   {expandedDesignRibbon && <ToolButton icon={SweepCadIcon} label="Sweep" displayLabel="Bryła po ścieżce" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz profil i osobną ścieżkę." />}
@@ -7426,7 +7433,6 @@ export default function ModelingWorkspace() {
                   { icon: LoftCadIcon, label: 'Loft', displayLabel: 'Bryła przejściowa', onClick: openLoft, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Przygotuj co najmniej dwa profile.' },
                   { icon: CoilCadIcon, label: 'Coil', displayLabel: 'Spirala', onClick: openCoil, disabled: readOnly || Boolean(activeSketchId), disabledReason: 'Zakończ aktywny szkic.' },
                   { icon: Type, label: 'Tekst 3D', onClick: openTextSolid, disabled: readOnly },
-                  { icon: HoleCadIcon, label: 'Otwór', onClick: openHole, disabled: readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length, disabledReason: 'Zaznacz punkt szkicu albo płaską ścianę i dwie krawędzie odniesienia.' },
                 ]} />
                   <ToolMenuButton icon={Shapes} label="Narzędzia zaawansowane" displayLabel="Zaawansowane" description="Powierzchnie, blachy, siatki i elementy z tworzyw — bez przełączania przestrzeni roboczej." items={[
                     { section: 'Powierzchnie', icon: SurfacePatchCadIcon, label: 'Patch', displayLabel: 'Wypełnij profil', onClick: openSurfacePatch, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
@@ -7448,19 +7454,17 @@ export default function ModelingWorkspace() {
                     { section: 'Siatka', icon: ImportMeshCadIcon, label: 'Importuj model', displayLabel: 'Importuj STEP / STL / 3MF', onClick: () => { void requestModelImport(); }, disabled: readOnly || modelImportBusy },
                     { section: 'Siatka', icon: MeshBodyCadIcon, label: 'Narzędzia siatki', onClick: openMeshTools, disabled: readOnly || !selectedMeshFeature, disabledReason: 'Zaznacz zaimportowaną siatkę STL albo 3MF.' },
                     { section: 'Siatka', icon: RotateCw, label: 'Przywróć siatkę', onClick: restoreSelectedBrepToMesh, disabled: readOnly || !selectedFacetedBrepFeature, disabledReason: 'Zaznacz model przekonwertowany do fasetowego B-Rep.' },
-                    { section: 'Tworzywa', icon: PlasticFeatureCadIcon, label: 'Boss', onClick: openPlasticBoss, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły.' },
-                    { section: 'Tworzywa', icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły.' },
+                    { section: 'Tworzywa', icon: PlasticFeatureCadIcon, label: 'Boss', displayLabel: 'Tuleja', onClick: openPlasticBoss, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły.' },
+                    { section: 'Tworzywa', icon: Blocks, label: 'Snap-fit', displayLabel: 'Zatrzask', onClick: openPlasticSnapFit, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły.' },
                     { section: 'Tworzywa', icon: Grid2X2, label: 'Grille', displayLabel: 'Kratka', onClick: openPlasticGrille, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły.' },
                   ]} />
                 </RibbonGroup>
                 <RibbonGroup label="ZMIEŃ"><ToolButton icon={FilletCadIcon} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź bryły." />
-                  {expandedDesignRibbon && <ToolButton icon={ChamferCadIcon} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź." />}
-                  {expandedDesignRibbon && <ToolButton icon={ShellCadIcon} label="Shell" displayLabel="Powłoka" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} disabledReason="Zaznacz ścianę do usunięcia." />}
+                  <ToolButton icon={ChamferCadIcon} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź." />
+                  <ToolButton icon={ShellCadIcon} label="Shell" displayLabel="Powłoka" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} disabledReason="Zaznacz ścianę do usunięcia." />
                   {expandedDesignRibbon && <ToolButton icon={PatternCadIcon} label="Pattern" displayLabel="Szyk" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} disabledReason="Zaznacz obsługiwaną bryłę i zakończ szkic." />}
                   {expandedDesignRibbon && <ToolButton icon={BooleanCadIcon} label="Boolean" displayLabel="Połącz / odejmij" onClick={openBoolean} disabled={readOnly || !canBooleanSelectedBodies} disabledReason="Zaznacz co najmniej dwie bryły." />}
-                  <ToolMenuButton icon={ChamferCadIcon} label="Więcej zmian" description="Fazowanie, powłoka, pochylenie, ściany i położenie bryły." items={[
-                  ...(!expandedDesignRibbon ? [{ icon: ChamferCadIcon, label: 'Fazuj', onClick: () => openEdgeCommand('chamfer'), disabled: readOnly || !selectedEdgeItems.length, disabledReason: 'Zaznacz co najmniej jedną krawędź.' }] : []),
-                  ...(!expandedDesignRibbon ? [{ icon: ShellCadIcon, label: 'Shell', displayLabel: 'Powłoka', onClick: openShell, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ścianę do usunięcia.' }] : []),
+                  <ToolMenuButton icon={ChamferCadIcon} label="Więcej zmian" description="Pochylenie, ściany, położenie bryły, szyk i operacje logiczne." items={[
                   { icon: DraftCadIcon, label: 'Draft', displayLabel: 'Pochylenie ścian', onClick: openDraft, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do pochylenia.' },
                   { icon: OffsetFaceCadIcon, label: 'Offset Face', displayLabel: 'Odsuń ścianę', onClick: openOffsetFace, disabled: readOnly || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz dokładnie jedną płaską ścianę.' },
                   { icon: DeleteFaceCadIcon, label: 'Delete Face + Heal', displayLabel: 'Usuń i napraw ścianę', onClick: openDeleteFace, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do usunięcia.' },
@@ -7477,27 +7481,23 @@ export default function ModelingWorkspace() {
                   <ToolButton icon={AssemblyCadIcon} label="Komponenty" onClick={openComponentManager} primary description="Twórz części, wystąpienia, połączenia i konfiguracje zespołu w jednym panelu." />
                 </RibbonGroup>
                 <RibbonGroup label="KONSTRUKCJA">
-                  <ToolMenuButton icon={PlaneCadIcon} label="Płaszczyzny" description="Utwórz pomocniczą płaszczyznę konstrukcyjną." items={[
-                    { icon: PlaneCadIcon, label: 'Płaszczyzna odsunięta', onClick: () => openConstructionPlane('offset'), disabled: readOnly },
-                    { icon: MidplaneCadIcon, label: 'Płaszczyzna środkowa', onClick: () => openConstructionPlane('midplane'), disabled: readOnly },
-                    { icon: ThreePointPlaneCadIcon, label: 'Przez 3 punkty', onClick: () => openConstructionPlane('three-points'), disabled: readOnly },
-                    { icon: AnglePlaneCadIcon, label: 'Pod kątem', onClick: () => openConstructionPlane('angle'), disabled: readOnly },
-                    { icon: TangentPlaneCadIcon, label: 'Styczna', onClick: () => openConstructionPlane('tangent'), disabled: readOnly },
-                    { icon: PathPlaneCadIcon, label: 'Na ścieżce', onClick: () => openConstructionPlane('path'), disabled: readOnly },
-                  ]} />
-                  <ToolMenuButton icon={AxisCadIcon} label="Osie" description="Utwórz pomocniczą oś konstrukcyjną." items={[
-                    { icon: AxisCadIcon, label: 'Oś z krawędzi', onClick: () => openConstructionAxis('edge'), disabled: readOnly },
-                    { icon: CylinderAxisCadIcon, label: 'Oś walca', onClick: () => openConstructionAxis('cylinder'), disabled: readOnly },
-                    { icon: AxisCadIcon, label: 'Oś 2 punkty', onClick: () => openConstructionAxis('two-points'), disabled: readOnly },
-                    { icon: AxisCadIcon, label: 'Oś przecięcia', onClick: () => openConstructionAxis('plane-intersection'), disabled: readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2 },
-                    { icon: AxisCadIcon, label: 'Oś normalna', onClick: () => openConstructionAxis('plane-normal'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-plane') },
-                  ]} />
-                  <ToolMenuButton icon={PointCadIcon} label="Punkty" description="Utwórz pomocniczy punkt konstrukcyjny." items={[
-                    { icon: PointCadIcon, label: 'Punkt wierzchołka', onClick: () => openConstructionPoint('vertex'), disabled: readOnly },
-                    { icon: PointCadIcon, label: 'Punkt centrum', onClick: () => openConstructionPoint('center'), disabled: readOnly },
-                    { icon: PointCadIcon, label: 'Punkt przecięcia', onClick: () => openConstructionPoint('intersection'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane') },
-                    { icon: PointCadIcon, label: 'Punkt środkowy', onClick: () => openConstructionPoint('midpoint'), disabled: readOnly },
-                    { icon: PointCadIcon, label: 'Punkt na osi', onClick: () => openConstructionPoint('on-axis'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') },
+                  <ToolMenuButton icon={PlaneCadIcon} label="Konstrukcja" description="Płaszczyzny, osie i punkty konstrukcyjne." items={[
+                    { section: 'Płaszczyzny', icon: PlaneCadIcon, label: 'Płaszczyzna odsunięta', onClick: () => openConstructionPlane('offset'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: MidplaneCadIcon, label: 'Płaszczyzna środkowa', onClick: () => openConstructionPlane('midplane'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: ThreePointPlaneCadIcon, label: 'Przez 3 punkty', onClick: () => openConstructionPlane('three-points'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: AnglePlaneCadIcon, label: 'Pod kątem', onClick: () => openConstructionPlane('angle'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: TangentPlaneCadIcon, label: 'Styczna', onClick: () => openConstructionPlane('tangent'), disabled: readOnly },
+                    { section: 'Płaszczyzny', icon: PathPlaneCadIcon, label: 'Na ścieżce', onClick: () => openConstructionPlane('path'), disabled: readOnly },
+                    { section: 'Osie', icon: AxisCadIcon, label: 'Oś z krawędzi', onClick: () => openConstructionAxis('edge'), disabled: readOnly },
+                    { section: 'Osie', icon: CylinderAxisCadIcon, label: 'Oś walca', onClick: () => openConstructionAxis('cylinder'), disabled: readOnly },
+                    { section: 'Osie', icon: AxisCadIcon, label: 'Oś 2 punkty', onClick: () => openConstructionAxis('two-points'), disabled: readOnly },
+                    { section: 'Osie', icon: AxisCadIcon, label: 'Oś przecięcia', onClick: () => openConstructionAxis('plane-intersection'), disabled: readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2 },
+                    { section: 'Osie', icon: AxisCadIcon, label: 'Oś normalna', onClick: () => openConstructionAxis('plane-normal'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-plane') },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt wierzchołka', onClick: () => openConstructionPoint('vertex'), disabled: readOnly },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt centrum', onClick: () => openConstructionPoint('center'), disabled: readOnly },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt przecięcia', onClick: () => openConstructionPoint('intersection'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane') },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt środkowy', onClick: () => openConstructionPoint('midpoint'), disabled: readOnly },
+                    { section: 'Punkty', icon: PointCadIcon, label: 'Punkt na osi', onClick: () => openConstructionPoint('on-axis'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') },
                   ]} />
                 </RibbonGroup>
                 <RibbonGroup label="SPRAWDŹ"><ToolMenuButton icon={GeometryCheckCadIcon} label="Analiza" description="Pomiary, przekrój, masa i kontrola geometrii." items={[
@@ -7683,7 +7683,7 @@ export default function ModelingWorkspace() {
             snapThresholdPx={sketchOptions.snapDistance}
           />
           </React.Suspense>}
-          {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
+          {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status} ${workspaceGuide.idle ? 'idle' : ''}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}
           {(workspace === 'drawing' || workspace === 'tools') && engine.status === 'computing' && <div className="engine-status computing" role="status" aria-live="polite"><span aria-hidden="true" />Przeliczanie historii…<button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button></div>}

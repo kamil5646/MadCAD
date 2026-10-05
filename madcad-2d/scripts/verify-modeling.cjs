@@ -354,13 +354,8 @@ async function runUiFlow(window) {
         button.click();
       })()`);
     }
-    const constructionMenuLabel = constructionWorkspaceLabels.has(label)
-      ? (label.startsWith('Płaszczyzna') || ['Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce'].includes(label)
-        ? 'Płaszczyzny'
-        : label.startsWith('Oś ')
-          ? 'Osie'
-          : 'Punkty')
-      : null;
+    // Planes, axes and points share one "Konstrukcja" menu with sections.
+    const constructionMenuLabel = constructionWorkspaceLabels.has(label) ? 'Konstrukcja' : null;
     const sketchMenuLabel = sketchToolMenus.get(label);
     const directRibbonTool = await ribbonHasTool(label);
     const menuLabel = directRibbonTool ? null : (sketchMenuLabel || constructionMenuLabel || solidToolMenus.get(label));
@@ -2163,7 +2158,10 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny dla linii dynamicznej');
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && window.__madcadSketchLocalToScreen`, 'szkic linii dynamicznej');
-  await waitForUi(window, `Boolean(document.querySelector('.sketch-palette:not(.collapsed) .sketch-palette-body'))`, 'widoczna paleta szkicu na szerokim ekranie');
+  // The palette starts collapsed so it does not cover the canvas; expand it for the checks below.
+  await waitForUi(window, `Boolean(document.querySelector('.sketch-palette.collapsed'))`, 'zwinięta paleta szkicu po wejściu do szkicu');
+  await window.webContents.executeJavaScript(`document.querySelector('.sketch-palette.collapsed .sketch-palette-toggle')?.click()`);
+  await waitForUi(window, `Boolean(document.querySelector('.sketch-palette:not(.collapsed) .sketch-palette-body'))`, 'rozwinięta paleta szkicu');
   await waitForCameraToSettle(5000);
   const platformUi = await window.webContents.executeJavaScript(`(() => {
     const shell = document.querySelector('.modeling-shell');
