@@ -486,7 +486,9 @@ export default function ModelingWorkspace() {
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [surfaceAnalysis, setSurfaceAnalysis] = useState(null);
   const [meshToolsOpen, setMeshToolsOpen] = useState(false);
-  const [browserOpen, setBrowserOpen] = useState(true);
+  // Hidden by default (more room for the model); the top bar toggle and actions
+  // that need the tree (components, Go to) open it.
+  const [browserOpen, setBrowserOpen] = useState(false);
   const [compactViewport, setCompactViewport] = useState(() => window.matchMedia?.('(max-width: 900px)').matches || window.innerWidth <= 900);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
