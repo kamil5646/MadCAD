@@ -655,6 +655,109 @@ app.whenReady().then(async () => {
     result.rotatedFaceSketch = { beforeVolume: rotatingBefore.volume, afterVolume: rotatingAfter.volume, tracked: true, undoRedo: true, fileRoundTrip: true };
     process.stdout.write(`[verify] rotated support ${JSON.stringify(result.rotatedFaceSketch)}\n`);
 
+    // An upstream dimension edit moves the faces and edges later features hold:
+    // Offset Face, a fillet edge and a sketch on the offset face must follow
+    // without the repair wizard, through undo/redo and a file round trip.
+    process.stdout.write('[verify] downstream features follow an upstream dimension edit\n');
+    const clickShelf = async (label) => window.webContents.executeJavaScript(`(() => {
+      const button = [...document.querySelectorAll('.adaptive-tool-shelf button')].find((item) => item.textContent.trim().includes(${JSON.stringify(label)}));
+      if (!button || button.disabled) throw new Error('Brak akcji kontekstowej: ${label}');
+      button.click();
+    })()`);
+    const timelineOk = (count) => `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyEngineState?.timeline?.length === ${count}
+      && window.__madcadVerifyEngineState.timeline.every((item) => item.status === 'ok')`;
+    const chainRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(savedProject))})`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${chainRevision} && ${timelineOk(1)} && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 18000) < 0.01`, 'model bazowy łańcucha zależności', 30000);
+    const topFace = (z) => `(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const face = body.topology.faces.find((item) => item.descriptor.geometry === 'PLANE' && (item.descriptor.normal?.[2] || 0) > 0.99 && Math.abs(item.descriptor.center[2] - ${z}) < 1e-3);
+      return face && { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId, center: face.descriptor.center };
+    })()`;
+    const chainTop = await window.webContents.executeJavaScript(topFace(15));
+    if (!chainTop) throw new Error('Brak górnej ściany do Offset Face.');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(chainTop)}, 'replace')`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'ściana do odsunięcia');
+    await clickShelf('Odsuń ścianę');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'offsetFace'`, 'okno Odsuń ścianę');
+    await setCommandField(window, 'Odległość', '-5');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady`, 'podgląd Offset Face', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && ${timelineOk(2)} && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 12000) < 0.01`, 'Offset Face na górnej ścianie', 30000);
+    const verticalEdge = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const edge = body.topology.edges.filter((item) => item.descriptor.geometry === 'LINE'
+        && Math.abs(item.descriptor.endpoints[0][0] - item.descriptor.endpoints[1][0]) < 1e-6
+        && Math.abs(item.descriptor.endpoints[0][1] - item.descriptor.endpoints[1][1]) < 1e-6)
+        .sort((left, right) => (right.descriptor.endpoints[0][0] + right.descriptor.endpoints[0][1]) - (left.descriptor.endpoints[0][0] + left.descriptor.endpoints[0][1]))[0];
+      return edge && { kind: 'edge', id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
+    })()`);
+    if (!verticalEdge) throw new Error('Brak pionowej krawędzi do zaokrąglenia.');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(verticalEdge)}, 'replace')`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'edge'`, 'krawędź do zaokrąglenia');
+    await clickShelf('Zaokrąglij');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'fillet'`, 'okno zaokrąglenia');
+    await setCommandField(window, 'Promień', '2');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady`, 'podgląd zaokrąglenia', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 3 && ${timelineOk(3)}`, 'zaokrąglona krawędź', 30000);
+    const offsetTop = await window.webContents.executeJavaScript(topFace(10));
+    if (!offsetTop) throw new Error('Brak odsuniętej górnej ściany do szkicu.');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetTop)}, 'replace')`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'odsunięta ściana do szkicu');
+    await clickShelf('Szkic na ścianie');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.support?.kind === 'face' && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'szkic na odsuniętej ścianie', 30000);
+    await clickTool(window, 'Okrąg');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'okrąg na odsuniętej ścianie');
+    await setCommandField(window, 'Średnica', '6');
+    await setCommandField(window, 'Środek X', String(offsetTop.center[0] - 8));
+    await setCommandField(window, 'Środek Y', String(offsetTop.center[1]));
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.profiles === 1`, 'profil otworu na odsuniętej ścianie');
+    await clickTool(window, 'Zakończ szkic');
+    await clickTool(window, 'Wyciągnij');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wycięcie z odsuniętej ściany');
+    await setCommandField(window, 'Operacja', 'cut');
+    await setCommandField(window, 'Odległość', '-4');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady`, 'podgląd wycięcia', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 4 && ${timelineOk(4)}`, 'wycięcie na odsuniętej ścianie', 30000);
+    const chainBefore = await window.webContents.executeJavaScript(`({ volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume, offset: Number(window.__madcadVerifyDocumentState.sketches[1].planeOffset) })`);
+    if (Math.abs(chainBefore.offset - 10) > 1e-6 || !(chainBefore.volume < 12000 - 100)) throw new Error(`Łańcuch zależności nie wyciął materiału: ${JSON.stringify(chainBefore)}`);
+
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item')[0]?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'feature'`, 'pierwsza operacja łańcucha');
+    await window.webContents.executeJavaScript(`document.querySelector('[data-timeline-action="edit"]')?.click()`);
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'edycja wysokości bazy');
+    await setCommandField(window, 'Odległość', '25');
+    const chainEditRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    // Base 25 - offset 5 = top at 20: the sketch follows 10 -> 20 and the whole
+    // chain (Offset Face, fillet edge, cut) stays resolved.
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${chainEditRevision} && ${timelineOk(4)}
+      && Math.abs(Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) - 20) < 1e-6
+      && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - ${chainBefore.volume}) > 10000`, 'łańcuch przeliczony po zmianie wymiaru bazy', 45000);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel')`, 'zmiana wymiaru nie otwiera kreatora naprawy', 30000);
+    const chainAfter = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
+    if (Math.abs(chainAfter - (chainBefore.volume + 12000)) > 30) throw new Error(`Nieoczekiwana objętość po zmianie bazy: ${JSON.stringify({ chainBefore, chainAfter })}`);
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
+    await waitFor(window, `${timelineOk(4)} && Math.abs(Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) - 10) < 1e-6 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - ${chainBefore.volume}) < 0.05`, 'Cofnij zmianę wymiaru bazy', 45000);
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
+    await waitFor(window, `${timelineOk(4)} && Math.abs(Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) - 20) < 1e-6 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - ${chainAfter}) < 0.05`, 'Ponów zmianę wymiaru bazy', 45000);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel')`, 'Ponów nie otwiera kreatora naprawy', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis łańcucha zależności');
+    await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0`, 'nowy projekt po łańcuchu zależności');
+    await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 4 && ${timelineOk(4)}
+      && Math.abs(Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) - 20) < 1e-6
+      && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - ${chainAfter}) < 0.05`, 'odtworzony łańcuch zależności', 45000);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel')`, 'otwarty łańcuch bez kreatora naprawy', 30000);
+    result.dimensionChain = { before: chainBefore.volume, after: chainAfter, sketchFollowed: true, undoRedo: true, fileRoundTrip: true };
+    process.stdout.write(`[verify] dimension chain ${JSON.stringify(result.dimensionChain)}\n`);
+
     // Stop the old renderer before clearing storage. Its delayed autosave can
     // otherwise repopulate the first sketch between clear() and the reload.
     await window.loadURL('about:blank');

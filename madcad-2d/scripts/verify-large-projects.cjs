@@ -5,6 +5,17 @@ const { app, BrowserWindow } = require('electron');
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-large-projects.png');
 const timeoutMs = process.env.CI ? 300000 : 120000;
 
+// Like waitFor, but returns the first non-null value of `expression`.
+async function waitForValue(window, expression, label, pollMs = 25) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const value = await window.webContents.executeJavaScript(expression);
+    if (value !== null && value !== undefined) return value;
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  throw new Error(`Przekroczono czas oczekiwania: ${label}.`);
+}
+
 async function waitFor(window, expression, label, pollMs = 25) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -96,9 +107,16 @@ app.whenReady().then(async () => {
       canceled: window.__madcadVerifyEngineState.canceledRevisions,
     })`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyUpdateLargeHistory(2, 10)`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'computing' && window.__madcadVerifyEngineState?.revision > ${before.revision}`, 'rozpoczęta starsza przebudowa', 5);
-    const supersededRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
-    await window.webContents.executeJavaScript(`window.__madcadVerifyUpdateLargeHistory(2, -3)`);
+    // Detect the running rebuild and send the newer edit in one renderer task: on
+    // fast runners the older rebuild (<1 s) can finish between separate calls,
+    // leaving nothing to supersede.
+    const supersededRevision = await waitForValue(window, `(() => {
+      const engine = window.__madcadVerifyEngineState;
+      if (engine?.status !== 'computing' || !(engine.revision > ${before.revision})) return null;
+      const revision = engine.revision;
+      window.__madcadVerifyUpdateLargeHistory(2, -3);
+      return revision;
+    })()`, 'rozpoczęta starsza przebudowa', 5);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${supersededRevision} && window.__madcadVerifyEngineState?.canceledRevisions > ${before.canceled} && window.__madcadVerifyDocumentState?.featureData?.[2]?.x === '-3'`, 'najnowsza rewizja po anulowaniu starej');
 
     const finalEditRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);

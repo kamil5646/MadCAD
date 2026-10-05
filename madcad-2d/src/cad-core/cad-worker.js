@@ -46,6 +46,7 @@ import { drawingProjectionGroupKey, uniqueDrawingSegments } from './drawing-proj
 import { kernelDrawingCurveSegments, projectExactSections } from './drawing-sections.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
+import { stretchedEdgeIndex, translatedFaceIndex } from './topology-fallback.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
 import { createThreeMfArchive } from './three-mf.js';
 import { boundsOverlap } from './geometry-inspection.js';
@@ -2364,8 +2365,10 @@ function matchingEdgeIndex(reference, descriptors) {
       bestIndex = index;
     }
   });
-  if (bestIndex < 0 || bestDistance > 1e-4) throw new Error(`Nie odnaleziono wskazanej krawędzi „${reference?.label || reference?.topologyId}”.`);
-  return bestIndex;
+  if (bestIndex >= 0 && bestDistance <= 1e-4) return bestIndex;
+  const stretched = stretchedEdgeIndex(reference?.descriptor, descriptors);
+  if (stretched >= 0) return stretched;
+  throw new Error(`Nie odnaleziono wskazanej krawędzi „${reference?.label || reference?.topologyId}”.`);
 }
 
 function faceReferenceDistance(reference, descriptor) {
@@ -2388,8 +2391,10 @@ function matchingFaceIndex(reference, descriptors) {
       bestIndex = index;
     }
   });
-  if (bestIndex < 0 || bestDistance > 1e-4) throw new Error(`Nie odnaleziono wskazanej ściany „${reference?.label || reference?.topologyId}”.`);
-  return bestIndex;
+  if (bestIndex >= 0 && bestDistance <= 1e-4) return bestIndex;
+  const translated = translatedFaceIndex(reference?.descriptor, descriptors);
+  if (translated >= 0) return translated;
+  throw new Error(`Nie odnaleziono wskazanej ściany „${reference?.label || reference?.topologyId}”.`);
 }
 
 function selectedFaceHashes(shape, references) {

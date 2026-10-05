@@ -1000,6 +1000,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Brak skrótu': 'No shortcut',
   'Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.': 'Ready. Choose “Create sketch” to start modeling.',
   'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.': 'Ready. Start a 2D drawing or open a project.',
+  'Odzyskano projekt po nieoczekiwanym zamknięciu aplikacji.': 'Recovered the project after MadCAD closed unexpectedly.',
   'Wybierz płaszczyznę i rozpocznij rysowanie profilu 2D.': 'Choose a plane and start drawing a 2D profile.',
   'Narysuj prostokątny profil, klikając środek i punkt rozmiaru.': 'Draw a rectangular profile by clicking its center and a size point.',
   'Narysuj okrąg, klikając środek i punkt promienia.': 'Draw a circle by clicking its center and a radius point.',

@@ -120,7 +120,7 @@ import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_ST
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { resolveOpenChainProfile } from '../cad-core/evaluator.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
-import { createTopologyReference, inspectTopologyReferences, rebindMovedFaceSupportReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
+import { createTopologyReference, inspectTopologyReferences, rebindMovedFaceSupportReferences, reassignTopologyReference, supportReferenceKey } from '../cad-core/topology-references.js';
 import { moveTrackedFaceSketchSupports, placeSketchesOnReassignedFace } from '../cad-core/face-sketch-support.js';
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { frameFromNormal, normalizeSketchFrame } from '../cad-core/sketch-frame.js';
@@ -522,7 +522,7 @@ export default function ModelingWorkspace() {
     updatedAt: initialOpen.document?.metadata?.modifiedAt || null,
   } : null);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, autoConstraints: true, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
-  const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.');
+  const [notice, setNotice] = useState(initialOpen.warning || (initialOpen.recovered ? 'Odzyskano projekt po nieoczekiwanym zamknięciu aplikacji.' : 'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.'));
   const fileInputRef = useRef(null);
   const importInputRef = useRef(null);
   const sketchImportInputRef = useRef(null);
@@ -1808,12 +1808,32 @@ export default function ModelingWorkspace() {
     setNotice(`Project odświeżony automatycznie · ${result.updatedEntityIds.length} ${result.updatedEntityIds.length === 1 ? 'element' : 'elementów'}.`);
   }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
+  // Face-sketch supports that resolved in the last evaluation (id + recorded
+  // position). Only these may follow a face moved by an edit in this session.
+  // `ready` marks that this document generation has been evaluated once; feature
+  // edits wait for it, since without a resolved baseline moved face supports
+  // could not follow. A ref, so a click right after evaluation sees it at once.
+  const resolvedSupportKeysRef = useRef({ generation: history.generation, keys: new Set(), ready: false });
   useEffect(() => {
     if (readOnly || command?.previewFeature || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
+    // Another document (open, new, recovery) carries no edit from this session.
+    if (resolvedSupportKeysRef.current.generation !== history.generation) resolvedSupportKeysRef.current = { generation: history.generation, keys: new Set(), ready: false };
+    const followMovedIds = new Set(document.references
+      .filter((reference) => resolvedSupportKeysRef.current.keys.has(supportReferenceKey(reference)))
+      .map((reference) => reference.id));
+    resolvedSupportKeysRef.current = {
+      ready: true,
+      generation: history.generation,
+      keys: new Set(topologyReferenceStates.filter((state) => state.status === 'resolved').map((state) => supportReferenceKey(state.reference))),
+    };
     const probe = cloneDocument(document);
-    if (!rebindMovedFaceSupportReferences(probe, actualBodies).length) return;
-    history.synchronize((next) => rebindMovedFaceSupportReferences(next, actualBodies));
-  }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
+    const rebound = rebindMovedFaceSupportReferences(probe, actualBodies, { followMovedIds });
+    if (!rebound.length) return;
+    // A reference rebound here matches the current geometry by definition; record
+    // it now so an edit started before the next evaluation can still be followed.
+    for (const reference of probe.references.filter((item) => rebound.includes(item.id))) resolvedSupportKeysRef.current.keys.add(supportReferenceKey(reference));
+    history.synchronize((next) => rebindMovedFaceSupportReferences(next, actualBodies, { followMovedIds }));
+  }, [document, actualBodies, topologyReferenceStates, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
   useEffect(() => {
     if (readOnly || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
@@ -1909,6 +1929,13 @@ export default function ModelingWorkspace() {
   // Number features per kind like Fusion ("Zaokrąglenie 1" after "Wyciągnięcie 1"), using the first free number.
   const nextFeatureName = (prefix) => {
     const used = new Set(document.features.map((feature) => feature.name));
+    let index = 1;
+    while (used.has(`${prefix} ${index}`)) index += 1;
+    return `${prefix} ${index}`;
+  };
+  // Sketch shapes are numbered per type ("Okrąg 1" after two rectangles), like operations.
+  const nextShapeName = (prefix) => {
+    const used = new Set(document.sketches.flatMap((sketch) => sketch.profiles || []).map((profile) => profile.name));
     let index = 1;
     while (used.has(`${prefix} ${index}`)) index += 1;
     return `${prefix} ${index}`;
@@ -2849,9 +2876,9 @@ export default function ModelingWorkspace() {
       return;
     }
     if (type === 'rectangle') {
-      setCommand({ type, definition: profile ? 'center' : 'corner', cornerManual: false, gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', rotation: '0', x1: '-20', y1: '-15', x2: '20', y2: '15', x3: '20', y3: '15' });
+      setCommand({ type, definition: profile ? 'center' : 'corner', cornerManual: false, gesturePoints: [], editId: profile?.id || null, name: profile?.name || nextShapeName('Prostokąt'), width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', rotation: '0', x1: '-20', y1: '-15', x2: '20', y2: '15', x3: '20', y3: '15' });
     } else {
-      setCommand({ type, definition: 'centerRadius', gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Okrąg ${document.sketches.flatMap((item) => item.profiles).length + 1}`, diameter: profile?.geometry.diameter || '10', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', x1: '-5', y1: '0', x2: '5', y2: '0', x3: '0', y3: '5' });
+      setCommand({ type, definition: 'centerRadius', gesturePoints: [], editId: profile?.id || null, name: profile?.name || nextShapeName('Okrąg'), diameter: profile?.geometry.diameter || '10', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', x1: '-5', y1: '0', x2: '5', y2: '0', x3: '0', y3: '5' });
     }
     setNotice(profile ? 'Kliknij nowe punkty na płótnie albo wpisz dokładne dane.' : 'Wskaż punkty figury bezpośrednio na płótnie; pola służą do opcjonalnego wpisania dokładnych danych.');
   };
@@ -2862,13 +2889,12 @@ export default function ModelingWorkspace() {
       startSketch();
       return;
     }
-    const number = document.sketches.flatMap((item) => item.profiles).length + 1;
-    if (type === 'arc') setCommand({ type, definition: 'threePoints', gesturePoints: [], name: `Łuk ${number}`, x1: '-10', y1: '0', x2: '0', y2: '10', x3: '10', y3: '0', direction: 'ccw' });
-    if (type === 'polygon') setCommand({ type, definition: 'inscribed', gesturePoints: [], name: `Wielokąt ${number}`, sides: '6', radius: '15', x: '0', y: '0', rotation: '0', x1: '-10', y1: '0', x2: '10', y2: '0' });
-    if (type === 'ellipse') setCommand({ type, definition: 'full', gesturePoints: [], name: `Elipsa ${number}`, majorRadius: '20', minorRadius: '10', x: '0', y: '0', rotation: '0', startAngle: '0', endAngle: '180', direction: 'ccw' });
-    if (type === 'slot') setCommand({ type, definition: 'centerToCenter', gesturePoints: [], name: `Slot ${number}`, x1: '-15', y1: '0', x2: '15', y2: '0', x3: '-15', y3: '5', x: '0', y: '0', radius: '25', startAngle: '0', endAngle: '90', direction: 'ccw', width: '10' });
-    if (type === 'spline') setCommand({ type, definition: 'fit', gesturePoints: [], name: `Spline ${number}`, pointsText: '-20,0; -8,15; 8,-15; 20,0' });
-    if (type === 'conic') setCommand({ type, gesturePoints: [], name: `Conic ${number}`, x1: '-20', y1: '0', x2: '0', y2: '20', x3: '20', y3: '0', rho: '0.7071067812', continuity: 'tangent' });
+    if (type === 'arc') setCommand({ type, definition: 'threePoints', gesturePoints: [], name: nextShapeName('Łuk'), x1: '-10', y1: '0', x2: '0', y2: '10', x3: '10', y3: '0', direction: 'ccw' });
+    if (type === 'polygon') setCommand({ type, definition: 'inscribed', gesturePoints: [], name: nextShapeName('Wielokąt'), sides: '6', radius: '15', x: '0', y: '0', rotation: '0', x1: '-10', y1: '0', x2: '10', y2: '0' });
+    if (type === 'ellipse') setCommand({ type, definition: 'full', gesturePoints: [], name: nextShapeName('Elipsa'), majorRadius: '20', minorRadius: '10', x: '0', y: '0', rotation: '0', startAngle: '0', endAngle: '180', direction: 'ccw' });
+    if (type === 'slot') setCommand({ type, definition: 'centerToCenter', gesturePoints: [], name: nextShapeName('Slot'), x1: '-15', y1: '0', x2: '15', y2: '0', x3: '-15', y3: '5', x: '0', y: '0', radius: '25', startAngle: '0', endAngle: '90', direction: 'ccw', width: '10' });
+    if (type === 'spline') setCommand({ type, definition: 'fit', gesturePoints: [], name: nextShapeName('Spline'), pointsText: '-20,0; -8,15; 8,-15; 20,0' });
+    if (type === 'conic') setCommand({ type, gesturePoints: [], name: nextShapeName('Conic'), x1: '-20', y1: '0', x2: '0', y2: '20', x3: '20', y3: '0', rho: '0.7071067812', continuity: 'tangent' });
     if (type === 'point') setCommand({ type, gesturePoints: [], x: '0', y: '0', role: 'standard' });
     setNotice(type === 'spline' ? 'Klikaj punkty spline na płótnie; Enter kończy, a Escape anuluje polecenie.' : 'Wskaż kolejne punkty figury na płótnie albo wpisz dokładne dane w panelu.');
   };
@@ -5182,7 +5208,7 @@ export default function ModelingWorkspace() {
       return;
     }
     const reference = { ...createTopologyReference({ selection: selectedFace, descriptor: record.descriptor, label: 'Offset Face — ściana' }), scope: 'feature-input' };
-    const next = { type: 'offsetFace', targetBodyId: selectedFace.bodyId, distance: '1', faceLabel: record.id, topologyReferences: [reference], previewFeature: null };
+    const next = { type: 'offsetFace', targetBodyId: selectedFace.bodyId, distance: '1', faceLabel: `Płaska ściana${Number(record.descriptor?.area) > 0 ? ` · ${Number(record.descriptor.area).toLocaleString('pl-PL', { maximumFractionDigits: 2 })} mm²` : ''}${body.name ? ` · ${body.name}` : ''}`, topologyReferences: [reference], previewFeature: null };
     setCommand(next);
     window.setTimeout(() => updateCommand(next), 0);
   };
@@ -5566,6 +5592,12 @@ export default function ModelingWorkspace() {
     if (target?.kind !== 'feature') return;
     const feature = document.features.find((item) => item.id === target.id);
     if (!feature) return;
+    const baselinePending = !resolvedSupportKeysRef.current.ready || resolvedSupportKeysRef.current.generation !== history.generation;
+    // Only while the first rebuild is still running; a failed rebuild must stay editable.
+    if (baselinePending && ['loading', 'computing', 'recovering'].includes(engine.status)) {
+      setNotice('Poczekaj, aż otwarty projekt przeliczy się pierwszy raz, a potem edytuj operację.');
+      return;
+    }
     if (feature.type === 'sheetUnfold' || feature.type === 'sheetRefold') {
       setNotice('Ta operacja nie ma osobnych parametrów. Zmień regułę blachy, kołnierz albo zawinięcie wcześniej na osi czasu.');
       return;
@@ -5639,7 +5671,7 @@ export default function ModelingWorkspace() {
     else if (feature.type === 'primitive') setCommand({ type: 'primitive', editId: feature.id, name: feature.name, primitiveType: feature.primitiveType, x: feature.x, y: feature.y, z: feature.z, width: feature.width || '20', depth: feature.depth || '20', height: feature.height || '20', radius: feature.radius || '10', majorRadius: feature.majorRadius || '15', minorRadius: feature.minorRadius || '4', previewFeature: feature });
     else if (feature.type === 'formBody') setCommand({ type: 'formBody', editId: feature.id, name: feature.name, width: feature.width, depth: feature.depth, height: feature.height, subdivisions: feature.subdivisions, symmetry: feature.symmetry || 'none', controlOffsets: feature.controlOffsets || Array.from({ length: 8 }, () => ['0', '0', '0']), selectedControlKind: 'point', selectedControlPoint: 0, selectedControlEdge: 0, selectedControlFace: 0, creaseEdges: feature.creaseEdges || [], insertEdgeEnabled: feature.insertEdgeEnabled === true, insertEdgeIndex: feature.insertEdgeIndex || 0, insertEdgePosition: feature.insertEdgePosition || '0.5', insertEdgeOffsets: feature.insertEdgeOffsets || [], bridgeEnabled: feature.bridgeEnabled === true, bridgeFirstFace: feature.bridgeFirstFace || 0, bridgeSecondFace: feature.bridgeSecondFace ?? 1, bridgeInset: feature.bridgeInset || '0.45', bridgeOffsets: feature.bridgeOffsets || [], fillHoleEnabled: feature.fillHoleEnabled === true, fillHoleFace: feature.fillHoleFace || 0, fillHoleOffsets: feature.fillHoleOffsets || [], x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', previewFeature: feature });
     else if (feature.type === 'transform') setCommand({ type: 'transform', editId: feature.id, targetBodyId: feature.targetBodyId, mode: feature.mode, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', angle: feature.angle || '0', originX: feature.originX || '0', originY: feature.originY || '0', originZ: feature.originZ || '0', previewFeature: feature });
-    else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: '1 wskazana', previewFeature: feature });
+    else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: `Płaska ściana · ${actualBodies.find((body) => body.id === feature.targetBodyId)?.name || 'bryła'}`, previewFeature: feature });
     else if (feature.type === 'textSolid') setCommand({ type: 'textSolid', editId: feature.id, text: feature.text, fontSize: feature.fontSize, depth: feature.depth, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', operation: feature.operation, targetBodyId: feature.targetBodyId || null, placement: feature.placement || 'world', topologyReferences: (feature.referenceIds || []).map((id) => document.references.find((reference) => reference.id === id)).filter(Boolean), previewFeature: feature });
     else if (feature.type === 'hole') {
       const holeOptions = { holeType: feature.holeType || 'simple', extent: feature.extent || 'distance', diameter: feature.diameter, depth: feature.depth || '10', counterboreDiameter: feature.counterboreDiameter || '10', counterboreDepth: feature.counterboreDepth || '3', countersinkDiameter: feature.countersinkDiameter || '10', countersinkAngle: feature.countersinkAngle || '90', threadMode: feature.threadMode || 'none', threadDiameter: feature.threadDiameter || '10', threadPitch: feature.threadPitch || '1.5', threadLength: feature.threadLength || feature.depth || '8', threadDirection: feature.threadDirection || 'right', holeStandard: feature.holeStandard || 'custom', holeApplication: feature.holeApplication || 'custom', standardSize: feature.standardSize || 'M6', clearanceClass: feature.clearanceClass || 'medium', threadClass: feature.threadClass ?? '6H', threadDesignation: feature.threadDesignation || '', threadInspection: feature.threadInspection || '', pipePreparation: feature.pipePreparation || 'conical', threadTaper: feature.threadTaper || '0', threadProfileAngle: feature.threadProfileAngle || '60', diameterToleranceLower: feature.diameterToleranceLower ?? '', diameterToleranceUpper: feature.diameterToleranceUpper ?? '', clearanceProfile: feature.clearanceProfile || 'nominal', clearance: feature.clearance || '0.2' };

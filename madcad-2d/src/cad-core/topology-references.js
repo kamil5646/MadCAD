@@ -1,4 +1,6 @@
 import { createId } from './ids.js';
+import { resolveSketchFrame } from './sketch-frame.js';
+import { movedSupportFaceIndex } from './topology-fallback.js';
 
 export const TOPOLOGY_REFERENCE_KIND = 'topology';
 export const TOPOLOGY_KINDS = Object.freeze(['face', 'edge', 'vertex']);
@@ -140,11 +142,17 @@ export function inspectTopologyReferences(document, bodies) {
 // ID. Rebind such a reference to the rebuilt face when exactly one coplanar
 // candidate sits where the tracked descriptor says it should be; anything
 // ambiguous stays lost and goes through the repair workflow.
-export function rebindMovedFaceSupportReferences(document, bodies) {
+// `followMovedIds` lists references that resolved before the current edit;
+// only those may follow a face that slid along its normal. A drift that is
+// already present when a file is opened goes through the repair workflow.
+export function rebindMovedFaceSupportReferences(document, bodies, { followMovedIds = null } = {}) {
   const supportIds = new Set((document?.sketches || []).filter((sketch) => sketch.support?.kind === 'face')
     .map((sketch) => sketch.support.referenceId));
   if (!supportIds.size) return [];
   const rebound = [];
+  // Face IDs held before this pass: several sketches may follow one moved face,
+  // so a face rebound for one of them must not count as claimed for the next.
+  const originalTopologyIds = new Map((document.references || []).map((other) => [other.id, other.topologyId]));
   for (const state of inspectTopologyReferences(document, bodies)) {
     const { reference } = state;
     if (state.status !== 'lost' || state.resolvedRecord || reference.topologyKind !== 'face'
@@ -159,12 +167,70 @@ export function rebindMovedFaceSupportReferences(document, bodies) {
       && candidate.descriptor?.geometry === 'PLANE' && reference.descriptor?.geometry === 'PLANE'
       && !claimed.has(candidate.id) && !facePlaneDrift(reference.descriptor, candidate.descriptor))
       .sort((left, right) => left.distance - right.distance);
-    if (!matches.length || (matches.length > 1 && !(matches[0].distance < matches[1].distance && matches[0].distance * 2 <= matches[1].distance))) continue;
+    if (!matches.length) {
+      if (!followMovedIds?.has(reference.id)) continue;
+      // The face slid along its normal because an upstream dimension changed
+      // (Extrude 40 -> 50 lifts a face-on-face sketch by 10 mm). Follow it only
+      // when one face of this body is the obvious successor.
+      const bodyCandidates = state.candidates.filter((candidate) => candidate.bodyId === reference.bodyId);
+      const claimedBefore = new Set(document.references
+        .filter((other) => other.id !== reference.id && other.kind === TOPOLOGY_REFERENCE_KIND && other.bodyId === reference.bodyId)
+        .map((other) => originalTopologyIds.get(other.id)));
+      const excluded = new Set(bodyCandidates.flatMap((candidate, index) => (claimedBefore.has(candidate.id) ? [index] : [])));
+      const index = movedSupportFaceIndex(reference.descriptor, bodyCandidates.map((candidate) => candidate.descriptor), excluded);
+      if (index < 0 || !moveSupportedSketches(document, reference, bodyCandidates[index].descriptor)) continue;
+      reference.topologyId = bodyCandidates[index].id;
+      reference.descriptor = structuredClone(bodyCandidates[index].descriptor);
+      rebound.push(reference.id);
+      continue;
+    }
+    if (matches.length > 1 && !(matches[0].distance < matches[1].distance && matches[0].distance * 2 <= matches[1].distance)) continue;
     reference.topologyId = matches[0].id;
     reference.descriptor = structuredClone(matches[0].descriptor);
     rebound.push(reference.id);
   }
   return rebound;
+}
+
+// Shift every sketch on `reference` along its own normal so it lies on the
+// plane of `descriptor`. All-or-nothing: returns false and changes nothing when
+// a sketch is not parallel to the face or uses a parametric offset.
+function moveSupportedSketches(document, reference, descriptor) {
+  const faceNormal = descriptor.normal;
+  const faceNormalLength = Math.hypot(...faceNormal);
+  if (!faceNormalLength) return false;
+  const moves = [];
+  for (const sketch of document.sketches || []) {
+    if (sketch.support?.kind !== 'face' || sketch.support.referenceId !== reference.id) continue;
+    let frame;
+    try { frame = resolveSketchFrame(sketch); } catch { return false; }
+    const alignment = frame.normal.reduce((sum, value, axis) => sum + value * faceNormal[axis], 0) / faceNormalLength;
+    if (Math.abs(alignment) < 1 - 1e-6) return false;
+    const distance = frame.normal.reduce((sum, value, axis) => sum + value * (descriptor.center[axis] - frame.origin[axis]), 0);
+    if (sketch.frame) {
+      moves.push(() => { sketch.frame = { ...sketch.frame, origin: sketch.frame.origin.map((value, axis) => value + frame.normal[axis] * distance) }; });
+      continue;
+    }
+    const offset = Number(sketch.planeOffset || 0);
+    if (!Number.isFinite(offset)) return false;
+    // Offset sign differs per base plane (XZ uses -Y), so measure it.
+    const step = resolveSketchFrame({ plane: sketch.plane, planeOffset: offset + 1 }).origin
+      .reduce((sum, value, axis) => sum + (value - frame.origin[axis]) * frame.normal[axis], 0);
+    if (Math.abs(Math.abs(step) - 1) > 1e-9) return false;
+    moves.push(() => { sketch.planeOffset = String(Number((offset + distance / step).toFixed(9))); });
+  }
+  if (!moves.length) return false;
+  moves.forEach((move) => move());
+  return true;
+}
+
+// Identifies a support reference together with the face position it recorded,
+// so a reference loaded with a different (stale) position is not mistaken for
+// one that was resolved a moment ago.
+export function supportReferenceKey(reference) {
+  const descriptor = reference?.descriptor;
+  const round = (values) => (Array.isArray(values) ? values.map((value) => Number(value).toFixed(6)).join(',') : '');
+  return `${reference?.id}|${round(descriptor?.center)}|${round(descriptor?.normal)}`;
 }
 
 export function reassignTopologyReference(reference, selection, descriptor = null) {
