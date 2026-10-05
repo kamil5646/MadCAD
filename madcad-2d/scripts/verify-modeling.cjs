@@ -1171,7 +1171,7 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.concavePointId)}); return Number(point?.geometry?.x) === 15; })()`, 'dokładna zmiana wierzchołka');
   await clickTool('Zakończ szkic');
-  await clickTool('Press Pull');
+  await clickTool('Wyciągnij');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wyciągnięcie profilu L');
   await setCommandField('Odległość', '8');
   await new Promise((resolve) => setTimeout(resolve, 100));

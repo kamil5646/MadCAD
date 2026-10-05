@@ -384,7 +384,7 @@ app.whenReady().then(async () => {
       hasMore: Boolean(document.querySelector('.adaptive-tool-shelf .adaptive-tool-more')),
       withinViewport: (() => { const shelf = document.querySelector('.adaptive-tool-shelf')?.getBoundingClientRect(); const stage = document.querySelector('.modeling-stage')?.getBoundingClientRect(); return Boolean(shelf && stage && shelf.left >= stage.left && shelf.right <= stage.right && shelf.top >= stage.top && shelf.bottom <= stage.bottom); })(),
     }))()`);
-    if (adaptiveSelection.title !== 'Bryła' || !adaptiveSelection.actions.includes('Przesuń') || !adaptiveSelection.actions.includes('Obróć') || !adaptiveSelection.actions.includes('Szyk') || !adaptiveSelection.hasMore || !adaptiveSelection.withinViewport) throw new Error(`Kontekst wyboru nie prowadzi do właściwych narzędzi: ${JSON.stringify(adaptiveSelection)}`);
+    if (adaptiveSelection.title !== 'Bryła' || !adaptiveSelection.actions.includes('Przesuń bryłę') || !adaptiveSelection.actions.includes('Obróć bryłę') || !adaptiveSelection.actions.includes('Szyk') || !adaptiveSelection.hasMore || !adaptiveSelection.withinViewport) throw new Error(`Kontekst wyboru nie prowadzi do właściwych narzędzi: ${JSON.stringify(adaptiveSelection)}`);
     await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-more-trigger')?.click()`);
     await waitFor(window, `document.querySelector('.adaptive-tool-more [role="menu"]')`, 'menu dodatkowych działań bryły');
     const adaptiveMoreActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].map((button) => button.textContent.trim())`);
@@ -411,7 +411,8 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `document.querySelector('.adaptive-tool-shelf header strong')?.textContent.trim() === 'Ściana'`, 'kontekstowe narzędzia ściany');
     const faceActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].map((button) => button.textContent.trim())`);
-    if (!faceActions.includes('Szkic na ścianie') || !faceActions.includes('Naciśnij / wyciągnij') || !faceActions.includes('Odsuń ścianę')) throw new Error(`Brak bezpośrednich działań dla ściany: ${JSON.stringify(faceActions)}`);
+    // One Extrude for profiles and faces; no second button doing the same thing.
+    if (!faceActions.includes('Szkic na ścianie') || !faceActions.includes('Wyciągnij') || faceActions.includes('Naciśnij / wyciągnij') || new Set(faceActions).size !== faceActions.length) throw new Error(`Brak bezpośrednich działań dla ściany: ${JSON.stringify(faceActions)}`);
     await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-more-trigger')?.click()`);
     await waitFor(window, `document.querySelector('.adaptive-tool-more [role="menu"]')`, 'właściwości zaznaczonej ściany');
     const faceMoreActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].map((button) => button.textContent.trim())`);
@@ -421,7 +422,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.measure-panel [title="Zamknij pomiar"]')?.click()`);
     await waitFor(window, `!document.querySelector('.measure-panel') && document.querySelector('.adaptive-tool-shelf')`, 'zamknięcie właściwości ściany');
     await fs.writeFile(faceContextScreenshotPath, (await window.webContents.capturePage()).toPNG());
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].find((button) => button.textContent.trim() === 'Naciśnij / wyciągnij')?.click()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].find((button) => button.textContent.trim() === 'Wyciągnij')?.click()`);
     await waitFor(window, `document.querySelector('.command-dialog.docked')`, 'panel parametrów operacji');
     const commandPanel = await window.webContents.executeJavaScript(`(() => {
       const panel = document.querySelector('.command-dialog.docked');

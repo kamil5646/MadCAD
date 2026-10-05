@@ -43,7 +43,7 @@ const TOOL_DESCRIPTIONS = {
   'Ordinate X': 'Dodaj wymiar współrzędnej X wybranego punktu.',
   'Ordinate Y': 'Dodaj wymiar współrzędnej Y wybranego punktu.',
   'Długość łuku': 'Dodaj sterujący wymiar długości wybranego łuku.',
-  'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę; możesz też przeciągnąć niebieską strzałkę.',
+  'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę albo wyciągnij/wciśnij zaznaczoną płaską ścianę; możesz też przeciągnąć niebieską strzałkę.',
   'Baza blachowa': 'Utwórz pierwszą bryłę blachową z regułą grubości, promienia gięcia i współczynnika K.',
   'Blacha': 'Utwórz bazę blachową, a następnie dodawaj kołnierze na jej krawędziach.',
   'Kołnierz blachy': 'Dodaj parametryczny kołnierz do jednej prostej krawędzi istniejącej blachy.',
@@ -71,7 +71,6 @@ const TOOL_DESCRIPTIONS = {
   'Loft': 'Połącz dwa profile płynną albo odcinkową bryłą przejściową.',
   'Coil': 'Utwórz parametryczną spiralę lub sprężynę wokół osi.',
   'Pattern': 'Powiel wybraną bryłę w szyku prostokątnym, kołowym albo po ścieżce.',
-  'Press Pull': 'Wyciągnij lub wciśnij wybrany profil albo płaską ścianę.',
   'Prymityw': 'Utwórz dokładny box, walec, sferę albo torus.',
   'Tekst 3D': 'Utwórz tekst jako nową bryłę, wypukłość albo grawer.',
   'Boolean': 'Połącz, odejmij albo pozostaw część wspólną dwóch wskazanych brył.',
@@ -145,7 +144,7 @@ const TOOL_SHORTCUTS = Object.freeze({
 
 const TOOL_COLOR_GROUPS = Object.freeze({
   sketch: new Set(['Utwórz szkic', 'Linia', 'Polilinia', 'Łuk styczny', 'Łuk', 'Prostokąt', 'Okrąg', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt', 'Więcej kształtów', 'Zakończ szkic']),
-  solid: new Set(['Wyciągnij', 'Więcej brył', 'Form', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
+  solid: new Set(['Wyciągnij', 'Więcej brył', 'Form', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
   surface: new Set(['Powierzchnie', 'Patch', 'Surface Extrude', 'Surface Revolve', 'Surface Sweep', 'Surface Loft', 'Surface Offset', 'Surface Trim', 'Surface Extend', 'Stitch', 'Thicken']),
   sheet: new Set(['Blacha', 'Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Rozwiń blachę', 'Zagnij ponownie', 'Szczelina blachy', 'Tabela gięć']),
   plastic: new Set(['Plastic', 'Boss', 'Snap-fit', 'Grille']),
