@@ -110,7 +110,7 @@
     "replicad": "^0.23.1",
     "replicad-opencascadejs": "^0.23.0",
     "three": "^0.186.1",
-    "vite": "^8.3.2",
+    "vite": "^8.3.5",
     "vitest": "^4.1.11"
   },
   "build": {
