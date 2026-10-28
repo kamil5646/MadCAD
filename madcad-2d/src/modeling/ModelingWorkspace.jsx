@@ -7021,7 +7021,7 @@ export default function ModelingWorkspace() {
     recommended.push({ icon: Trash2, label: 'Usuń', onClick: deleteSelectedSketchEntities, danger: true });
     adaptiveContext = {
       title: selectedSketchConstraintId ? 'Wybrany więz' : `${selectedSketchEntityIds.length} ${selectedSketchEntityIds.length === 1 ? 'element szkicu' : 'elementy szkicu'}`,
-      subtitle: 'Dostępne są tylko pasujące działania',
+      subtitle: 'Szybkie działania',
       actions: recommended.slice(0, 4),
       moreActions: [...recommended.slice(4), ...more],
       onClear: () => handleSketchSelection([], 'replace'),
@@ -7271,24 +7271,19 @@ export default function ModelingWorkspace() {
                     { icon: RotateCw, label: 'Długość łuku', onClick: () => openSketchDimension('arcLength'), disabled: readOnly || !canAddArcLength, disabledReason: 'Zaznacz łuk.' },
                   ]} />
                 </RibbonGroup>
-                <RibbonGroup label="ORGANIZUJ">
-                  <ToolMenuButton icon={Layers3} label="Warstwy i bloki" description="Porządkuj geometrię szkicu za pomocą warstw i bloków wielokrotnego użytku." items={[
-                    { icon: Layers3, label: 'Warstwy', onClick: () => { setBlocksOpen(false); setComponentsOpen(false); setLayersOpen(true); } },
-                    { icon: Blocks, label: 'Bloki', onClick: () => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); } },
+                {/* Advanced sketch tools share one menu so the ribbon keeps only the basics. */}
+                <RibbonGroup label="INNE">
+                  <ToolMenuButton icon={Layers3} label="Więcej narzędzi" description="Warstwy, bloki oraz bryły i powierzchnie z otwartych linii." items={[
+                    { section: 'Porządek', icon: Layers3, label: 'Warstwy', onClick: () => { setBlocksOpen(false); setComponentsOpen(false); setLayersOpen(true); } },
+                    { section: 'Porządek', icon: Blocks, label: 'Bloki', onClick: () => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); } },
+                    { section: 'Z otwartych linii', icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { section: 'Z otwartych linii', icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Powierzchnia wyciągnięta', onClick: openSurfaceExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { section: 'Z otwartych linii', icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Powierzchnia obrotowa', onClick: openSurfaceRevolve, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { section: 'Z otwartych linii', icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !canExtrudeOpenChain || !sweepPathOptions(activeSketchId).length, disabledReason: 'Zaznacz profil i przygotuj osobny szkic ścieżki.' },
+                    { section: 'Z otwartych linii', icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
+                    { section: 'Z otwartych linii', icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
                   ]} />
                 </RibbonGroup>
-                {Boolean(document.sketches.find((sketch) => sketch.id === activeSketchId)?.entities?.length) && (
-                  <RibbonGroup label="BRYŁA ZE SZKICU">
-                  <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii aktywnego szkicu." items={[
-                    { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Powierzchnia wyciągnięta', onClick: openSurfaceExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Powierzchnia obrotowa', onClick: openSurfaceRevolve, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !canExtrudeOpenChain || !sweepPathOptions(activeSketchId).length, disabledReason: 'Zaznacz profil i przygotuj osobny szkic ścieżki.' },
-                    { icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
-                    { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
-                  ]} />
-                  </RibbonGroup>
-                )}
                 <RibbonGroup label="ZAKOŃCZ SZKIC" end><ToolButton icon={FinishSketchCadIcon} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
                   </>
                 )}

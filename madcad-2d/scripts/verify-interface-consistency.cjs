@@ -249,7 +249,7 @@ app.whenReady().then(async () => {
         balancedDirectCount: directLabels.length <= 15,
         menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
         groupLabels,
-        fusionOrder: groupLabels.join('|') === ['UTWÓRZ', 'ZMIEŃ', 'WIĄZANIA', 'ORGANIZUJ', 'ZAKOŃCZ SZKIC'].join('|'),
+        fusionOrder: groupLabels.join('|') === ['UTWÓRZ', 'ZMIEŃ', 'WIĄZANIA', 'INNE', 'ZAKOŃCZ SZKIC'].join('|'),
         redundantSelectRemoved: !directLabels.includes('Wybierz'),
         finishActionCount: document.querySelectorAll('[data-tool-label="Zakończ szkic"]').length,
         finishHeadingHidden: !document.querySelector('.ribbon-group-finish .ribbon-group-heading')?.checkVisibility?.(),

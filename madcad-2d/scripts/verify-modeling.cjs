@@ -326,8 +326,8 @@ async function runUiFlow(window) {
     ...['Extend', 'Break', 'Offset', 'Przesuń', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu'].map((label) => [label, 'Modyfikuj']),
     ...['Poziomo', 'Pionowo', 'Zbieżne punkty', 'Równe', 'Styczne', 'Zablokuj', 'Współliniowe', 'Symetria', 'Krzywizna G2'].map((label) => [label, 'Więzy']),
     ...['Ordinate X', 'Ordinate Y', 'Długość łuku'].map((label) => [label, 'Wymiary']),
-    ...['Warstwy', 'Bloki'].map((label) => [label, 'Warstwy i bloki']),
-    ...['Thin Extrude', 'Rib/Web', 'Pipe'].map((label) => [label, 'Utwórz 3D']),
+    ...['Warstwy', 'Bloki'].map((label) => [label, 'Więcej narzędzi']),
+    ...['Thin Extrude', 'Rib/Web', 'Pipe'].map((label) => [label, 'Więcej narzędzi']),
   ]);
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
   const selectWorkspaceMode = async (value) => {

@@ -53,7 +53,7 @@ app.whenReady().then(async () => {
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (state.expanded !== 'true' || !state.status.includes('DOF') || !state.heading.includes('Pozostałe stopnie swobody') || !state.suggestions.includes('Co dodać') || !state.insideViewport) {
+    if (state.expanded !== 'true' || !state.status.includes('do ustalenia') || !state.heading.includes('Pozostałe stopnie swobody') || !state.suggestions.includes('Co dodać') || !state.insideViewport) {
       throw new Error(`Niepełna diagnostyka niedowiązania: ${JSON.stringify(state)}`);
     }
 

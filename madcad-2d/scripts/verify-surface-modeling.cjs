@@ -69,8 +69,8 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketchEntities' && window.__madcadVerifyDocumentState.selection.ids?.length === 1`, 'zaznaczona tworząca Surface Revolve');
     await window.webContents.executeJavaScript(`(() => {
-      const trigger = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Utwórz 3D');
-      if (!trigger) throw new Error('Brak menu Utwórz 3D.');
+      const trigger = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Więcej narzędzi');
+      if (!trigger) throw new Error('Brak menu Więcej narzędzi.');
       trigger.click();
     })()`);
     await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia obrotowa' && !button.disabled)`, 'aktywne polecenie Surface Revolve');
@@ -95,7 +95,7 @@ app.whenReady().then(async () => {
       window.__madcadVerifySketchSelection([line.id], 'replace');
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketchEntities' && window.__madcadVerifyDocumentState.selection.ids?.length === 1`, 'zaznaczony profil Surface Sweep');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Utwórz 3D').click()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Więcej narzędzi').click()`);
     await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia po ścieżce' && !button.disabled)`, 'aktywne polecenie Surface Sweep');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia po ścieżce' && !button.disabled).click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceSweep' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'surface'`, 'podgląd Surface Sweep');

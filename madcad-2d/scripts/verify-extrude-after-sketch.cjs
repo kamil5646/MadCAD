@@ -7,6 +7,13 @@ const { saveProjectTextFile, openProjectTextFile } = require('../electron/projec
 const artifactPath = path.join(__dirname, '..', 'artifacts', 'extrude-after-sketch.png');
 const thinArtifactPath = path.join(__dirname, '..', 'artifacts', 'thin-extrude-after-sketch.png');
 
+
+// The constraint list starts collapsed; open it and wait for React before clicking the badge.
+async function openHorizontalDimension(window, label) {
+  await window.webContents.executeJavaScript(`document.querySelector('.sketch-constraint-badges.closed .sketch-constraint-badges-toggle')?.click()`);
+  await waitFor(window, `Boolean(document.querySelector('.sketch-constraint-badges button[data-constraint-type="distanceX"]'))`, label);
+  await window.webContents.executeJavaScript(`document.querySelector('.sketch-constraint-badges button[data-constraint-type="distanceX"]').click()`);
+}
 async function waitFor(window, expression, label, timeoutMs = 20000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -168,11 +175,7 @@ app.whenReady().then(async () => {
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(window.__madcadVerifyDocumentState.sketches[0].id)`);
     await waitFor(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'ponownie edytowany szkic');
-    await window.webContents.executeJavaScript(`(() => {
-      const badge = document.querySelector('.sketch-constraint-badges button[data-constraint-type="distanceX"]');
-      if (!badge) throw new Error('Brak widocznego wymiaru poziomego do edycji');
-      badge.click();
-    })()`);
+    await openHorizontalDimension(window, 'widoczny wymiar poziomy do edycji');
     await waitFor(window, `Boolean(document.querySelector('.sketch-constraint-editor input[name="constraintValue"]'))`, 'widoczny edytor wymiaru');
     await window.webContents.executeJavaScript(`(() => {
       const input = document.querySelector('.sketch-constraint-editor input[name="constraintValue"]');
@@ -480,7 +483,7 @@ app.whenReady().then(async () => {
     const sideEditRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(window.__madcadVerifyDocumentState.sketches[0].id)`);
     await waitFor(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'edycja szkicu źródłowego bocznej ściany');
-    await window.webContents.executeJavaScript(`document.querySelector('.sketch-constraint-badges button[data-constraint-type="distanceX"]')?.click()`);
+    await openHorizontalDimension(window, 'wymiar poziomy szkicu bocznej ściany');
     await waitFor(window, `Boolean(document.querySelector('.sketch-constraint-editor input[name="constraintValue"]'))`, 'wymiar źródłowego szkicu bocznej ściany');
     await window.webContents.executeJavaScript(`(() => {
       const input = document.querySelector('.sketch-constraint-editor input[name="constraintValue"]');
