@@ -17,6 +17,16 @@ describe('resolveVisibleSketchId', () => {
   it('nie nakłada niezaznaczonego szkicu na istniejącą bryłę', () => {
     expect(resolveVisibleSketchId({ sketches: [{ id: 'sketch-1' }], bodyCount: 1 })).toBeNull();
     expect(resolveVisibleSketchId({ sketches: [{ id: 'sketch-1' }], featureCount: 1 })).toBeNull();
+    const line = { id: 'line-1', type: 'line' };
+    expect(resolveVisibleSketchId({ sketches: [{ id: 'sketch-1', entities: [line] }], bodyCount: 1, features: [{ type: 'extrude', sketchId: 'sketch-1' }] })).toBeNull();
+  });
+
+  it('pokazuje nieużyty szkic narysowany na bryle po zakończeniu szkicu', () => {
+    const line = { id: 'line-1', type: 'line' };
+    const sketches = [{ id: 'base', entities: [line] }, { id: 'on-face', entities: [line] }];
+    const features = [{ type: 'extrude', sketchId: 'base' }];
+    expect(resolveVisibleSketchId({ sketches, bodyCount: 1, featureCount: 1, features })).toBe('on-face');
+    expect(resolveVisibleSketchId({ sketches, bodyCount: 1, featureCount: 2, features: [...features, { type: 'extrude', sketchIds: ['on-face'] }] })).toBeNull();
   });
 
   it('respektuje widoczność szkicu ustawioną w przeglądarce projektu', () => {

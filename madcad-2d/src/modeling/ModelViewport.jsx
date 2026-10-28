@@ -298,6 +298,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
   layers = [],
   underConstrainedPointIds = [],
   reference = false,
+  completed = false,
   pickable = true,
 } = {}) {
   const spatial = sketch.space === '3d';
@@ -426,7 +427,9 @@ function addSketchEntities(group, sketch, parameters, plane, {
           : false);
     const geometry = new THREE.BufferGeometry();
     const appearance = appearanceFor(entity);
-    const baseColor = reference ? 0x90afbf : sketchEntityColor(entity, selected.has(entity.id), hasError, appearance.color);
+    // A finished sketch lies on light body faces; the default pale layer blue disappears there.
+    const layerColor = completed && String(appearance.color).toLowerCase() === '#74cef0' ? 0x1e88e5 : appearance.color;
+    const baseColor = reference ? 0x90afbf : sketchEntityColor(entity, selected.has(entity.id), hasError, layerColor);
     const lineType = lineTypeDefinition(appearance.lineType);
     const lineOpacity = reference ? 0.72 : 0.96;
     const lineElevation = reference ? 0.07 : 0.12;
@@ -1708,6 +1711,7 @@ export default function ModelViewport({
         frame: visibleFrame,
         layers,
         underConstrainedPointIds: [],
+        completed: true,
       });
       scene.add(completedSketchGroup);
     }
