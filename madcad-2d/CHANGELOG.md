@@ -1,5 +1,11 @@
 # Changelog
 
+## Niewydane — krótsze kody z e-maila
+
+- kody potwierdzenia konta i resetu hasła mają 8 cyfr (w mailu „1234 5678”) zamiast 43 znaków; można je wpisać ze spacją lub bez;
+- po 5 błędnych próbach kod przepada i trzeba poprosić o nowy;
+- starsze wersje programu nadal dostają i przyjmują długie kody.
+
 ## Niewydane — podstawy wyciągania
 
 - „Wyciągnij” bez zaznaczenia wybiera najnowszy profil, którego nie używa jeszcze żadna operacja (wcześniej brał ostatni profil, nawet już wyciągnięty, i druga operacja dublowała bryłę bez widocznego efektu); po zakończeniu szkicu zaznacza się wolny profil;
