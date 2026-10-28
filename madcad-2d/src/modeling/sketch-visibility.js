@@ -1,4 +1,4 @@
-export function resolveVisibleSketchId({ activeSketchId = null, selection = null, sketches = [], bodyCount = 0, featureCount = 0 } = {}) {
+export function resolveVisibleSketchId({ activeSketchId = null, selection = null, sketches = [], bodyCount = 0, featureCount = 0, features = [] } = {}) {
   if (activeSketchId) return activeSketchId;
   if (!sketches.length) {
     if (selection?.sketchId) return selection.sketchId;
@@ -9,7 +9,12 @@ export function resolveVisibleSketchId({ activeSketchId = null, selection = null
   if (selection?.sketchId) return visibleSketchIds.has(selection.sketchId) ? selection.sketchId : null;
   if (selection?.kind === 'sketch') return visibleSketchIds.has(selection.id) ? selection.id : null;
   if (bodyCount === 0 && featureCount === 0) return sketches.findLast((sketch) => sketch.visible !== false)?.id || null;
-  return null;
+  // With bodies in the model, keep showing the newest sketch no feature uses yet, so a
+  // sketch drawn on a face stays visible after "Zakończ szkic" instead of vanishing into it.
+  const featureText = JSON.stringify(features || []);
+  return sketches.findLast((sketch) => sketch.visible !== false
+    && (sketch.entities || []).some((entity) => entity.type !== 'point')
+    && !featureText.includes(JSON.stringify(sketch.id)))?.id || null;
 }
 
 export function resolveReferenceSketchIds({ activeSketchId = null, sketches = [] } = {}) {

@@ -946,6 +946,7 @@ export default function ModelingWorkspace() {
     sketches: document.sketches,
     bodyCount: document.bodies.length,
     featureCount: document.features.length,
+    features: document.features,
   });
   const resumableSketchesByPlane = useMemo(() => Object.fromEntries(['XY', 'XZ', 'YZ']
     .map((plane) => [plane, resolveResumableSketch({

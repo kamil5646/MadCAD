@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.6.1 — szkic na bryle widoczny (2026-10-28)
+
+- szkic narysowany na ścianie bryły zostaje widoczny po „Zakończ szkic”, dopóki nie użyje go żadna operacja (wcześniej znikał po odznaczeniu);
+- linie gotowego szkicu mają mocniejszy kolor, czytelny na jasnych ścianach brył.
+
 ## 6.6.0 — prostszy interfejs i silnik OpenCascade 8 (2026-10-28)
 
 ### Szkicowanie na bryle
