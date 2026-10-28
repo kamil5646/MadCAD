@@ -1,12 +1,19 @@
 # Changelog
 
-## Niewydane — krótsze kody z e-maila
+## 6.6.0 — prostszy interfejs i silnik OpenCascade 8 (2026-10-28)
+
+### Szkicowanie na bryle
+- szkic na ścianie bryły ustawia widok na modelu, a nie na początku układu;
+- podpowiedzi po polsku: „Kształt nie jest zamknięty”, „7 do ustalenia” zamiast DOF; lista więzów zwinięta do przycisku „Więzy · N”;
+- warstwy, bloki oraz bryły i powierzchnie z otwartych linii w jednym menu „Więcej narzędzi”.
+
+### krótsze kody z e-maila
 
 - kody potwierdzenia konta i resetu hasła mają 8 cyfr (w mailu „1234 5678”) zamiast 43 znaków; można je wpisać ze spacją lub bez;
 - po 5 błędnych próbach kod przepada i trzeba poprosić o nowy;
 - starsze wersje programu nadal dostają i przyjmują długie kody.
 
-## Niewydane — porządek w interfejsie
+### porządek w interfejsie
 
 - nowy wygląd wstążki: grupy jako osobne panele, przyciski z tłem i obramowaniem, wyraźny stan najechania i aktywny;
 - okno licencji przy starcie tylko wtedy, gdy konto nie ma dostępu; zalogowany użytkownik wchodzi od razu do programu;
@@ -24,7 +31,7 @@
 - przeglądarka projektu jest domyślnie ukryta (więcej miejsca na model); otwiera ją przycisk w górnym pasku albo czynności, które jej potrzebują;
 - wyciągnięcie ściany wygląda jak wyciągnięcie profilu: okno „Wyciągnięcie”, domyślnie 10 mm (było 1 mm), podpowiedź o kierunku, nazwa „Wyciągnięcie N” na osi czasu.
 
-## Niewydane — silnik OpenCascade 8
+### silnik OpenCascade 8
 
 - jądro geometrii przeniesione na replicad 1.1 / OpenCascade 8.0.1 (z 7.x): nowsze algorytmy operacji logicznych, zaokrągleń i przekrojów; objętości, pola i topologia wszystkich projektów testowych bez zmian;
 - wymiary brył (prostopadłościan ograniczający) są dokładne — wcześniej powiększone o tolerancję (np. 85,06 × 50,06 × 3,06 zamiast 85 × 50 × 3 mm);
@@ -32,7 +39,7 @@
 - błędy jądra pokazują jego komunikat (np. Standard_OutOfRange) zamiast „[object WebAssembly.Exception]”; Project to Surface wyjaśnia, którego punktu nie da się rzutować;
 - linie przekrojów na arkuszach 2D i Project to Surface używają jednoznacznych wariantów funkcji jądra (połączone przeciążenia OCCT 8 wybierały inne warianty bez błędu).
 
-## Niewydane — podstawy wyciągania
+### podstawy wyciągania
 
 - „Wyciągnij” bez zaznaczenia wybiera najnowszy profil, którego nie używa jeszcze żadna operacja (wcześniej brał ostatni profil, nawet już wyciągnięty, i druga operacja dublowała bryłę bez widocznego efektu); po zakończeniu szkicu zaznacza się wolny profil;
 - dwuklik na operacji w osi czasu otwiera jej edycję; pasek narzędzi zaznaczonej operacji stoi przy prawej krawędzi i nie przesuwa już elementów osi pod kursorem;
