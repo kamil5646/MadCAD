@@ -271,7 +271,19 @@ async function waitForUi(window, expression, label, timeoutMs = 12000) {
     if (await window.webContents.executeJavaScript(`Boolean(${expression})`)) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error(`Interfejs nie osiągnął stanu: ${label}.`);
+  // Flakes seen only on CI need the state at the moment of the timeout.
+  const snapshot = await window.webContents.executeJavaScript(`(() => {
+    const engine = window.__madcadVerifyEngineState;
+    const timeline = engine?.timeline?.at(-1);
+    return JSON.stringify({
+      notice: [...document.querySelectorAll('[role=status]')].map((item) => item.textContent.trim()).filter(Boolean).slice(-2),
+      command: window.__madcadVerifyDocumentState?.command?.type || null,
+      selection: window.__madcadVerifyDocumentState?.selection?.items?.length ?? null,
+      engine: engine ? { status: engine.status, revision: engine.revision, bodies: engine.bodies?.length } : null,
+      timeline: timeline ? { status: timeline.status, error: timeline.error || null } : null,
+    });
+  })()`).catch((error) => `snapshot unavailable: ${error.message}`);
+  throw new Error(`Interfejs nie osiągnął stanu: ${label}. Stan: ${snapshot}`);
 }
 
 async function waitForStableEngine(window, timeoutMs = modelingTimeoutMs) {
@@ -314,8 +326,8 @@ async function runUiFlow(window) {
     ...['Extend', 'Break', 'Offset', 'Przesuń', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu'].map((label) => [label, 'Modyfikuj']),
     ...['Poziomo', 'Pionowo', 'Zbieżne punkty', 'Równe', 'Styczne', 'Zablokuj', 'Współliniowe', 'Symetria', 'Krzywizna G2'].map((label) => [label, 'Więzy']),
     ...['Ordinate X', 'Ordinate Y', 'Długość łuku'].map((label) => [label, 'Wymiary']),
-    ...['Warstwy', 'Bloki'].map((label) => [label, 'Warstwy i bloki']),
-    ...['Thin Extrude', 'Rib/Web', 'Pipe'].map((label) => [label, 'Utwórz 3D']),
+    ...['Warstwy', 'Bloki'].map((label) => [label, 'Więcej narzędzi']),
+    ...['Thin Extrude', 'Rib/Web', 'Pipe'].map((label) => [label, 'Więcej narzędzi']),
   ]);
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
   const selectWorkspaceMode = async (value) => {
@@ -342,13 +354,8 @@ async function runUiFlow(window) {
         button.click();
       })()`);
     }
-    const constructionMenuLabel = constructionWorkspaceLabels.has(label)
-      ? (label.startsWith('Płaszczyzna') || ['Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce'].includes(label)
-        ? 'Płaszczyzny'
-        : label.startsWith('Oś ')
-          ? 'Osie'
-          : 'Punkty')
-      : null;
+    // Planes, axes and points share one "Konstrukcja" menu with sections.
+    const constructionMenuLabel = constructionWorkspaceLabels.has(label) ? 'Konstrukcja' : null;
     const sketchMenuLabel = sketchToolMenus.get(label);
     const directRibbonTool = await ribbonHasTool(label);
     const menuLabel = directRibbonTool ? null : (sketchMenuLabel || constructionMenuLabel || solidToolMenus.get(label));
@@ -1159,7 +1166,7 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.concavePointId)}); return Number(point?.geometry?.x) === 15; })()`, 'dokładna zmiana wierzchołka');
   await clickTool('Zakończ szkic');
-  await clickTool('Press Pull');
+  await clickTool('Wyciągnij');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wyciągnięcie profilu L');
   await setCommandField('Odległość', '8');
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -2025,7 +2032,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetSelection)}, 'replace')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(offsetSelection.id)}`, 'ściana wskazana do Press Pull');
   await clickTool('Wyciągnij');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Odsuń ścianę') && document.querySelector('.direct-handle-hit')`, 'wyciąganie zaznaczonej ściany wspólnym manipulatorem');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'offsetFace' && document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie') && document.querySelector('.direct-handle-hit')`, 'wyciąganie zaznaczonej ściany wspólnym manipulatorem');
   await setCommandField('Odległość', '2');
   await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok'`, 'podgląd odsuniętej ściany', modelingTimeoutMs);
   await confirmDialog();
@@ -2151,7 +2158,10 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny dla linii dynamicznej');
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && window.__madcadSketchLocalToScreen`, 'szkic linii dynamicznej');
-  await waitForUi(window, `Boolean(document.querySelector('.sketch-palette:not(.collapsed) .sketch-palette-body'))`, 'widoczna paleta szkicu na szerokim ekranie');
+  // The palette starts collapsed so it does not cover the canvas; expand it for the checks below.
+  await waitForUi(window, `Boolean(document.querySelector('.sketch-palette.collapsed'))`, 'zwinięta paleta szkicu po wejściu do szkicu');
+  await window.webContents.executeJavaScript(`document.querySelector('.sketch-palette.collapsed .sketch-palette-toggle')?.click()`);
+  await waitForUi(window, `Boolean(document.querySelector('.sketch-palette:not(.collapsed) .sketch-palette-body'))`, 'rozwinięta paleta szkicu');
   await waitForCameraToSettle(5000);
   const platformUi = await window.webContents.executeJavaScript(`(() => {
     const shell = document.querySelector('.modeling-shell');

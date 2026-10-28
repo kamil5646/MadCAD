@@ -616,6 +616,13 @@ function viewportSketchFrame(sketch, planeOffset, constructionPlanes) {
   return resolveSketchFrame(support ? { frame: support } : { ...sketch, planeOffset });
 }
 
+const EDGE_PICK_PIXELS = 4;
+const CONSTRAINT_NAMES = {
+  fixed: 'Zablokowany', coincident: 'Zbieżność', horizontal: 'Poziomo', vertical: 'Pionowo', distance: 'Odległość', distanceX: 'Wymiar X', distanceY: 'Wymiar Y',
+  angle: 'Kąt', radius: 'Promień', diameter: 'Średnica', tangent: 'Styczność', equal: 'Równe', collinear: 'Współliniowe', symmetry: 'Symetria',
+  curvature: 'Krzywizna G2', coordinateX: 'Współrzędna X', coordinateY: 'Współrzędna Y', arcLength: 'Długość łuku',
+};
+
 export default function ModelViewport({
   bodies,
   sketches = [],
@@ -744,6 +751,9 @@ export default function ModelViewport({
   const [sketchDynamicLabel, setSketchDynamicLabel] = useState(null);
   const [constraintSuggestion, setConstraintSuggestion] = useState(null);
   const [freedomPanelOpen, setFreedomPanelOpen] = useState(false);
+  // The per-constraint letters (H, V, X…) meant nothing at a glance; keep them
+  // behind one 'Więzy · N' button and open the list on demand.
+  const [constraintListOpen, setConstraintListOpen] = useState(false);
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapFeedback, setSnapFeedback] = useState(null);
   const [selectionFilter, setSelectionFilter] = useState('auto');
@@ -1764,7 +1774,17 @@ export default function ModelViewport({
       key.shadow.normalBias = (shadowExtent * 2 / key.shadow.mapSize.x) * 1.5;
     }
     const center = modelBox ? modelBox.getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0, 0);
-    if (activeSketch && !hasActiveSketchContent) center.set(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset, activeFrame));
+    if (activeSketch && !hasActiveSketchContent) {
+      // An empty sketch looks at the model it was started on (e.g. a sketch on a
+      // face), projected onto the sketch plane; without a model, at the plane origin.
+      const planeOrigin = new THREE.Vector3(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset, activeFrame));
+      if (modelBox) {
+        const planeNormal = new THREE.Vector3(...mapPlanePoint(0, 0, activePlane, 1, activePlaneOffset, activeFrame)).sub(planeOrigin).normalize();
+        center.addScaledVector(planeNormal, -center.clone().sub(planeOrigin).dot(planeNormal));
+      } else {
+        center.copy(planeOrigin);
+      }
+    }
     const size = modelBox ? modelBox.getSize(new THREE.Vector3()) : new THREE.Vector3(80, 60, 20);
     const radius = Math.max(size.x, size.y, size.z, 55);
     const planeSize = Math.max(60, radius * 1.15);
@@ -1946,6 +1966,12 @@ export default function ModelViewport({
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
+      // Edge picking tolerance in screen pixels, like other CAD tools: a fixed
+      // world size (1.6 mm) covered most of a thin side face when zoomed out,
+      // so clicking the face selected one of its edges instead.
+      const depth = Math.max(camera.near, camera.position.distanceTo(controls.target));
+      const worldPerPixel = (2 * depth * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / Math.max(1, rect.height);
+      raycaster.params.Line.threshold = EDGE_PICK_PIXELS * worldPerPixel;
       return rect;
     };
     const pickOriginPlane = (event) => {
@@ -3187,15 +3213,15 @@ export default function ModelViewport({
       )}
       {activeSketchId && openEndpointCount > 0 && blockingSketchDiagnostics.length === 0 && (
         <div className="sketch-open-chain-info" role="status">
-          <strong>Otwarty łańcuch</strong>
-          <span>Zaznacz jego linie, aby użyć Thin Extrude, Rib/Web albo Pipe.</span>
+          <strong>Kształt nie jest zamknięty</strong>
+          <span>Połącz końce linii, aby powstał profil do wyciągnięcia.</span>
         </div>
       )}
       {solverAnalysis && (
         <button className={`sketch-solver-status ${isEmptySketch ? 'empty' : solverAnalysis.status}`} type="button" disabled={isEmptySketch || solverAnalysis.status !== SKETCH_SOLVER_STATUS.UNDER_CONSTRAINED || !freedomDiagnostics.total} aria-expanded={freedomPanelOpen} aria-controls="sketch-freedom-panel" title={freedomDiagnostics.total ? 'Pokaż pozostałe stopnie swobody i podpowiedzi wiązań.' : undefined} onClick={() => setFreedomPanelOpen((current) => !current)}>
           <i />
           <strong>{isEmptySketch ? 'Pusty szkic' : solverAnalysis.status === SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED ? 'W pełni związany' : solverAnalysis.status === SKETCH_SOLVER_STATUS.CONFLICT ? 'Konflikt więzów' : solverAnalysis.status === SKETCH_SOLVER_STATUS.OVER_CONSTRAINED ? 'Nadmiar więzów' : 'Niedowiązany'}</strong>
-          <span>{isEmptySketch ? 'Dodaj geometrię' : solverAnalysis.degreesOfFreedom === null ? '—' : `${solverAnalysis.degreesOfFreedom} DOF`}</span>
+          <span title="Ile wymiarów lub więzów brakuje do pełnego ustalenia kształtu (DOF).">{isEmptySketch ? 'Dodaj geometrię' : solverAnalysis.degreesOfFreedom === null ? '—' : `${solverAnalysis.degreesOfFreedom} do ustalenia`}</span>
         </button>
       )}
       {freedomPanelOpen && freedomDiagnostics.total > 0 && (
@@ -3210,14 +3236,15 @@ export default function ModelViewport({
         </section>
       )}
       {activeSketchId && activeSketch?.constraints?.length > 0 && (showSketchConstraints || showSketchDimensions) && (
-        <div className="sketch-constraint-badges" aria-label="Wiązania szkicu">
-          {activeSketch.constraints.filter((constraint) => {
+        <div className={`sketch-constraint-badges ${constraintListOpen ? 'open' : 'closed'}`} aria-label="Więzy szkicu">
+          <button className="sketch-constraint-badges-toggle" type="button" aria-expanded={constraintListOpen} title={constraintListOpen ? 'Ukryj listę więzów' : 'Pokaż więzy szkicu (poziomo, pionowo, wymiary…) — kliknij więz, aby go zaznaczyć'} onClick={() => setConstraintListOpen((open) => !open)}>Więzy · {activeSketch.constraints.length} {constraintListOpen ? '▾' : '▸'}</button>
+          {(constraintListOpen || selectedSketchConstraintId) && activeSketch.constraints.filter((constraint) => {
             const isDimension = activeSketch.dimensions?.some((dimension) => dimension.constraintId === constraint.id);
             return isDimension ? showSketchDimensions : showSketchConstraints;
           }).map((constraint) => {
             const labels = { fixed: 'F', coincident: '●', horizontal: 'H', vertical: 'V', distance: '↔', distanceX: 'X', distanceY: 'Y', angle: '∠', radius: 'R', diameter: 'Ø', tangent: 'T', equal: '=', collinear: 'C', symmetry: 'S', curvature: 'κ', coordinateX: 'OX', coordinateY: 'OY', arcLength: '⌒' };
             const conflicting = solverAnalysis?.conflictConstraintIds?.includes(constraint.id);
-            return <button key={constraint.id} className={`${selectedSketchConstraintId === constraint.id ? 'selected' : ''} ${conflicting ? 'conflict' : ''}`} type="button" title={`${constraint.type}${constraint.value !== undefined ? `: ${constraint.value}` : ''}`} onClick={() => onSketchConstraintSelection?.(constraint.id)}>{labels[constraint.type] || '?'}</button>;
+            return <button key={constraint.id} className={`${selectedSketchConstraintId === constraint.id ? 'selected' : ''} ${conflicting ? 'conflict' : ''}`} type="button" data-constraint-type={constraint.type} title={`${CONSTRAINT_NAMES[constraint.type] || constraint.type}${constraint.value !== undefined ? `: ${constraint.value}${['angle'].includes(constraint.type) ? '°' : ' mm'}` : ''} · kliknij, aby zaznaczyć`} onClick={() => onSketchConstraintSelection?.(constraint.id)}>{labels[constraint.type] || '?'}</button>;
           })}
         </div>
       )}

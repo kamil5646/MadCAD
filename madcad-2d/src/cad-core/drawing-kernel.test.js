@@ -12,7 +12,7 @@ beforeAll(async () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
   vi.stubGlobal('require', createRequire(import.meta.url));
   vi.stubGlobal('__dirname', root);
-  const oc = await init({ wasmBinary: fs.readFileSync(path.join(root, 'node_modules/replicad-opencascadejs/src/replicad_single.wasm')) });
+  const oc = await init({ wasmBinary: fs.readFileSync(path.join(root, 'node_modules/replicad-opencascadejs/dist/replicad_single.wasm')) });
   setOC(oc);
 });
 afterAll(() => vi.unstubAllGlobals());

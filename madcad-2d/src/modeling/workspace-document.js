@@ -2,16 +2,18 @@ import { useCallback, useMemo, useState } from 'react';
 import { cloneDocument, openDocument, touchDocument } from '../cad-core/document.js';
 
 export function useDocumentHistory(initialDocument) {
-  const [history, setHistory] = useState({ past: [], present: initialDocument, future: [] });
+  // `generation` changes only when a different document replaces the current one
+  // (open, new, recovery), never on edits, undo or redo.
+  const [history, setHistory] = useState({ past: [], present: initialDocument, future: [], generation: 0 });
   const commit = useCallback((mutator) => {
     setHistory((current) => {
       const next = cloneDocument(current.present);
       mutator(next);
       touchDocument(next);
-      return { past: [...current.past.slice(-59), current.present], present: next, future: [] };
+      return { ...current, past: [...current.past.slice(-59), current.present], present: next, future: [] };
     });
   }, []);
-  const replace = useCallback((document) => setHistory({ past: [], present: document, future: [] }), []);
+  const replace = useCallback((document) => setHistory((current) => ({ past: [], present: document, future: [], generation: current.generation + 1 })), []);
   const synchronize = useCallback((mutator) => setHistory((current) => {
     const next = cloneDocument(current.present);
     mutator(next);
@@ -19,17 +21,20 @@ export function useDocumentHistory(initialDocument) {
     return { ...current, present: next };
   }), []);
   const undo = useCallback(() => setHistory((current) => current.past.length ? {
+    ...current,
     past: current.past.slice(0, -1),
     present: current.past.at(-1),
     future: [current.present, ...current.future],
   } : current), []);
   const redo = useCallback(() => setHistory((current) => current.future.length ? {
+    ...current,
     past: [...current.past, current.present],
     present: current.future[0],
     future: current.future.slice(1),
   } : current), []);
   return useMemo(() => ({
     document: history.present,
+    generation: history.generation,
     commit,
     replace,
     synchronize,
@@ -37,7 +42,7 @@ export function useDocumentHistory(initialDocument) {
     redo,
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
-  }), [commit, history.future.length, history.past.length, history.present, redo, replace, synchronize, undo]);
+  }), [commit, history.future.length, history.generation, history.past.length, history.present, redo, replace, synchronize, undo]);
 }
 
 export function downloadBlob(blob, filename) {

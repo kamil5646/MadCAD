@@ -29,8 +29,9 @@ function isSingleOpenChain(lines) {
   return visited.size === adjacency.size;
 }
 
-// Profiles already consumed by a live feature are only a fallback: extruding the same
-// rectangle twice merges into the existing body and looks like "nothing happened".
+// Without an explicit profile selection only profiles no live feature uses are
+// candidates: re-extruding a consumed one silently duplicated an old extrusion
+// (e.g. pressing E with an edge selected grew the original rectangle again).
 export function resolveExtrudeSource({ sketches = [], selection = null, features = [] } = {}) {
   const usedProfileIds = new Set(features.filter((feature) => !feature.suppressed).flatMap((feature) => feature.profileIds || []));
   const selectedSketchId = selection?.sketchId || (selection?.kind === 'sketch' ? selection.id : null);
@@ -52,7 +53,7 @@ export function resolveExtrudeSource({ sketches = [], selection = null, features
     const profile = profiles.findLast((candidate) => !usedProfileIds.has(candidate.id));
     if (profile) return { kind: 'profile', sketch, profile };
     if (profiles.length) {
-      consumed ||= { kind: 'profile', sketch, profile: profiles.at(-1) };
+      consumed ||= { kind: 'all-used', sketch };
       continue;
     }
     const lines = standardLineEntities(sketch);

@@ -1,11 +1,55 @@
 # Changelog
 
-## Niewydane — podstawy wyciągania
+## 6.6.0 — prostszy interfejs i silnik OpenCascade 8 (2026-10-28)
+
+### Szkicowanie na bryle
+- szkic na ścianie bryły ustawia widok na modelu, a nie na początku układu;
+- podpowiedzi po polsku: „Kształt nie jest zamknięty”, „7 do ustalenia” zamiast DOF; lista więzów zwinięta do przycisku „Więzy · N”;
+- warstwy, bloki oraz bryły i powierzchnie z otwartych linii w jednym menu „Więcej narzędzi”.
+
+### krótsze kody z e-maila
+
+- kody potwierdzenia konta i resetu hasła mają 8 cyfr (w mailu „1234 5678”) zamiast 43 znaków; można je wpisać ze spacją lub bez;
+- po 5 błędnych próbach kod przepada i trzeba poprosić o nowy;
+- starsze wersje programu nadal dostają i przyjmują długie kody.
+
+### porządek w interfejsie
+
+- nowy wygląd wstążki: grupy jako osobne panele, przyciski z tłem i obramowaniem, wyraźny stan najechania i aktywny;
+- okno licencji przy starcie tylko wtedy, gdy konto nie ma dostępu; zalogowany użytkownik wchodzi od razu do programu;
+- paleta szkicu domyślnie zwinięta (nie zasłania płótna ani okien poleceń);
+- pasek więzów szkicu podpisany „Więzy”, podpowiedzi po polsku z wartością („Wymiar X: 40 mm”);
+- bez dymka „PROJEKTUJ · szkic 2D i model 3D”, gdy model jest gotowy (kroki, przeliczanie i błędy nadal widoczne);
+- przycisk „Przeglądarka” z ikoną drzewa zamiast „Panel”;
+- Tuleja, Zatrzask, Kratka (zamiast Boss, Snap-fit, Grille) na końcu menu ściany;
+- „Otwór”, „Fazuj” i „Powłoka” zawsze na wstążce; Płaszczyzny, Osie i Punkty w jednym menu „Konstrukcja”.
+- jedno polecenie „Wyciągnij” dla profilu i płaskiej ściany (na ścianie wyciąga/wciska ścianę); usunięto dublujące je „Naciśnij / wyciągnij”, skrót PP prowadzi do Wyciągnij;
+- każde polecenie ma jedną nazwę we wstążce, menu i panelu kontekstowym, zgodną z nazwą operacji na osi czasu (np. „Bryła przejściowa” zamiast „Loft”, „Kratka” zamiast „Grille”, „Powierzchnia obrotowa” zamiast „Obróć” na karcie powierzchni, „Współrzędna X” zamiast „Wymiar X” w szkicu);
+- test `ui-naming` pilnuje, by żadne polecenie nie miało dwóch nazw ani nie występowało dwa razy w jednym panelu.
+- wyciąganie bocznej ściany: kliknięcie w wąską ścianę zaznacza ścianę, a nie jej krawędź (próg łapania krawędzi 4 px na ekranie zamiast stałych 1,6 mm w modelu);
+- „Wyciągnij” przy zaznaczonej krawędzi, bryle albo gdy wszystkie profile są już wyciągnięte mówi, co zaznaczyć — wcześniej po cichu wyciągał ponownie stary profil;
+- przeglądarka projektu jest domyślnie ukryta (więcej miejsca na model); otwiera ją przycisk w górnym pasku albo czynności, które jej potrzebują;
+- wyciągnięcie ściany wygląda jak wyciągnięcie profilu: okno „Wyciągnięcie”, domyślnie 10 mm (było 1 mm), podpowiedź o kierunku, nazwa „Wyciągnięcie N” na osi czasu.
+
+### silnik OpenCascade 8
+
+- jądro geometrii przeniesione na replicad 1.1 / OpenCascade 8.0.1 (z 7.x): nowsze algorytmy operacji logicznych, zaokrągleń i przekrojów; objętości, pola i topologia wszystkich projektów testowych bez zmian;
+- wymiary brył (prostopadłościan ograniczający) są dokładne — wcześniej powiększone o tolerancję (np. 85,06 × 50,06 × 3,06 zamiast 85 × 50 × 3 mm);
+- pełne walce, sfery i torusy nie są już „nieznanymi” ścianami: mają typ, promień i oś (dotyczyło też starego silnika);
+- błędy jądra pokazują jego komunikat (np. Standard_OutOfRange) zamiast „[object WebAssembly.Exception]”; Project to Surface wyjaśnia, którego punktu nie da się rzutować;
+- linie przekrojów na arkuszach 2D i Project to Surface używają jednoznacznych wariantów funkcji jądra (połączone przeciążenia OCCT 8 wybierały inne warianty bez błędu).
+
+### podstawy wyciągania
 
 - „Wyciągnij” bez zaznaczenia wybiera najnowszy profil, którego nie używa jeszcze żadna operacja (wcześniej brał ostatni profil, nawet już wyciągnięty, i druga operacja dublowała bryłę bez widocznego efektu); po zakończeniu szkicu zaznacza się wolny profil;
 - dwuklik na operacji w osi czasu otwiera jej edycję; pasek narzędzi zaznaczonej operacji stoi przy prawej krawędzi i nie przesuwa już elementów osi pod kursorem;
 - po edycji operacji komunikat mówi „Zaktualizowano …” zamiast „dodano do osi czasu”;
-- podpowiedź „Przeciągnij niebieską strzałkę” nie wyświetla się pod otwartym oknem operacji (to okno zawiera tę samą wskazówkę).
+- podpowiedź „Przeciągnij niebieską strzałkę” nie wyświetla się pod otwartym oknem operacji (to okno zawiera tę samą wskazówkę);
+- zmiana wymiaru wcześniejszej operacji (np. wysokości wyciągnięcia) nie psuje już dalszej historii: Offset Face, zaokrąglenia i szkice na ścianie podążają za ścianą lub krawędzią, która tylko się przesunęła albo wydłużyła; gdy wybór nie jest jednoznaczny, referencja nadal trafia do kreatora naprawy;
+- okno Odsuń ścianę opisuje ścianę („Płaska ściana · 812 mm² · Wyciągnięcie 1”) zamiast wewnętrznego ID;
+- figury szkicu są numerowane osobno dla każdego typu (pierwszy okrąg to „Okrąg 1”, nie „Okrąg 3”);
+- po odzyskaniu projektu pasek stanu mówi „Odzyskano projekt…” zamiast „Zacznij od rysunku 2D”;
+- audyt zależności w CI akceptuje tymczasowo (do 2026-10-31) jedną podatność bez poprawki (GHSA-ch52-4w7c-c8xp), występującą tylko w narzędziu budowania instalatorów.
 
 ## 6.5.30 — widok modelu (2026-10-02)
 

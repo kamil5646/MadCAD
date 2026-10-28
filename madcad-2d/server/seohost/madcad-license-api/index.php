@@ -110,10 +110,40 @@ function password_value($value): string {
   return $password;
 }
 
+const MADCAD_CODE_MAX_ATTEMPTS = 5;
+
+// Codes typed from an e-mail: 8 digits for clients that ask for them
+// (codeFormat "short"), the long URL-safe token for older clients that
+// validate a minimum length locally.
+function new_secret_code(bool $short): string {
+  if ($short) return sprintf('%08d', random_int(0, 99999999));
+  return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+}
+
+function wants_short_code(array $input): bool {
+  return ($input['codeFormat'] ?? '') === 'short';
+}
+
+function mail_code(string $code): string {
+  return preg_match('/^\d{8}$/', $code) ? substr($code, 0, 4) . ' ' . substr($code, 4) : $code;
+}
+
 function reset_token($value): string {
   $token = text($value, 160);
-  if (strlen($token) < 32) respond(422, array('ok' => false, 'error' => 'Nieprawidłowy kod odzyskiwania.'));
+  $digits = preg_replace('/[\s-]+/', '', $token);
+  if (preg_match('/^\d{8}$/', $digits)) return $digits;
+  if (strlen($token) < 32) respond(422, array('ok' => false, 'error' => 'Nieprawidłowy kod. Wpisz 8 cyfr z wiadomości e-mail.'));
   return $token;
+}
+
+// Checks a typed code against a stored challenge. Short codes are guessable,
+// so each challenge allows MADCAD_CODE_MAX_ATTEMPTS wrong tries and is then
+// discarded; the attempt count persists because errors still commit the store.
+function code_matches(array &$challenge, string $code): bool {
+  if ((int)($challenge['expiresAt'] ?? 0) < time()) return false;
+  if (hash_equals((string)($challenge['tokenHash'] ?? ''), hash('sha256', $code))) return true;
+  $challenge['attempts'] = (int)($challenge['attempts'] ?? 0) + 1;
+  return false;
 }
 
 function find_user_id_by_email(array $store, string $mail): ?string {
@@ -123,21 +153,21 @@ function find_user_id_by_email(array $store, string $mail): ?string {
 
 function send_reset_email(array $user, string $token): bool {
   $subject = 'MadCAD - reset hasla';
-  $message = "Otrzymalismy prosbe o zmiane hasla konta MadCAD.\n\nKod odzyskiwania:\n" . $token . "\n\nKod wygasa po 60 minutach. Jesli to nie Ty, zignoruj wiadomosc.";
+  $message = "Otrzymalismy prosbe o zmiane hasla konta MadCAD.\n\nKod odzyskiwania:\n" . mail_code($token) . "\n\nKod wygasa po 60 minutach. Jesli to nie Ty, zignoruj wiadomosc.";
   $headers = "From: MadCAD <noreply@madmagsystem.pl>\r\nContent-Type: text/plain; charset=UTF-8\r\nX-Auto-Response-Suppress: All";
   return mail((string)$user['email'], $subject, $message, $headers);
 }
 
 function send_verification_email(array $user, string $token): bool {
   $subject = 'MadCAD - potwierdzenie adresu e-mail';
-  $message = "Potwierdz adres e-mail konta MadCAD.\n\nKod potwierdzajacy:\n" . $token . "\n\nKod wygasa po 24 godzinach. Jesli to nie Ty, zignoruj wiadomosc.";
+  $message = "Potwierdz adres e-mail konta MadCAD.\n\nKod potwierdzajacy:\n" . mail_code($token) . "\n\nKod wygasa po 24 godzinach. Jesli to nie Ty, zignoruj wiadomosc.";
   $headers = "From: MadCAD <noreply@madmagsystem.pl>\r\nContent-Type: text/plain; charset=UTF-8\r\nX-Auto-Response-Suppress: All";
   return mail((string)$user['email'], $subject, $message, $headers);
 }
 
-function new_verification(array &$user): string {
-  $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-  $user['emailVerification'] = array('tokenHash' => hash('sha256', $token), 'expiresAt' => time() + 86400);
+function new_verification(array &$user, bool $short = false): string {
+  $token = new_secret_code($short);
+  $user['emailVerification'] = array('tokenHash' => hash('sha256', $token), 'expiresAt' => time() + 86400, 'attempts' => 0);
   return $token;
 }
 
@@ -264,7 +294,7 @@ try {
       foreach ($store['users'] as $user) if (hash_equals((string)$user['email'], $mail)) respond(409, array('ok' => false, 'error' => 'Konto o tym adresie już istnieje.'));
       $id = bin2hex(random_bytes(16));
       $user = array('id' => $id, 'email' => $mail, 'displayName' => $displayName, 'passwordHash' => password_hash($password, PASSWORD_DEFAULT), 'createdAt' => time(), 'emailVerifiedAt' => 0, 'trialStartedAt' => 0, 'commercial' => null, 'devices' => array());
-      $verificationToken = new_verification($user);
+      $verificationToken = new_verification($user, wants_short_code($input));
       $entitlement = active_entitlement($user);
       bind_device($user, $installationId, $entitlement);
       $store['users'][$id] = $user;
@@ -289,8 +319,8 @@ try {
       $mail = email($input['email'] ?? '');
       $id = find_user_id_by_email($store, $mail);
       if ($id !== null) {
-        $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-        $store['users'][$id]['passwordReset'] = array('tokenHash' => hash('sha256', $token), 'expiresAt' => time() + 3600);
+        $token = new_secret_code(wants_short_code($input));
+        $store['users'][$id]['passwordReset'] = array('tokenHash' => hash('sha256', $token), 'expiresAt' => time() + 3600, 'attempts' => 0);
         return array('ok' => true, 'message' => 'Jeśli konto istnieje, wysłaliśmy kod odzyskiwania.', '_resetMail' => array('user' => $store['users'][$id], 'token' => $token, 'userId' => $id));
       }
       return array('ok' => true, 'message' => 'Jeśli konto istnieje, wysłaliśmy kod odzyskiwania.');
@@ -301,12 +331,18 @@ try {
       $user =& $store['users'][$id];
       if ((int)($user['emailVerifiedAt'] ?? 0) > 0) return array('ok' => true, 'message' => 'Adres e-mail jest już potwierdzony.', 'account' => array('email' => $user['email'], 'displayName' => $user['displayName'], 'emailVerified' => true));
       if ($route === '/auth/resend-verification') {
-        $token = new_verification($user);
+        $token = new_verification($user, wants_short_code($input));
         return array('ok' => true, 'message' => 'Wysłaliśmy nowy kod potwierdzający.', '_verificationMail' => array('user' => $user, 'token' => $token, 'userId' => $id));
       }
       $token = reset_token($input['verificationToken'] ?? '');
-      $verification = is_array($user['emailVerification'] ?? null) ? $user['emailVerification'] : array();
-      if ((int)($verification['expiresAt'] ?? 0) < time() || !hash_equals((string)($verification['tokenHash'] ?? ''), hash('sha256', $token))) respond(422, array('ok' => false, 'error' => 'Kod potwierdzający jest nieprawidłowy lub wygasł.'));
+      if (!is_array($user['emailVerification'] ?? null)) respond(422, array('ok' => false, 'error' => 'Kod potwierdzający wygasł. Poproś o nowy kod.'));
+      if (!code_matches($user['emailVerification'], $token)) {
+        if ((int)($user['emailVerification']['attempts'] ?? 0) >= MADCAD_CODE_MAX_ATTEMPTS) {
+          unset($user['emailVerification']);
+          respond(422, array('ok' => false, 'error' => 'Za dużo błędnych prób. Poproś o nowy kod potwierdzający.'));
+        }
+        respond(422, array('ok' => false, 'error' => 'Kod potwierdzający jest nieprawidłowy lub wygasł.'));
+      }
       $user['emailVerifiedAt'] = time();
       unset($user['emailVerification']);
       return array('ok' => true, 'message' => 'Adres e-mail został potwierdzony.', 'account' => array('email' => $user['email'], 'displayName' => $user['displayName'], 'emailVerified' => true));
@@ -317,8 +353,14 @@ try {
       $password = password_value($input['password'] ?? '');
       $token = reset_token($input['resetToken'] ?? '');
       $id = find_user_id_by_email($store, $mail);
-      $reset = $id !== null && is_array($store['users'][$id]['passwordReset'] ?? null) ? $store['users'][$id]['passwordReset'] : array();
-      if ($id === null || (int)($reset['expiresAt'] ?? 0) < time() || !hash_equals((string)($reset['tokenHash'] ?? ''), hash('sha256', $token))) respond(422, array('ok' => false, 'error' => 'Kod odzyskiwania jest nieprawidłowy lub wygasł.'));
+      if ($id === null || !is_array($store['users'][$id]['passwordReset'] ?? null)) respond(422, array('ok' => false, 'error' => 'Kod odzyskiwania jest nieprawidłowy lub wygasł.'));
+      if (!code_matches($store['users'][$id]['passwordReset'], $token)) {
+        if ((int)($store['users'][$id]['passwordReset']['attempts'] ?? 0) >= MADCAD_CODE_MAX_ATTEMPTS) {
+          unset($store['users'][$id]['passwordReset']);
+          respond(422, array('ok' => false, 'error' => 'Za dużo błędnych prób. Poproś o nowy kod odzyskiwania.'));
+        }
+        respond(422, array('ok' => false, 'error' => 'Kod odzyskiwania jest nieprawidłowy lub wygasł.'));
+      }
       $store['users'][$id]['passwordHash'] = password_hash($password, PASSWORD_DEFAULT);
       unset($store['users'][$id]['passwordReset']);
       foreach ($store['sessions'] as $sessionHash => $session) if (($session['userId'] ?? '') === $id) unset($store['sessions'][$sessionHash]);

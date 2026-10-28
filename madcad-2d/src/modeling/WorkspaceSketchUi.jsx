@@ -142,7 +142,9 @@ export function ParametersDialog({ document, commit, onClose }) {
 }
 
 export function SketchPalette({ options, onChange }) {
-  const [expanded, setExpanded] = useState(() => window.innerWidth >= 980);
+  // Collapsed by default: expanded it covered the right of the canvas and the
+  // command dialogs opened on top of it. The header still shows the snap state.
+  const [expanded, setExpanded] = useState(false);
   const basicItems = [
     ['grid', 'Siatka szkicu'],
     ['snap', 'Przyciąganie'],

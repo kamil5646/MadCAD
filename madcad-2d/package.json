@@ -1,6 +1,6 @@
 {
   "name": "madcad-desktop",
-  "version": "6.5.30",
+  "version": "6.6.0",
   "description": "Desktopowy CAD 2D/3D: klasyczne szkicowanie, parametryczna historia i modelowanie bryłowe.",
   "desktopName": "MadCAD",
   "repository": {
@@ -96,7 +96,7 @@
     "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "6.1.1",
     "axe-core": "^4.13.0",
-    "electron": "43.5.0",
+    "electron": "43.8.4",
     "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
@@ -107,10 +107,10 @@
     "manifold-3d": "3.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "replicad": "^0.23.1",
-    "replicad-opencascadejs": "^0.23.0",
+    "replicad": "1.1.0",
+    "replicad-opencascadejs": "^1.1.0",
     "three": "^0.186.1",
-    "vite": "^8.3.2",
+    "vite": "^8.3.5",
     "vitest": "^4.1.11"
   },
   "build": {

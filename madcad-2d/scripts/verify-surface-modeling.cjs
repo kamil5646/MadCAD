@@ -69,12 +69,12 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketchEntities' && window.__madcadVerifyDocumentState.selection.ids?.length === 1`, 'zaznaczona tworząca Surface Revolve');
     await window.webContents.executeJavaScript(`(() => {
-      const trigger = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Utwórz 3D');
-      if (!trigger) throw new Error('Brak menu Utwórz 3D.');
+      const trigger = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Więcej narzędzi');
+      if (!trigger) throw new Error('Brak menu Więcej narzędzi.');
       trigger.click();
     })()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Obróć powierzchnię' && !button.disabled)`, 'aktywne polecenie Surface Revolve');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Obróć powierzchnię' && !button.disabled).click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia obrotowa' && !button.disabled)`, 'aktywne polecenie Surface Revolve');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia obrotowa' && !button.disabled).click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceRevolve' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'surface'`, 'podgląd obrotu powierzchni');
     const revolveSurfaceMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
@@ -95,7 +95,7 @@ app.whenReady().then(async () => {
       window.__madcadVerifySketchSelection([line.id], 'replace');
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketchEntities' && window.__madcadVerifyDocumentState.selection.ids?.length === 1`, 'zaznaczony profil Surface Sweep');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Utwórz 3D').click()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Więcej narzędzi').click()`);
     await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia po ścieżce' && !button.disabled)`, 'aktywne polecenie Surface Sweep');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia po ścieżce' && !button.disabled).click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceSweep' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'surface'`, 'podgląd Surface Sweep');
@@ -131,6 +131,9 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 3 && window.__madcadVerifyDocumentState.featureData[2].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie Surface Loft');
     const loftSolidMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
 
+    // The project browser is hidden by default; open it to check the folders.
+    await window.webContents.executeJavaScript(`document.querySelector('.model-browser') || document.querySelector('button[aria-label="Pokaż lub ukryj przeglądarkę"]')?.click()`);
+    await waitFor(window, `document.querySelector('.model-browser .tree-folder')`, 'otwarta przeglądarka projektu');
     const result = await window.webContents.executeJavaScript(`(() => ({
       featureTypes: window.__madcadVerifyDocumentState.featureData.map((feature) => feature.type),
       bodyKinds: window.__madcadVerifyDocumentState.bodyKinds,
