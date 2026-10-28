@@ -137,7 +137,7 @@ function createLicenseClient({ statePath, request, protectToken, unprotectToken,
     return queue(async () => {
       const state = await readState();
       const credentials = normalizeCredentials(payload, { registration: action === 'register' });
-      const response = await request(`/auth/${action}`, { ...credentials, installationId: state.installationId, appVersion });
+      const response = await request(`/auth/${action}`, { ...credentials, installationId: state.installationId, appVersion, codeFormat: 'short' });
       const next = await applyServerResponse(state, response, cleanText(response.sessionToken, 4096));
       return { ok: true, status: publicStatus(next, now(), 'online') };
     });
@@ -184,16 +184,25 @@ function createLicenseClient({ statePath, request, protectToken, unprotectToken,
   async function requestPasswordReset(payload) {
     return queue(async () => {
       const email = normalizeEmail(payload?.email);
-      const response = await request('/auth/request-reset', { email, appVersion });
+      const response = await request('/auth/request-reset', { email, appVersion, codeFormat: 'short' });
       return { ok: response?.ok === true, message: cleanText(response?.message, 300) };
     });
+  }
+
+  // E-mail codes are 8 digits ("1234 5678", spaces/dashes ignored); long codes
+  // from older server replies stay valid until they expire.
+  function emailCode(value, message) {
+    const raw = cleanText(value, 160);
+    const digits = raw.replace(/[\s-]+/g, '');
+    if (/^\d{8}$/.test(digits)) return digits;
+    if (raw.length >= 32) return raw;
+    throw new Error(message);
   }
 
   async function resetPassword(payload) {
     return queue(async () => {
       const credentials = normalizeCredentials(payload);
-      const resetToken = cleanText(payload?.resetToken, 160);
-      if (resetToken.length < 32) throw new Error('Wklej pełny kod odzyskiwania z wiadomości e-mail.');
+      const resetToken = emailCode(payload?.resetToken, 'Wpisz 8-cyfrowy kod odzyskiwania z wiadomości e-mail.');
       const response = await request('/auth/reset-password', { ...credentials, resetToken, appVersion });
       return { ok: response?.ok === true, message: cleanText(response?.message, 300) };
     });
@@ -204,7 +213,7 @@ function createLicenseClient({ statePath, request, protectToken, unprotectToken,
       const state = await readState();
       const token = await tokenFrom(state);
       if (!token) throw new Error('Zaloguj się, aby potwierdzić adres e-mail.');
-      const response = await request('/auth/resend-verification', { sessionToken: token, appVersion });
+      const response = await request('/auth/resend-verification', { sessionToken: token, appVersion, codeFormat: 'short' });
       return { ok: response?.ok === true, message: cleanText(response?.message, 300), status: publicStatus(state, now(), 'online') };
     });
   }
@@ -214,8 +223,7 @@ function createLicenseClient({ statePath, request, protectToken, unprotectToken,
       const state = await readState();
       const token = await tokenFrom(state);
       if (!token) throw new Error('Zaloguj się, aby potwierdzić adres e-mail.');
-      const verificationToken = cleanText(payload?.verificationToken, 160);
-      if (verificationToken.length < 32) throw new Error('Wklej pełny kod potwierdzający z wiadomości e-mail.');
+      const verificationToken = emailCode(payload?.verificationToken, 'Wpisz 8-cyfrowy kod potwierdzający z wiadomości e-mail.');
       const response = await request('/auth/verify-email', { sessionToken: token, verificationToken, appVersion });
       const next = await writeState({ ...state, account: response.account || { ...state.account, emailVerified: true } });
       return { ok: true, message: cleanText(response?.message, 300), status: publicStatus(next, now(), 'online') };

@@ -1,5 +1,10 @@
 # Changelog
 
+## Niewydane — krótsze kody z e-maila
+
+- kody potwierdzenia konta i resetu hasła mają 8 cyfr (w mailu „1234 5678”) zamiast 43 znaków; można je wpisać ze spacją lub bez;
+- po 5 błędnych próbach kod przepada i trzeba poprosić o nowy;
+- starsze wersje programu nadal dostają i przyjmują długie kody.
 ## Niewydane — porządek w interfejsie
 
 - okno licencji przy starcie tylko wtedy, gdy konto nie ma dostępu; zalogowany użytkownik wchodzi od razu do programu;

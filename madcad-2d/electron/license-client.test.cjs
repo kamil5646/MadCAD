@@ -101,7 +101,8 @@ test('requests and confirms password recovery without changing local entitlement
   assert.deepEqual(calls.map(({ route }) => route), ['/auth/request-reset', '/auth/reset-password']);
   assert.equal(calls[0].payload.email, 'user@example.com');
   assert.equal((await client._readState()).account, null);
-  assert.rejects(() => client.resetPassword({ email: 'user@example.com', password: 'new-secure-password', resetToken: 'short' }), /pełny kod/i);
+  assert.rejects(() => client.resetPassword({ email: 'user@example.com', password: 'new-secure-password', resetToken: 'short' }), /8-cyfrowy kod/i);
+  assert.equal((await client.resetPassword({ email: 'user@example.com', password: 'new-secure-password', resetToken: '1234 5678' })).ok, true);
   await fs.rm(root, { recursive: true, force: true });
 });
 
@@ -125,6 +126,6 @@ test('verifies account email through the protected session before trial use', as
   const verified = await client.verifyEmail({ verificationToken: 'v'.repeat(43) });
   assert.equal(verified.status.account.emailVerified, true);
   assert.equal(calls.at(-1).payload.sessionToken, 'token');
-  assert.rejects(() => client.verifyEmail({ verificationToken: 'short' }), /pełny kod/i);
+  assert.rejects(() => client.verifyEmail({ verificationToken: 'short' }), /8-cyfrowy kod/i);
   await fs.rm(root, { recursive: true, force: true });
 });
