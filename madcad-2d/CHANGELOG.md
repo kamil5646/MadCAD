@@ -5,8 +5,10 @@
 - kody potwierdzenia konta i resetu hasła mają 8 cyfr (w mailu „1234 5678”) zamiast 43 znaków; można je wpisać ze spacją lub bez;
 - po 5 błędnych próbach kod przepada i trzeba poprosić o nowy;
 - starsze wersje programu nadal dostają i przyjmują długie kody.
+
 ## Niewydane — porządek w interfejsie
 
+- nowy wygląd wstążki: grupy jako osobne panele, przyciski z tłem i obramowaniem, wyraźny stan najechania i aktywny;
 - okno licencji przy starcie tylko wtedy, gdy konto nie ma dostępu; zalogowany użytkownik wchodzi od razu do programu;
 - paleta szkicu domyślnie zwinięta (nie zasłania płótna ani okien poleceń);
 - pasek więzów szkicu podpisany „Więzy”, podpowiedzi po polsku z wartością („Wymiar X: 40 mm”);
