@@ -1,4 +1,4 @@
-# MadCAD 6.5
+# MadCAD 6.6
 
 ![MadCAD](./docs/readme-banner.png)
 
