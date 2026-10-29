@@ -50,4 +50,12 @@ describe('resolveExtrudeSource', () => {
     expect(resolveExtrudeSource({ sketches: [older, newer], features: allUsed, selection: { kind: 'profile', id: 'new-used', sketchId: 'sketch-2' } }).profile.id).toBe('new-used');
     expect(resolveExtrudeSource({ sketches: [older, newer], features: [{ id: 'f1', profileIds: ['new-used'], suppressed: true }] }).profile.id).toBe('new-used');
   });
+
+  it('wybiera największy wolny obszar, a nie otwór w nim', () => {
+    const square = (size) => [[0, 0], [size, 0], [size, size], [0, size]].map(([x, y]) => ({ x: String(x), y: String(y) }));
+    const plate = { id: 'plate', geometry: { points: square(40), holes: [{ points: square(10) }] } };
+    const disc = { id: 'disc', geometry: { points: square(10), holes: [] } };
+    const sketch = { id: 'sketch-1', entities: [], profiles: [plate, disc] };
+    expect(resolveExtrudeSource({ sketches: [sketch] }).profile.id).toBe('plate');
+  });
 });

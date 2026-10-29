@@ -1181,8 +1181,50 @@ function makeCone(firstRadius, secondRadius, height, location, direction) {
   return shape;
 }
 
+// Sketch placements the kernel found while rebuilding, keyed by sketch ID; the UI writes
+// them back so a face-supported sketch is drawn where its features are.
+let supportPlacements = new Map();
+
+function relocateSupportedProfile(profile, bodyMap) {
+  const reference = profile?.supportReference;
+  if (reference?.descriptor?.geometry !== 'PLANE') return profile;
+  const body = bodyMap.get(reference.bodyId) || [...bodyMap.values()].find((candidate) => candidate.sourceFeatureId === reference.sourceFeatureId);
+  if (!body?.shape || body.representation === 'mesh-import') return profile;
+  let descriptor;
+  const faces = body.shape.faces;
+  try {
+    const descriptors = faces.map((face) => faceDescriptor(face));
+    descriptor = descriptors[matchingFaceIndex(reference, descriptors, shapeBounds(body.shape))];
+  } catch {
+    return profile;
+  } finally {
+    faces.forEach((face) => face.delete());
+  }
+  const frame = resolveSketchFrame(profile);
+  const normalLength = Math.hypot(...descriptor.normal);
+  const alignment = frame.normal.reduce((sum, value, axis) => sum + value * descriptor.normal[axis], 0) / (normalLength || 1);
+  if (Math.abs(Math.abs(alignment) - 1) > 1e-6) return profile;
+  const shift = frame.normal.reduce((sum, value, axis) => sum + value * (descriptor.center[axis] - frame.origin[axis]), 0);
+  let placed = profile;
+  if (Math.abs(shift) > GEOMETRY_POLICY.linearTolerance) {
+    if (profile.frame) {
+      placed = { ...profile, frame: { ...profile.frame, origin: profile.frame.origin.map((value, axis) => value + frame.normal[axis] * shift) } };
+    } else {
+      // The offset sign differs per base plane (XZ runs along -Y), so measure one unit.
+      const offset = Number(profile.planeOffset || 0);
+      const step = resolveSketchFrame({ plane: profile.plane, planeOffset: offset + 1 }).origin
+        .reduce((sum, value, axis) => sum + (value - frame.origin[axis]) * frame.normal[axis], 0);
+      placed = { ...profile, planeOffset: offset + shift / step };
+    }
+  }
+  if (profile.supportSketchId) supportPlacements.set(profile.supportSketchId, { planeOffset: placed.planeOffset, frame: placed.frame || null });
+  return placed;
+}
+
 function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.status === FEATURE_STATUS.SUPPRESSED || feature.status === FEATURE_STATUS.ROLLED_BACK) return;
+  if (feature.profiles?.some((profile) => profile.supportReference)) feature = { ...feature, profiles: feature.profiles.map((profile) => relocateSupportedProfile(profile, bodyMap)) };
+  if (feature.profile?.supportReference) feature = { ...feature, profile: relocateSupportedProfile(feature.profile, bodyMap) };
 
   if (feature.type === 'surfacePatch') {
     const bodyId = `body-${feature.id}`;
@@ -2932,6 +2974,7 @@ async function evaluateRevision(document, quality, revision = null) {
   const importMs = performance.now() - importStartedAt;
   const historyStartedAt = performance.now();
   let slowestFeature = null;
+  supportPlacements = new Map();
   const history = await evaluateFeatureHistoryCooperatively(features, runFeature, {}, {
     onFeatureEvaluated: ({ feature, durationMs }) => {
       if (!slowestFeature || durationMs > slowestFeature.durationMs) {
@@ -2965,6 +3008,7 @@ async function evaluateRevision(document, quality, revision = null) {
   const meshMs = performance.now() - meshStartedAt;
   const evaluated = {
     kernelBodies,
+    supportPlacements: [...supportPlacements].map(([sketchId, placement]) => ({ sketchId, ...placement })),
     renderBodies: meshedBodies.map((entry) => entry.renderBody),
     topologyByBody: new Map(meshedBodies.map((entry, index) => [kernelBodies[index].id, entry.topologyState])),
     timeline,
@@ -3234,6 +3278,7 @@ async function handleMessage(data) {
       analysis: evaluated.analysis,
       performance: evaluated.performance,
       surfaceProjectionUpdates: evaluated.surfaceProjectionUpdates,
+      supportPlacements: evaluated.supportPlacements,
     };
     self.postMessage({ id, ok: true, type, result }, transferableBuffers(bodies));
     return;

@@ -10,7 +10,7 @@ const fixturePath = (name) => path.join(process.cwd(), 'tests', 'fixtures', 'ext
 
 describe('external CAD and slicer compatibility fixtures', () => {
   it.each([
-    ['autocad-2013-rectangle.dxf', 5, 1],
+    ['autocad-2013-rectangle.dxf', 5, 2],
     ['fusion-sketch-mm.dxf', 4, 1],
   ])('imports %s with millimeter geometry and a closed profile', async (file, curves, profiles) => {
     const imported = parseSketchImport(await readFile(fixturePath(file), 'utf8'), 'dxf');

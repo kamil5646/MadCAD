@@ -1,6 +1,7 @@
 import { evaluateExpression, resolveParameters } from './expressions.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
 import { createId } from './ids.js';
+import { arrangeSketchRegions } from './sketch-regions.js';
 
 const EPSILON = GEOMETRY_POLICY.profileJoinTolerance;
 
@@ -368,19 +369,30 @@ function pointInPolygon(point, polygon) {
   return inside;
 }
 
-function loopSignature(loop) {
-  return [...loop.steps.map((step) => step.edge.id)].sort().join('|');
+// Stable identity of a stored loop: its entities plus, for pieces of crossing geometry,
+// the rounded part of each entity it uses.
+function storedLoopKey(loop) {
+  return (loop.entityIds || []).map((entityId, index) => {
+    const range = loop.entityRanges?.[index];
+    return range ? `${entityId}@${range.map((value) => Number(value).toFixed(4)).join('-')}` : entityId;
+  }).sort().join('|');
 }
 
-function profileSignature(outer, holes) {
-  return `${loopSignature(outer)}::${holes.map(loopSignature).sort().join('::')}`;
+export function profileKey(profile) {
+  return `${storedLoopKey(profile)}::${(profile.innerLoops || []).map(storedLoopKey).sort().join('::')}`;
 }
 
 function loopDocumentData(loop) {
+  const ranged = loop.steps.some((step) => step.range);
   return {
     entityIds: loop.steps.map((step) => step.edge.id),
     entityDirections: loop.steps.map((step) => step.reversed ? -1 : 1),
+    ...(ranged ? { entityRanges: loop.steps.map((step) => step.range || null) } : {}),
   };
+}
+
+function profileSignature(outer, holes) {
+  return profileKey({ ...loopDocumentData(outer), innerLoops: holes.map(loopDocumentData) });
 }
 
 function geometryCache(loop) {
@@ -497,6 +509,42 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
   }
 
   const allEdges = [...edges, ...circleEdges];
+  const existingProfiles = new Map((sketch?.profiles || []).map((profile) => [profileKey(profile), profile]));
+  const toProfile = (outer, holes, index) => {
+    const existing = existingProfiles.get(profileSignature(outer, holes));
+    return {
+      id: existing?.id || createId('profile'),
+      name: existing?.name || `Profil ${index + 1}`,
+      type: 'closed',
+      closed: true,
+      source: 'detected',
+      ...loopDocumentData(outer),
+      innerLoops: holes.map((hole) => ({ ...loopDocumentData(hole), role: 'hole' })),
+      geometry: { ...geometryCache(outer), holes: holes.map((hole) => geometryCache(hole)) },
+    };
+  };
+
+  // Lines, arcs and circles (everything the sketch tools draw) go through the planar
+  // arrangement: crossings split curves and every closed area becomes a profile.
+  if (allEdges.length && edges.every((edge) => edge.type === 'line' || edge.type === 'arc') && circleEdges.every((edge) => edge.type === 'circle')) {
+    const arrangement = arrangeSketchRegions(allEdges, tolerance);
+    for (const [first, second] of arrangement.overlaps) diagnostics.push(diagnostic('OVERLAP', `${label(first)} i ${label(second)} nakładają się.`, [first, second]));
+    for (const end of arrangement.openEnds) diagnostics.push(diagnostic('GAP', `Otwarty koniec obrysu w punkcie ${end.point.map((value) => value.toFixed(3)).join(', ')}.`, end.entityIds, end.point));
+    const overlapping = new Set(arrangement.overlaps.flat());
+    const regions = arrangement.regions.filter((region) => !region.outer.steps.some((step) => overlapping.has(step.edge.id)));
+    const vertexDegree = new Map();
+    for (const edge of edges) for (const vertex of [edge.startVertex, edge.endVertex]) vertexDegree.set(vertex, (vertexDegree.get(vertex) || 0) + 1);
+    return {
+      profiles: regions.map((region, index) => toProfile(region.outer, region.holes, index)),
+      diagnostics,
+      graph: {
+        vertices: vertices.map((vertex) => ({ id: vertex.id, coordinate: vertex.coordinate, pointIds: vertex.pointIds, degree: vertexDegree.get(vertex.id) || 0 })),
+        edges: allEdges.map((edge) => ({ id: edge.id, type: edge.type, startVertex: edge.startVertex || null, endVertex: edge.endVertex || null })),
+        curveAnalyses: [],
+        loops: regions.map((region) => ({ entityIds: region.outer.steps.map((step) => step.edge.id), depth: 0, area: region.area })),
+      },
+    };
+  }
   const curveAnalyses = allEdges.filter((edge) => ['arc', 'ellipticalArc', 'ellipse', 'circle', 'spline', 'conic'].includes(edge.type)).map((edge) => analyzeCurvedEdge(edge, tolerance));
   for (const analysis of curveAnalyses) {
     if (analysis.singular) diagnostics.push(diagnostic('CURVATURE_SINGULARITY', `${label(analysis.entityId)} ma osobliwość krzywizny.`, [analysis.entityId]));
@@ -551,31 +599,10 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
     loop.depth = loop.parent ? loop.parent.depth + 1 : 0;
   }
 
-  const existingBySignature = new Map((sketch?.profiles || []).map((profile) => {
-    const outer = [...(profile.entityIds || [])].sort().join('|');
-    const holes = (profile.innerLoops || []).map((loop) => [...(loop.entityIds || [])].sort().join('|')).sort().join('::');
-    return [`${outer}::${holes}`, profile];
-  }));
   const profiles = [];
   for (const outer of validLoops.filter((loop) => loop.depth % 2 === 0)) {
     const holes = validLoops.filter((loop) => loop.parent === outer && loop.depth % 2 === 1);
-    const signature = profileSignature(outer, holes);
-    const existing = existingBySignature.get(signature);
-    const outerData = loopDocumentData(outer);
-    profiles.push({
-      id: existing?.id || createId('profile'),
-      name: existing?.name || `Profil ${profiles.length + 1}`,
-      type: 'closed',
-      closed: true,
-      source: 'detected',
-      entityIds: outerData.entityIds,
-      entityDirections: outerData.entityDirections,
-      innerLoops: holes.map((hole) => ({ ...loopDocumentData(hole), role: 'hole' })),
-      geometry: {
-        ...geometryCache(outer),
-        holes: holes.map((hole) => geometryCache(hole)),
-      },
-    });
+    profiles.push(toProfile(outer, holes, profiles.length));
   }
 
   return {
@@ -599,7 +626,7 @@ export function refreshDetectedSketchProfiles(sketch, parameters = []) {
   const primitiveProfiles = (sketch.profiles || []).filter((profile) => profile.source === 'primitive');
   const detectedProfilesBySignature = new Map((sketch.profiles || [])
     .filter((profile) => profile.source !== 'primitive')
-    .map((profile) => [[...(profile.entityIds || [])].sort().join('|'), profile]));
+    .map((profile) => [profileKey(profile), profile]));
   const result = detectSketchProfiles(sketch, parameters);
   const primitiveSignatures = new Set(primitiveProfiles.map((profile) => [...(profile.entityIds || [])].sort().join('|')));
   sketch.profiles = [
@@ -607,7 +634,7 @@ export function refreshDetectedSketchProfiles(sketch, parameters = []) {
     ...result.profiles
       .filter((profile) => !primitiveSignatures.has([...profile.entityIds].sort().join('|')))
       .map((profile) => {
-        const previous = detectedProfilesBySignature.get([...profile.entityIds].sort().join('|'));
+        const previous = detectedProfilesBySignature.get(profileKey(profile));
         return previous ? { ...profile, id: previous.id, name: previous.name || profile.name } : profile;
       }),
   ];

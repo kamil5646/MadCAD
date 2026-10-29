@@ -83,7 +83,12 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.license-info-dialog button.confirm')`, 'okno licencji po przeładowaniu');
     await run(window, `document.querySelector('.license-info-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadStudio?.engine.status === 'ready' && window.__madcadStudio.engine.bodies === 1`, 'bryła z autozapisu', 60000);
-    process.stdout.write(`${JSON.stringify({ ok: true, checks: ['sketch', 'rectangle', 'dimension', 'extrude', 'autosave'] })}\n`);
+
+    // Core scenarios: regions, face-supported sketches, fillets after dimension changes…
+    const scenarios = await run(window, 'window.__madcadScenarios()');
+    const failed = scenarios.filter((item) => !item.ok);
+    if (failed.length) throw new Error(`Scenariusze rdzenia: ${failed.map((item) => `${item.name}: ${item.error}`).join('; ')}`);
+    process.stdout.write(`${JSON.stringify({ ok: true, checks: ['sketch', 'rectangle', 'dimension', 'extrude', 'autosave'], scenarios: scenarios.length })}\n`);
   } catch (error) {
     exitCode = 1;
     process.stderr.write(`Error: ${error.stack || error.message}\n`);

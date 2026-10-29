@@ -306,3 +306,6 @@
   .tool { min-width: 56px; }
   .tool span { font-size: 11px; }
 }
+
+/* The command panel already explains the drag handle. */
+.studio .direct-extrude-hint { display: none; }
