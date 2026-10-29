@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.3.0 — rysunek 2D z modelu (2026-10-29)
+
+- zakładka **Rysunek** obok Modelu: jednym przyciskiem arkusz z widokami przód, góra (pod przodem), bok i izometria;
+- skala dobierana automatycznie (albo ręcznie 10:1…1:100), A4/A3, poziomo/pionowo;
+- wymiary gabarytowe i tabliczka (nazwa, numer, materiał, autor, firma);
+- dokładne rzuty z bryły B-Rep z liniami niewidocznymi; arkusz aktualizuje się po każdej zmianie modelu;
+- eksport PDF i DXF oraz druk.
+
 ## 7.2.0 — Otwór, Szyk, Lustro (2026-10-29)
 
 - **Otwór**: kliknij płaską ścianę → „Otwór” → klikaj środki → „Zakończ szkic”; prosty, pogłębiony albo stożkowy, na wylot lub na głębokość, zawsze w głąb bryły; jeden krok historii na wszystkie punkty;

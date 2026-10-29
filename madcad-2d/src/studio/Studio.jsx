@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Box, Check, ChevronDown, Download, Eye, EyeOff, FilePlus2, FolderOpen, Pencil, Redo2, Ruler, Save, Trash2, Undo2, X,
+  Box, Check, ChevronDown, Download, Eye, EyeOff, FilePlus2, FileText, FolderOpen, Pencil, Printer, Redo2, Ruler, Save, Trash2, Undo2, X,
 } from 'lucide-react';
 import { createDocument, createSketch, nextSketchName, openDocument } from '../cad-core/document.js';
 import { deleteSketchSelection } from '../cad-core/sketch-model.js';
@@ -27,6 +27,10 @@ import {
   addConstraint, addDimension, addLine, addPoint, addShape, constraintAvailable, holePointIds, CONSTRAINTS, dimensionForSelection, moveEntities, setConstraintValue, tryEdit,
 } from './sketch-actions.js';
 import { buildFeature, commandFromFeature, commandProblem, FEATURE_LABELS, featureLabel, OPERATIONS, REPEATABLE_TYPES, revolveAxes } from './features.js';
+import { attachDrawingProjections, drawingProjectionGroups } from '../cad-core/drawing-projections.js';
+import { drawingSheetDxf, drawingSheetHtml } from '../cad-core/drawing-sheets.js';
+import DrawingPane from './DrawingPane.jsx';
+import { arrangeSheet, createStandardSheet } from './drawing.js';
 import './studio.css';
 
 const EMPTY = Object.freeze([]);
@@ -108,6 +112,8 @@ export default function Studio() {
   const pointerRef = useRef(null);
   const shiftRef = useRef(false);
   const pendingHoleRef = useRef(null);
+  const [mode, setMode] = useState('model');
+  const [projection, setProjection] = useState({ revision: -1, data: null });
   const fitPendingRef = useRef(true);
   useEffect(() => {
     const track = (event) => { shiftRef.current = event.shiftKey; };
@@ -376,6 +382,57 @@ export default function Studio() {
       flash(`Eksport nie powiódł się: ${error.message}`);
     }
   };
+  // ---- Drawing: exact projections are computed by the kernel only while the sheet is open.
+  const storedSheet = document.drawings?.[0] || null;
+  const projectionReady = projection.revision === engine.revision && Boolean(projection.data);
+  const drawingBodies = useMemo(() => (projectionReady ? attachDrawingProjections(engine.bodies, projection.data) : engine.bodies), [engine.bodies, projection.data, projectionReady]);
+  const sheet = useMemo(() => (storedSheet && engine.bodies.length ? arrangeSheet(storedSheet, drawingBodies) : storedSheet), [drawingBodies, engine.bodies.length, storedSheet]);
+  const projectDrawingViews = engine.projectDrawingViews;
+  useEffect(() => {
+    if (mode !== 'drawing' || previewFeature || engine.status !== 'ready' || !engine.isCurrent || !engine.bodies.length || projection.revision === engine.revision) return undefined;
+    let active = true;
+    const groups = drawingProjectionGroups([{ views: [{ type: 'base', bodyIds: [] }] }], engine.bodies);
+    projectDrawingViews(['front', 'top', 'right', 'isometric'], groups, [], 0.001)
+      .then((data) => { if (active) setProjection({ revision: engine.revision, data }); })
+      .catch((error) => { if (active && error.code !== 'PROJECTION_MODEL_PENDING') flash(`Rzuty rysunku: ${error.message}`); });
+    return () => { active = false; };
+  }, [engine.bodies, engine.isCurrent, engine.revision, engine.status, flash, mode, previewFeature, projectDrawingViews, projection.revision]);
+  const createDrawing = () => commit((next) => { next.drawings = [...(next.drawings || []), createStandardSheet(next)]; });
+  const updateSheet = (patch) => commit((next) => { next.drawings[0] = { ...next.drawings[0], ...patch }; });
+  const updateLayout = (patch) => commit((next) => { next.drawings[0] = { ...next.drawings[0], layout: { ...next.drawings[0].layout, ...patch } }; });
+  const updateTitle = (patch) => commit((next) => { next.drawings[0] = { ...next.drawings[0], titleBlock: { ...next.drawings[0].titleBlock, ...patch } }; });
+  const sheetHtml = () => drawingSheetHtml(sheet, drawingBodies, { documentName: document.name, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
+  const drawingFileName = (extension) => `${safeName(document.name)}-rysunek.${extension}`;
+  const exportDrawingPdf = async () => {
+    if (!sheet || !projectionReady) return flash('Poczekaj, aż rzuty zostaną obliczone.');
+    if (window.desktopApp?.saveDrawingPdf) {
+      const result = await window.desktopApp.saveDrawingPdf({ html: sheetHtml(), title: document.name, defaultName: drawingFileName('pdf'), pageSize: sheet.pageSize, orientation: sheet.orientation });
+      return flash(result?.ok ? `Zapisano PDF: ${result.filePath}` : result?.canceled ? 'Anulowano eksport PDF.' : `Eksport PDF nie powiódł się: ${result?.error || 'nieznany błąd'}`);
+    }
+    downloadBlob(new Blob([sheetHtml()], { type: 'text/html' }), drawingFileName('html'));
+    flash('Pobrano arkusz HTML — wydrukuj go do PDF w przeglądarce.');
+  };
+  const exportDrawingDxf = () => {
+    if (!sheet || !projectionReady) return flash('Poczekaj, aż rzuty zostaną obliczone.');
+    downloadBlob(new Blob([drawingSheetDxf(sheet, drawingBodies, { sketches: document.sketches, parameters: document.parameters, layers: document.layers })], { type: 'application/dxf;charset=utf-8' }), drawingFileName('dxf'));
+    flash('Wyeksportowano rysunek DXF (mm).');
+  };
+  const printDrawing = async () => {
+    if (!sheet || !projectionReady) return flash('Poczekaj, aż rzuty zostaną obliczone.');
+    if (!window.desktopApp?.openPrintPreviewWindow) return exportDrawingPdf();
+    const result = await window.desktopApp.openPrintPreviewWindow({ html: sheetHtml(), title: document.name });
+    if (!result?.ok) flash(`Podgląd wydruku nie powiódł się: ${result?.error || 'nieznany błąd'}`);
+  };
+  const switchMode = (next) => {
+    if (next === mode) return;
+    if (activeSketchId) finishSketch();
+    setCommand(null);
+    setTool(null);
+    setSelection(null);
+    setNotice('');
+    setMode(next);
+  };
+
   const exportSketchDxf = () => {
     setFileMenuOpen(false);
     const sketch = activeSketch || document.sketches.find((item) => item.id === (selection?.sketchId || selection?.id)) || document.sketches.at(-1);
@@ -747,7 +804,7 @@ export default function Studio() {
       if (primary && event.key.toLowerCase() === 'y') { event.preventDefault(); history.redo(); return; }
       if (primary && event.key.toLowerCase() === 's') { event.preventDefault(); void saveProject(); return; }
       if (primary && event.key.toLowerCase() === 'o') { event.preventDefault(); void openProject(); return; }
-      if (primary || event.altKey) return;
+      if (primary || event.altKey || mode === 'drawing') return;
       if (event.key === 'Escape') {
         if (constraintMenuOpen || fileMenuOpen) { setConstraintMenuOpen(false); setFileMenuOpen(false); return; }
         if (tool?.points?.length) return setTool({ ...tool, points: [] });
@@ -820,11 +877,24 @@ export default function Studio() {
         <input className="doc-name" value={document.name} onChange={(event) => renameDocument(event.target.value)} aria-label="Nazwa projektu" spellCheck="false" />
         {dirty && <span className="dirty-dot" title="Niezapisane zmiany" />}
         <span className="spacer" />
+        <div className="mode-tabs" role="tablist">
+          {[['model', 'Model'], ['drawing', 'Rysunek']].map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={mode === id} className={mode === id ? 'on' : ''} onClick={() => switchMode(id)}>{label}</button>)}
+        </div>
+        <span className="spacer" />
         {status && <span className={`engine ${engine.status}`}>{status}</span>}
       </header>
 
-      <nav className="toolbar" aria-label={inSketch ? 'Narzędzia szkicu' : 'Narzędzia modelu'}>
-        {inSketch ? (
+      <nav className="toolbar" aria-label={mode === 'drawing' ? 'Rysunek' : inSketch ? 'Narzędzia szkicu' : 'Narzędzia modelu'}>
+        {mode === 'drawing' ? (
+          <>
+            <div className="group">
+              <ToolButton label="PDF" Icon={FileText} disabled={!sheet} onClick={() => void exportDrawingPdf()} />
+              <ToolButton label="DXF" Icon={Download} disabled={!sheet} onClick={exportDrawingDxf} />
+              <ToolButton label="Drukuj" Icon={Printer} disabled={!sheet} onClick={() => void printDrawing()} />
+            </div>
+            <span className="spacer" />
+          </>
+        ) : inSketch ? (
           <>
             <div className="group">
               {SKETCH_TOOLS.filter((item) => item.id !== 'trim').map((item) => (
@@ -864,6 +934,12 @@ export default function Studio() {
         )}
       </nav>
 
+      {mode === 'drawing' ? (
+        <div className="workarea">
+          <DrawingPane document={document} sheet={sheet} bodies={drawingBodies} ready={projectionReady} hasBodies={engine.bodies.length > 0} onCreate={createDrawing} onLayout={updateLayout} onSheet={updateSheet} onTitle={updateTitle} />
+          {notice && <div className="notice" role="status" aria-live="polite">{notice}<button type="button" onClick={() => setNotice('')} aria-label="Zamknij"><X size={13} /></button></div>}
+        </div>
+      ) : (
       <div className="workarea">
         {browserOpen && (
           <aside className="browser" aria-label="Przeglądarka projektu">
@@ -1058,6 +1134,7 @@ export default function Studio() {
           )}
         </main>
       </div>
+      )}
 
       <footer className="timeline" aria-label="Historia operacji">
         <span className="timeline-label">Historia</span>

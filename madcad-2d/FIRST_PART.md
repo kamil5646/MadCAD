@@ -1,6 +1,6 @@
 # MadCAD — pierwszy projekt CAD / Your first CAD project
 
-Aktualne dla `7.2.0`. Interaktywną wersję otwiera przycisk **Samouczek** w menu **Pomoc**.
+Aktualne dla `7.3.0`. Interaktywną wersję otwiera przycisk **Samouczek** w menu **Pomoc**.
 
 ## Ścieżka PL
 

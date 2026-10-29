@@ -319,3 +319,34 @@
   background: var(--bg);
   color: var(--text);
 }
+
+/* Model / drawing switch */
+.mode-tabs { display: flex; padding: 2px; border-radius: 8px; background: var(--bg); }
+.mode-tabs button { height: 28px; padding: 0 16px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-weight: 600; }
+.mode-tabs button.on { background: var(--panel-2); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+
+/* Drawing */
+.drawing-host { display: flex; flex: 1; min-width: 0; }
+.drawing-frame { flex: 1; min-width: 0; background: #1b1f24; display: grid; place-items: center; }
+.drawing-frame iframe { width: 100%; height: 100%; border: 0; }
+.drawing-side {
+  width: 260px;
+  flex: 0 0 260px;
+  overflow: auto;
+  padding: 10px 14px 20px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  user-select: text;
+}
+.drawing-side h3 { margin: 14px 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.drawing-side .segmented { margin-bottom: 6px; }
+.drawing-side .select.wide { width: 100%; }
+.check-row { display: flex; align-items: center; gap: 8px; height: 28px; }
+.text-row { display: grid; gap: 4px; margin-bottom: 8px; }
+.text-row span { color: var(--muted); font-size: 12px; }
+.text-row input { height: 30px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.text-row input:focus { outline: none; border-color: var(--accent); }
+.drawing-host.empty-state { flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--muted); text-align: center; }
+.drawing-host.empty-state h2 { margin: 6px 0 0; color: var(--text); font-size: 18px; }
+.drawing-host.empty-state p { max-width: 360px; margin: 0 0 8px; }
+.drawing-host.empty-state .primary { height: 36px; padding: 0 18px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; }
