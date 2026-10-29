@@ -47,12 +47,11 @@ expectText(rootReadme, /Importuj DWG/, 'lokalny import DWG w README');
 const firstPart = read('madcad-2d/FIRST_PART.md');
 expectText(firstPart, /DWG jest konwertowany lokalnie/, 'lokalny przepływ DWG w samouczku');
 
-const appUi = read('madcad-2d/src/modeling/ModelingWorkspace.jsx');
+const appUi = read('madcad-2d/src/studio/Studio.jsx');
 rejectText(appUi, /licenseTokenInput|licenseDeviceIdInput|licenseActivateTokenBtn/, 'kontrolki aktywacji w aplikacji');
-expectText(appUi, /function readStoredLanguage\(\)[\s\S]*?catch \(_error\)/, 'bezpieczny odczyt języka bez Web Storage');
-expectText(appUi, /autosaveSuspendedRef\.current[\s\S]*?setTimeout\(persistWhenReady, 100\)/, 'ponowienie autozapisu po wstrzymaniu');
-expectText(appUi, /promptPending: silent && Boolean\(result\?\.available\)/, 'odroczony automatyczny dialog aktualizacji');
-expectText(appUi, /if \(!persistenceReady\)[\s\S]*?zakończenie odzyskiwania autozapisu/, 'blokada destrukcyjnych akcji podczas odzyskiwania');
+expectText(appUi, /__madcadHasUnsavedChanges[\s\S]*?__madcadPersistenceReady[\s\S]*?__madcadClearRuntimeSession/, 'haki zamykania z niezapisanymi zmianami');
+expectText(appUi, /writeLocalAutosave\(serialized\)/, 'autozapis projektu');
+expectText(appUi, /licenseGetStatus[\s\S]*?accessAllowed/, 'blokada programu bez ważnej licencji');
 const appDialogs = read('madcad-2d/src/modeling/AppDialogs.jsx');
 expectText(appDialogs, /40 dni pełnej wersji/, 'ocena w oknie aplikacji');
 expectText(appDialogs, /Licencja imienna/, 'licencja imienna w aplikacji');

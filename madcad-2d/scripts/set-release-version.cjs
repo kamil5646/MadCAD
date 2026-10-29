@@ -7,7 +7,7 @@ const next = process.argv[2];
 if (!/^\d+\.\d+\.\d+$/.test(next || '')) throw new Error('Podaj stabilną wersję, np. 6.5.29.');
 const files = [
   'package.json', 'package-lock.json', 'README.md', 'FIRST_PART.md',
-  'src/App.test.jsx', 'src/modeling/AppDialogs.jsx', 'src/modeling/i18n.js',
+  'src/App.test.jsx', 'src/modeling/AppDialogs.jsx',
   'server/seohost/madcad-site/index.html', '../README.md', '../docs/index.html',
   '../.github/workflows/release.yml',
 ];

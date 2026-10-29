@@ -160,7 +160,6 @@ import {
   updateBlockInstanceAttributes,
 } from '../src/cad-core/blocks.js';
 import { calculateExplodedOffsets } from '../src/cad-core/exploded-view.js';
-import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import { formatDimensionValue, sketchDimensionAnnotations } from '../src/cad-core/sketch-dimension-annotations.js';
 import {
@@ -3168,48 +3167,6 @@ test('picking dużej siatki mieści się w budżecie i mapuje właściwe ściany
     durationMs < GEOMETRY_POLICY.performanceBudgets.pickingBatchMs,
     `Picking ${pickCount} trafień trwał ${durationMs.toFixed(1)} ms.`,
   );
-});
-
-test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan silnika', () => {
-  assert.equal(resolveModelingLanguage('en-US', 'pl'), 'en');
-  assert.equal(resolveModelingLanguage('pl-PL', 'en'), 'pl');
-  assert.equal(resolveModelingLanguage('', 'en'), 'en');
-  assert.equal(translateModelingText('  Utwórz szkic  ', 'en'), '  Create sketch  ');
-  assert.equal(translateModelingText('Model gotowy · 1 bryła', 'en'), 'Model ready · 1 body');
-  assert.equal(translateModelingText('Setup poprawny w modelu', 'en'), 'Setup valid in the model');
-  assert.equal(translateModelingText('Ścieżki sprawdzone w modelu', 'en'), 'Toolpaths checked in the model');
-  assert.equal(translateModelingText('Korpus · 1 szk. · 3 oper. · 5 KB', 'en'), 'Korpus · 1 sk. · 3 feat. · 5 KB');
-  assert.equal(translateModelingText('Otwarty łańcuch (3)', 'en'), 'Open chain (3)');
-  assert.equal(translateModelingText('Przeliczanie historii…', 'en'), 'Recomputing history…');
-  assert.equal(translateModelingText('A4 · poziomo · 1 wid.', 'en'), 'A4 · landscape · 1 view');
-  assert.equal(translateModelingText('Widok bazowy, Przód, skala 2:1', 'en'), 'Base view, Front, scale 2:1');
-  assert.equal(translateModelingText('78% metal · 30% chropowatości', 'en'), '78% metal · 30% roughness');
-  assert.equal(translateModelingText('Skojarzony z modelem i widokiem nadrzędnym', 'en'), 'Associated with model and parent view');
-  assert.equal(
-    translateModelingText('Linia. Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt. Skrót: L ↵.', 'en'),
-    'Line. Create one segment from two points or from an exact length and angle. Shortcut: L ↵.',
-  );
-  assert.equal(translateModelingText('Utwórz szkic', 'pl'), 'Utwórz szkic');
-  for (const label of [
-    'DOKUMENTACJA',
-    'Dokumentacja techniczna',
-    'Utwórz pierwszy arkusz techniczny',
-    'Widok bazowy',
-    'Widok rzutowany',
-    'Przekrój',
-    'Detal',
-    'Kierunek rzutu',
-    'Wyrównanie',
-    'Eksport PDF',
-    'Automatyczne więzy',
-    'Pozostałe stopnie swobody',
-    'Raport naprawy importu',
-    'Komponenty i złożenia',
-    'Nowa część',
-    'Nowe złożenie',
-    'Zaznacz część Rama. Numer: MC-001.',
-    'Pominięto nieobsługiwany element SVG: text.',
-  ]) assert.notEqual(translateModelingText(label, 'en'), label, `Brak tłumaczenia: ${label}`);
 });
 
 test('okno wraca na dostępny monitor po odłączeniu ekranu i zachowuje ujemne współrzędne', () => {

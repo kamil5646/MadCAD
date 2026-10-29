@@ -100,3 +100,53 @@ export function movedSupportFaceIndex(expected, descriptors, excluded = new Set(
   if (matches.length > 1 && !(matches[0].inPlane * 2 < matches[1].inPlane)) return -1;
   return matches[0].index;
 }
+
+const validBounds = (bounds) => Array.isArray(bounds) && bounds.length === 2 && bounds.every(isPoint);
+
+function normalizeInBounds(point, bounds) {
+  return point.map((value, axis) => {
+    const size = Number(bounds[1][axis]) - Number(bounds[0][axis]);
+    return size > LINEAR ? (Number(value) - Number(bounds[0][axis])) / size : 0;
+  });
+}
+
+// When a dimension changes, the body grows or shrinks but a picked edge or face keeps its
+// place relative to the body (the top-front edge stays top-front). Compare positions
+// normalised to the body's bounding box; accept only a clear winner.
+function relativeIndex(expectedPoints, expectedBounds, candidates, bounds) {
+  if (!validBounds(expectedBounds) || !validBounds(bounds) || !expectedPoints.every(isPoint)) return -1;
+  const target = expectedPoints.map((point) => normalizeInBounds(point, expectedBounds));
+  const scores = candidates.flatMap(({ index, points }) => {
+    if (!points || points.length !== target.length || !points.every(isPoint)) return [];
+    const normalized = points.map((point) => normalizeInBounds(point, bounds));
+    const direct = normalized.reduce((sum, point, at) => sum + length(subtract(point, target[at])), 0);
+    const reverse = normalized.reduce((sum, point, at) => sum + length(subtract(point, target[target.length - 1 - at])), 0);
+    return [{ index, score: Math.min(direct, reverse) }];
+  }).sort((left, right) => left.score - right.score);
+  if (!scores.length || scores[0].score > 0.02) return -1;
+  if (scores.length > 1 && scores[1].score <= scores[0].score * 2 + 1e-6) return -1;
+  return scores[0].index;
+}
+
+export function relativeEdgeIndex(expected, descriptors, bounds) {
+  if (!expected?.geometry || !Array.isArray(expected.endpoints)) return -1;
+  const points = (descriptor) => [...descriptor.endpoints, ...(descriptor.midpoint ? [descriptor.midpoint] : [])];
+  const candidates = descriptors.flatMap((descriptor, index) => (
+    descriptor?.geometry === expected.geometry && Array.isArray(descriptor.endpoints) && Boolean(descriptor.midpoint) === Boolean(expected.midpoint)
+      ? [{ index, points: points(descriptor) }]
+      : []
+  ));
+  return relativeIndex(points(expected), expected.bodyBounds, candidates, bounds);
+}
+
+export function relativeFaceIndex(expected, descriptors, bounds) {
+  if (!expected?.geometry || !isPoint(expected.center)) return -1;
+  const normal = unit(expected.normal);
+  const candidates = descriptors.flatMap((descriptor, index) => {
+    if (descriptor?.geometry !== expected.geometry || !isPoint(descriptor.center)) return [];
+    const candidateNormal = unit(descriptor.normal);
+    if (normal && candidateNormal && 1 - dot(normal, candidateNormal) > 1e-6) return [];
+    return [{ index, points: [descriptor.center] }];
+  });
+  return relativeIndex([expected.center], expected.bodyBounds, candidates, bounds);
+}
