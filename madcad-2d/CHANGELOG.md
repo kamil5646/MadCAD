@@ -1,5 +1,14 @@
 # Changelog
 
+## 7.2.0 — Otwór, Szyk, Lustro (2026-10-29)
+
+- **Otwór**: kliknij płaską ścianę → „Otwór” → klikaj środki → „Zakończ szkic”; prosty, pogłębiony albo stożkowy, na wylot lub na głębokość, zawsze w głąb bryły; jeden krok historii na wszystkie punkty;
+- narzędzie **Punkt** w szkicu (P);
+- **Szyk**: prostokątny (ilość, odstęp, rzędy) albo kołowy (ilość, kąt, oś) — powtarza wybrany otwór, nadlew lub wycięcie, albo całą bryłę;
+- **Lustro**: odbija wybraną operację albo całą bryłę względem XY, XZ lub YZ;
+- otwarty projekt dopasowuje widok do bryły;
+- 18 scenariuszy rdzenia w teście Electron (doszły otwory, szyki i lustra).
+
 ## 7.1.0 — mocniejszy rdzeń (2026-10-29)
 
 - szkic dzieli się na obszary jak w Fusion: nachodzące figury, linia przez okrąg albo linia do boku dają osobne zamknięte obszary zamiast błędu „przecinają się”;

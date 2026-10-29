@@ -207,7 +207,7 @@
   z-index: 40;
   top: 150px;
   right: 12px;
-  width: 290px;
+  width: 320px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -309,3 +309,13 @@
 
 /* The command panel already explains the drag handle. */
 .studio .direct-extrude-hint { display: none; }
+
+.select {
+  grid-column: 2 / 4;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}

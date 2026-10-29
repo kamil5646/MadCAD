@@ -157,6 +157,8 @@ export function buildDependencyGraph(document) {
     if (feature.pathSketchId) addEdge(feature.pathSketchId, feature.id, feature.type === 'pipe' ? 'pipe-path-sketch' : 'sweep-path-sketch');
     if (feature.profileId) addEdge(feature.profileId, feature.id, 'references');
     if (feature.pointId) addEdge(feature.pointId, feature.id, 'references');
+    for (const pointId of feature.pointIds || []) addEdge(pointId, feature.id, 'references');
+    for (const sourceId of feature.sourceFeatureIds || []) addEdge(sourceId, feature.id, 'repeats');
     for (const referenceId of feature.referenceIds || []) addEdge(referenceId, feature.id, 'references-topology');
     if (feature.type === 'draft' && !['XY', 'XZ', 'YZ'].includes(feature.neutralPlaneId)) addEdge(feature.neutralPlaneId, feature.id, 'neutral-plane');
     if (feature.type === 'splitBody' && !['XY', 'XZ', 'YZ'].includes(feature.planeId)) addEdge(feature.planeId, feature.id, 'split-plane');

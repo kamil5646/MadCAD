@@ -241,3 +241,7 @@ export function ProjectGeometryCadIcon(props) {
 export function FinishSketchCadIcon(props) {
   return <CadSvg {...props}><circle className="cad-finish-disc" cx="12" cy="12" r="9" /><path className="cad-finish-check" d="m7.5 12.2 3 3.1 6.4-7" /></CadSvg>;
 }
+
+export function MirrorCadIcon(props) {
+  return <CadSvg {...props}><path className="cad-guide" d="M12 3v18" strokeDasharray="2 2" /><path className="cad-surface-primary" d="M10 6 4 9v8l6-2z" /><path className="cad-surface-secondary" d="m14 6 6 3v8l-6-2z" /></CadSvg>;
+}

@@ -20,13 +20,13 @@ import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumen
 import { resolveVisibleSketchId } from '../modeling/sketch-visibility.js';
 import { resolveExtrudeSource } from '../modeling/extrude-source.js';
 import {
-  ChamferCadIcon, ExtrudeCadIcon, FilletCadIcon, FinishSketchCadIcon, RevolveCadIcon, ShellCadIcon, SketchArcCadIcon, SketchCadIcon,
+  ChamferCadIcon, ExtrudeCadIcon, FilletCadIcon, FinishSketchCadIcon, HoleCadIcon, MirrorCadIcon, PatternCadIcon, PointCadIcon, RevolveCadIcon, ShellCadIcon, SketchArcCadIcon, SketchCadIcon,
   SketchCircleCadIcon, SketchConstraintCadIcon, SketchDimensionCadIcon, SketchLineCadIcon, SketchRectangleCadIcon, SketchTrimCadIcon,
 } from '../modeling/CadToolIcons.jsx';
 import {
-  addConstraint, addDimension, addLine, addShape, constraintAvailable, CONSTRAINTS, dimensionForSelection, moveEntities, setConstraintValue, tryEdit,
+  addConstraint, addDimension, addLine, addPoint, addShape, constraintAvailable, holePointIds, CONSTRAINTS, dimensionForSelection, moveEntities, setConstraintValue, tryEdit,
 } from './sketch-actions.js';
-import { buildFeature, commandFromFeature, commandProblem, FEATURE_LABELS, featureLabel, OPERATIONS, revolveAxes } from './features.js';
+import { buildFeature, commandFromFeature, commandProblem, FEATURE_LABELS, featureLabel, OPERATIONS, REPEATABLE_TYPES, revolveAxes } from './features.js';
 import './studio.css';
 
 const EMPTY = Object.freeze([]);
@@ -36,6 +36,7 @@ const SKETCH_TOOLS = Object.freeze([
   { id: 'rectangle', label: 'Prostokąt', key: 'r', Icon: SketchRectangleCadIcon, points: 2, prompt: ['Kliknij pierwszy narożnik', 'Kliknij przeciwległy narożnik'] },
   { id: 'circle', label: 'Okrąg', key: 'c', Icon: SketchCircleCadIcon, points: 2, prompt: ['Kliknij środek okręgu', 'Kliknij punkt na okręgu'] },
   { id: 'arc', label: 'Łuk', key: 'a', Icon: SketchArcCadIcon, points: 3, prompt: ['Kliknij początek łuku', 'Kliknij koniec łuku', 'Kliknij punkt, przez który przechodzi łuk'] },
+  { id: 'point', label: 'Punkt', key: 'p', Icon: PointCadIcon, points: 1, prompt: ['Kliknij miejsce punktu (np. środek otworu)'] },
   { id: 'trim', label: 'Przytnij', key: 't', Icon: SketchTrimCadIcon, prompt: ['Kliknij fragment linii do usunięcia'] },
 ]);
 const MODEL_TOOLS = Object.freeze([
@@ -44,7 +45,12 @@ const MODEL_TOOLS = Object.freeze([
   { id: 'fillet', label: 'Zaokrąglij', key: 'f', Icon: FilletCadIcon },
   { id: 'chamfer', label: 'Fazuj', Icon: ChamferCadIcon },
   { id: 'shell', label: 'Skorupa', Icon: ShellCadIcon },
+  { id: 'hole', label: 'Otwór', key: 'h', Icon: HoleCadIcon },
+  { id: 'pattern', label: 'Szyk', Icon: PatternCadIcon },
+  { id: 'mirror', label: 'Lustro', Icon: MirrorCadIcon },
 ]);
+const PLANE_OPTIONS = Object.freeze([{ id: 'XY', label: 'XY' }, { id: 'XZ', label: 'XZ' }, { id: 'YZ', label: 'YZ' }]);
+const AXIS_OPTIONS = Object.freeze([{ id: 'Z_AXIS', label: 'Oś Z' }, { id: 'X_AXIS', label: 'Oś X' }, { id: 'Y_AXIS', label: 'Oś Y' }]);
 
 function selectionItems(selection) {
   if (!selection) return EMPTY;
@@ -101,6 +107,8 @@ export default function Studio() {
   const fileInputRef = useRef(null);
   const pointerRef = useRef(null);
   const shiftRef = useRef(false);
+  const pendingHoleRef = useRef(null);
+  const fitPendingRef = useRef(true);
   useEffect(() => {
     const track = (event) => { shiftRef.current = event.shiftKey; };
     window.addEventListener('keydown', track);
@@ -280,8 +288,14 @@ export default function Studio() {
     setTool(null);
     setCommand(null);
     setSelection(null);
-    setFitRequest({ requestId: `fit:${Date.now()}` });
+    fitPendingRef.current = true;
   };
+  // A freshly opened project is framed once its bodies have been computed.
+  useEffect(() => {
+    if (!fitPendingRef.current || engine.status !== 'ready' || !engine.isCurrent) return;
+    fitPendingRef.current = false;
+    setFitRequest({ requestId: `fit:${Date.now()}` });
+  }, [engine.isCurrent, engine.status, engine.bodies]);
   const newProject = async () => {
     setFileMenuOpen(false);
     if (!(await confirmDiscard('new'))) return;
@@ -371,11 +385,11 @@ export default function Studio() {
   };
 
   // ---- Sketch lifecycle
-  const enterSketch = (sketch, message) => {
+  const enterSketch = (sketch, message, firstTool = 'line') => {
     setActiveSketchId(sketch.id);
     setSelection(null);
     setCommand(null);
-    setTool({ type: 'line', points: [] });
+    setTool({ type: firstTool, points: [] });
     flash(message);
   };
   const createPlaneSketch = (plane) => {
@@ -384,7 +398,7 @@ export default function Studio() {
     setCameraView({ requestId: `view:${Date.now()}`, plane });
     enterSketch(sketch, `Rysujesz na płaszczyźnie ${PLANE_NAMES[plane]}. Wybierz narzędzie albo zacznij od linii.`);
   };
-  const createFaceSketch = (faceItem) => {
+  const createFaceSketch = (faceItem, firstTool = 'line') => {
     const body = engine.bodies.find((candidate) => candidate.id === faceItem.bodyId);
     const face = body?.topology?.faces?.find((candidate) => candidate.id === faceItem.id);
     if (face?.descriptor?.geometry !== 'PLANE') return flash('Szkic można założyć tylko na płaskiej ścianie.');
@@ -397,7 +411,8 @@ export default function Studio() {
     const reference = createTopologyReference({ selection: faceItem, descriptor: face.descriptor, label: 'Podpora szkicu' });
     const sketch = createSketch({ name: 'Szkic', plane, planeOffset, ...(axisAligned ? {} : { frame: frameFromNormal(center, normal) }), support: { kind: 'face', referenceId: reference.id } });
     commit((next) => { next.references.push(reference); sketch.name = nextSketchName(next.sketches); next.sketches.push(sketch); });
-    enterSketch(sketch, 'Rysujesz na ścianie bryły.');
+    if (firstTool === 'point') pendingHoleRef.current = sketch.id;
+    enterSketch(sketch, firstTool === 'point' ? 'Kliknij środki otworów, potem „Zakończ szkic”.' : 'Rysujesz na ścianie bryły.', firstTool);
   };
   const startSketch = () => {
     if (activeSketchId) return;
@@ -416,7 +431,14 @@ export default function Studio() {
     setCameraView({ requestId: `view:${Date.now()}`, plane: 'iso' });
     window.setTimeout(() => setFitRequest({ requestId: `fit:${Date.now()}` }), 0);
     if (!sketch) return;
-    if (!sketch.entities.some((entity) => entity.type !== 'point')) {
+    if (pendingHoleRef.current === sketch.id) {
+      pendingHoleRef.current = null;
+      if (holePointIds(sketch).length) {
+        window.setTimeout(() => openHole(sketch), 0);
+        return;
+      }
+    }
+    if (!sketch.entities.length) {
       commit((next) => { next.sketches = next.sketches.filter((item) => item.id !== sketch.id); });
       setSelection(null);
       return flash('Pusty szkic został usunięty.');
@@ -455,7 +477,9 @@ export default function Studio() {
       setTool({ ...tool, points });
       return;
     }
-    const ok = safeEdit((next) => (tool.type === 'line' ? addLine(next, activeSketchId, points[0], points[1]) : addShape(next, activeSketchId, tool.type, points)));
+    const ok = safeEdit((next) => (tool.type === 'line' ? addLine(next, activeSketchId, points[0], points[1])
+      : tool.type === 'point' ? addPoint(next, activeSketchId, points[0])
+        : addShape(next, activeSketchId, tool.type, points)));
     // Line restarts from scratch; every tool stays armed for the next shape.
     setTool({ type: tool.type, points: ok || points.length > 1 ? [] : tool.points });
   };
@@ -522,9 +546,52 @@ export default function Studio() {
     const source = resolveExtrudeSource({ sketches: document.sketches, selection, features: document.features });
     return source.kind === 'profile' ? source : null;
   };
-  const openSolidTool = (id) => {
-    if (activeSketchId) finishSketch();
+  // Hole drills at the free points of a sketch; with a face picked it first opens a sketch
+  // there with the Point tool and continues after "Zakończ szkic".
+  const openHole = (sketch) => {
+    const pointIds = holePointIds(sketch);
+    const supportBody = document.references.find((reference) => reference.id === sketch.support?.referenceId)?.bodyId;
+    const targetBodyId = supportBody || selectedBodyIds[0] || engine.bodies[0]?.id;
+    if (!targetBodyId) return flash('Najpierw zrób bryłę.');
+    setSelection(null);
     setNotice('');
+    setCommand({ type: 'hole', sketchId: sketch.id, pointIds, targetBodyId, holeType: 'simple', extent: 'through-all', diameter: '6', depth: '10' });
+  };
+  const repeatSources = (bodyId) => document.features.filter((feature) => REPEATABLE_TYPES.includes(feature.type) && !feature.suppressed
+    && (feature.targetBodyId === bodyId || `body-${feature.id}` === bodyId));
+  const openRepeatTool = (id) => {
+    const bodyId = selectedBodyIds[0] || selectedFaces[0]?.bodyId || selectedEdges[0]?.bodyId || engine.bodies[0]?.id;
+    if (!bodyId) return flash('Najpierw zrób bryłę.');
+    const sources = repeatSources(bodyId);
+    const last = sources.findLast((feature) => feature.type === 'hole' || (feature.operation && feature.operation !== 'new'));
+    const sourceId = last?.id || 'body';
+    const sketchPlane = document.sketches.find((sketch) => sketch.id === last?.sketchId)?.plane || 'XY';
+    if (id === 'pattern') {
+      setCommand({ type: 'pattern', targetBodyId: bodyId, sourceId, patternType: 'rectangular', plane: sketchPlane, countX: '3', spacingX: '15', countY: '1', spacingY: '15', occurrences: '6', totalAngle: '360', axisId: 'Z_AXIS' });
+    } else {
+      setCommand({ type: 'mirror', targetBodyId: bodyId, sourceId, plane: 'YZ' });
+    }
+  };
+
+  const openSolidTool = (id) => {
+    if (activeSketchId && id !== 'hole') finishSketch();
+    setNotice('');
+    if (id === 'hole') {
+      const sketch = activeSketch || document.sketches.find((item) => item.id === (selection?.sketchId || (selection?.kind === 'sketch' ? selection.id : null)))
+        || document.sketches.findLast((item) => holePointIds(item).length && !document.features.some((feature) => feature.sketchId === item.id));
+      if (activeSketchId) {
+        if (!holePointIds(activeSketch).length) return flash('Dodaj punkty narzędziem „Punkt” (P) — w nich powstaną otwory.');
+        finishSketch();
+        return openHole(activeSketch);
+      }
+      if (selectedFaces[0]) {
+        createFaceSketch(selectedFaces[0], 'point');
+        return;
+      }
+      if (sketch && holePointIds(sketch).length) return openHole(sketch);
+      return flash('Kliknij płaską ścianę bryły, potem „Otwór”.');
+    }
+    if (id === 'pattern' || id === 'mirror') return openRepeatTool(id);
     if (id === 'extrude' || id === 'revolve') {
       const source = profileSource();
       if (!source) return flash('Najpierw narysuj zamknięty szkic (np. prostokąt) i zakończ go.');
@@ -932,6 +999,46 @@ export default function Studio() {
                       <p className="hint">Otwarte ściany: {command.references.length || 'kliknij ściany do usunięcia'}</p>
                       <Field label="Grubość ścianki"><input autoFocus onFocus={(event) => event.target.select()} value={command.thickness} onChange={(event) => updateCommand({ thickness: event.target.value })} /><em>mm</em></Field>
                     </>
+                  )}
+                  {command.type === 'hole' && (
+                    <>
+                      <p className="hint">Otwory: {command.pointIds.length} · kierunek w głąb bryły</p>
+                      <Field label="Typ"><Segmented value={command.holeType} options={[{ id: 'simple', label: 'Prosty' }, { id: 'counterbore', label: 'Pogłębiony' }, { id: 'countersink', label: 'Stożkowy' }]} onChange={(holeType) => updateCommand({ holeType })} /></Field>
+                      <Field label="Średnica"><input autoFocus onFocus={(event) => event.target.select()} value={command.diameter} onChange={(event) => updateCommand({ diameter: event.target.value })} /><em>mm</em></Field>
+                      <Field label="Zakres"><Segmented value={command.extent} options={[{ id: 'through-all', label: 'Na wylot' }, { id: 'distance', label: 'Głębokość' }]} onChange={(extent) => updateCommand({ extent })} /></Field>
+                      {command.extent === 'distance' && <Field label="Głębokość"><input onFocus={(event) => event.target.select()} value={command.depth} onChange={(event) => updateCommand({ depth: event.target.value })} /><em>mm</em></Field>}
+                    </>
+                  )}
+                  {(command.type === 'pattern' || command.type === 'mirror') && (
+                    <Field label="Powtórz">
+                      <select className="select" value={command.sourceId} onChange={(event) => updateCommand({ sourceId: event.target.value })}>
+                        {repeatSources(command.targetBodyId).filter((feature) => feature.id !== command.editId).map((feature) => <option key={feature.id} value={feature.id}>{feature.name}</option>)}
+                        <option value="body">Całą bryłę</option>
+                      </select>
+                    </Field>
+                  )}
+                  {command.type === 'pattern' && (
+                    <>
+                      <Field label="Układ"><Segmented value={command.patternType} options={[{ id: 'rectangular', label: 'Prostokątny' }, { id: 'circular', label: 'Kołowy' }]} onChange={(patternType) => updateCommand({ patternType })} /></Field>
+                      {command.patternType === 'rectangular' ? (
+                        <>
+                          <Field label="Płaszczyzna"><Segmented value={command.plane} options={PLANE_OPTIONS} onChange={(plane) => updateCommand({ plane })} /></Field>
+                          <Field label="Ilość"><input autoFocus onFocus={(event) => event.target.select()} value={command.countX} onChange={(event) => updateCommand({ countX: event.target.value })} /><em>szt.</em></Field>
+                          <Field label="Odstęp"><input onFocus={(event) => event.target.select()} value={command.spacingX} onChange={(event) => updateCommand({ spacingX: event.target.value })} /><em>mm</em></Field>
+                          <Field label="Rzędy"><input onFocus={(event) => event.target.select()} value={command.countY} onChange={(event) => updateCommand({ countY: event.target.value })} /><em>szt.</em></Field>
+                          {String(command.countY).trim() !== '1' && <Field label="Odstęp rzędów"><input onFocus={(event) => event.target.select()} value={command.spacingY} onChange={(event) => updateCommand({ spacingY: event.target.value })} /><em>mm</em></Field>}
+                        </>
+                      ) : (
+                        <>
+                          <Field label="Oś"><Segmented value={command.axisId} options={AXIS_OPTIONS} onChange={(axisId) => updateCommand({ axisId })} /></Field>
+                          <Field label="Ilość"><input autoFocus onFocus={(event) => event.target.select()} value={command.occurrences} onChange={(event) => updateCommand({ occurrences: event.target.value })} /><em>szt.</em></Field>
+                          <Field label="Kąt"><input onFocus={(event) => event.target.select()} value={command.totalAngle} onChange={(event) => updateCommand({ totalAngle: event.target.value })} /><em>°</em></Field>
+                        </>
+                      )}
+                    </>
+                  )}
+                  {command.type === 'mirror' && (
+                    <Field label="Płaszczyzna"><Segmented value={command.plane} options={PLANE_OPTIONS} onChange={(plane) => updateCommand({ plane })} /></Field>
                   )}
                   {previewError && <p className="error">{previewError}</p>}
                   <footer>

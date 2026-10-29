@@ -765,6 +765,26 @@ export function prepareDocument(document) {
       }
       let profile;
       let plane;
+      if (feature.pointIds?.length) {
+        // One hole feature drills at every picked point of its sketch.
+        const sketch = evaluationDocument.sketches.find((item) => item.id === feature.sketchId);
+        if (!sketch) throw new Error('Nie znaleziono szkicu otworów.');
+        const profiles = feature.pointIds.map((pointId) => {
+          const point = sketch.entities.find((entity) => entity.id === pointId && entity.type === 'point');
+          if (!point) throw new Error(`Nie znaleziono punktu otworu ${pointId}.`);
+          return {
+            id: pointId, type: 'point',
+            geometry: { x: evaluateExpression(point.geometry.x, parameterResult.values), y: evaluateExpression(point.geometry.y, parameterResult.values) },
+            plane: sketch.plane || 'XY', planeOffset: evaluateExpression(sketch.planeOffset || 0, parameterResult.values),
+            ...(sketch.frame ? { frame: structuredClone(sketch.frame) } : {}),
+            ...faceSupport(document, sketch),
+          };
+        });
+        return {
+          ...feature, status: 'ready', diagnostics: [], profile: profiles[0], profiles,
+          holeType, extent, diameterValue, effectiveDiameterValue, clearanceProfile, clearanceValue, depthValue, counterboreDiameterValue, counterboreDepthValue, countersinkDiameterValue, countersinkAngleValue, threadMode, threadDiameterValue, threadPitchValue, threadLengthValue, threadTaperValue, diameterToleranceLowerValue, diameterToleranceUpperValue,
+        };
+      }
       if (feature.pointId) {
         const sketch = evaluationDocument.sketches.find((item) => item.id === feature.sketchId);
         const point = sketch?.entities.find((entity) => entity.id === feature.pointId && entity.type === 'point');
@@ -785,7 +805,7 @@ export function prepareDocument(document) {
         holeType, extent, diameterValue, effectiveDiameterValue, clearanceProfile, clearanceValue, depthValue, counterboreDiameterValue, counterboreDepthValue, countersinkDiameterValue, countersinkAngleValue, threadMode, threadDiameterValue, threadPitchValue, threadLengthValue, threadTaperValue, diameterToleranceLowerValue, diameterToleranceUpperValue,
       };
     }
-    if (feature.type === 'boolean') {
+    if (feature.type === 'boolean' || feature.type === 'mirror') {
       return { ...feature, status: 'ready', diagnostics: [] };
     }
     if (feature.type === 'primitive') {

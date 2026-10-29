@@ -58,6 +58,21 @@ export function addLine(document, sketchId, start, end) {
   return line;
 }
 
+export function addPoint(document, sketchId, [x, y]) {
+  const sketch = findSketch(document, sketchId);
+  const values = parameterValues(document);
+  if (pointAt(sketch, [x, y], values)) throw new Error('W tym miejscu jest już punkt.');
+  const point = createSketchPoint({ x: x.toFixed(3), y: y.toFixed(3) });
+  sketch.entities.push(point);
+  return point;
+}
+
+// Points not used by any curve: the centres the Hole command drills at.
+export function holePointIds(sketch) {
+  const used = new Set((sketch?.entities || []).flatMap((entity) => entity.pointIds || []));
+  return (sketch?.entities || []).filter((entity) => entity.type === 'point' && entity.role === 'standard' && !used.has(entity.id)).map((entity) => entity.id);
+}
+
 export function addShape(document, sketchId, type, points) {
   const sketch = findSketch(document, sketchId);
   let shape;

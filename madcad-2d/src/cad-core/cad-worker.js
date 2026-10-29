@@ -1143,7 +1143,11 @@ function pipeShape(feature) {
 function patternTranslations(feature) {
   if (feature.patternType === 'rectangular') {
     const values = [];
-    for (let row = 0; row < feature.countYValue; row += 1) for (let column = 0; column < feature.countXValue; column += 1) if (row || column) values.push([column * feature.spacingXValue, row * feature.spacingYValue, 0]);
+    // Columns and rows run along the two axes of the chosen base plane (XY by default).
+    const [u, v] = { XY: [[1, 0, 0], [0, 1, 0]], XZ: [[1, 0, 0], [0, 0, 1]], YZ: [[0, 1, 0], [0, 0, 1]] }[feature.plane || 'XY'];
+    for (let row = 0; row < feature.countYValue; row += 1) for (let column = 0; column < feature.countXValue; column += 1) {
+      if (row || column) values.push(u.map((value, axis) => value * column * feature.spacingXValue + v[axis] * row * feature.spacingYValue));
+    }
     return values;
   }
   const frame = { XY: { u: [1, 0, 0], v: [0, 1, 0], n: [0, 0, 1] }, XZ: { u: [1, 0, 0], v: [0, 0, 1], n: [0, -1, 0] }, YZ: { u: [0, 1, 0], v: [0, 0, 1], n: [1, 0, 0] } }[feature.path.plane || 'XY'];
@@ -1219,6 +1223,24 @@ function relocateSupportedProfile(profile, bodyMap) {
   }
   if (profile.supportSketchId) supportPlacements.set(profile.supportSketchId, { planeOffset: placed.planeOffset, frame: placed.frame || null });
   return placed;
+}
+
+// Tool shapes of earlier features in this rebuild, so Pattern and Mirror can repeat a
+// hole or a boss instead of the whole body.
+let toolRecords = new Map();
+
+function recordTool(featureId, shape, operation, targetBodyId) {
+  toolRecords.get(featureId)?.shape.delete?.();
+  toolRecords.set(featureId, { shape: shape.clone(), operation, targetBodyId });
+}
+
+function applyToolCopies(target, feature, transform) {
+  for (const sourceId of feature.sourceFeatureIds) {
+    const record = toolRecords.get(sourceId);
+    if (!record) throw new Error(`${feature.name}: operacja źródłowa nie została przeliczona.`);
+    if (record.targetBodyId !== target.id) throw new Error(`${feature.name}: operacja źródłowa należy do innej bryły.`);
+    for (const copy of transform(record.shape)) target.shape = record.operation === 'cut' ? target.shape.cut(copy) : target.shape.fuse(copy);
+  }
 }
 
 function runFeature(feature, bodyMap, bodyOrder) {
@@ -1571,7 +1593,9 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.type === 'revolve') {
     const tool = revolveProfile(feature.profile, feature.axis, feature.angleValue);
     const bodyId = `body-${feature.id}`;
-    if (feature.operation === 'new' || !feature.targetBodyId) {
+    const newBody = feature.operation === 'new' || !feature.targetBodyId;
+    recordTool(feature.id, tool, newBody ? 'join' : feature.operation, newBody ? bodyId : feature.targetBodyId);
+    if (newBody) {
       bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });
       bodyOrder.push(bodyId);
       return;
@@ -1657,6 +1681,26 @@ function runFeature(feature, bodyMap, bodyOrder) {
     else if (feature.operation === 'cut') target.shape = target.shape.cut(tool);
     else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool);
     else throw new Error(`Nieobsługiwana operacja Pipe: ${feature.operation}.`);
+    return;
+  }
+
+  if (feature.type === 'mirror') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    if (feature.sourceFeatureIds?.length) applyToolCopies(target, feature, (shape) => [shape.clone().mirror(feature.plane, [0, 0, 0])]);
+    else target.shape = target.shape.fuse(target.shape.clone().mirror(feature.plane, [0, 0, 0]));
+    return;
+  }
+
+  if (feature.type === 'pattern' && feature.sourceFeatureIds?.length) {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    applyToolCopies(target, feature, (shape) => (feature.patternType === 'circular'
+      ? Array.from({ length: feature.occurrencesValue - 1 }, (_unused, index) => {
+        const denominator = Math.abs(feature.totalAngleValue) === 360 ? feature.occurrencesValue : Math.max(1, feature.occurrencesValue - 1);
+        return shape.clone().rotate((feature.totalAngleValue * (index + 1)) / denominator, feature.axis.origin, feature.axis.direction);
+      })
+      : patternTranslations(feature).map((translation) => shape.clone().translate(translation))));
     return;
   }
 
@@ -1950,7 +1994,9 @@ function runFeature(feature, bodyMap, bodyOrder) {
     const span = extrusionSpan(feature, bodyMap);
     const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span, feature)));
     const bodyId = `body-${feature.id}`;
-    if (feature.operation === 'new' || !feature.targetBodyId) {
+    const newBody = feature.operation === 'new' || !feature.targetBodyId;
+    recordTool(feature.id, tool, newBody ? 'join' : feature.operation, newBody ? bodyId : feature.targetBodyId);
+    if (newBody) {
       bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });
       bodyOrder.push(bodyId);
       return;
@@ -1968,7 +2014,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.type === 'hole') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
-    let placement;
+    let placements;
     if (feature.placement === 'face-edges') {
       const [faceReference, firstEdgeReference, secondEdgeReference] = feature.topologyReferences || [];
       const faces = target.shape.faces;
@@ -1976,23 +2022,36 @@ function runFeature(feature, bodyMap, bodyOrder) {
       try {
         const faceDescriptors = faces.map((face) => faceDescriptor(face));
         const edgeDescriptors = edges.map((edge) => edgeDescriptor(edge));
-        placement = resolveFaceEdgeHolePlacement(
+        placements = [resolveFaceEdgeHolePlacement(
           faceDescriptors[matchingFaceIndex(faceReference, faceDescriptors)],
           edgeDescriptors[matchingEdgeIndex(firstEdgeReference, edgeDescriptors)],
           edgeDescriptors[matchingEdgeIndex(secondEdgeReference, edgeDescriptors)],
           feature.firstOffsetValue,
           feature.secondOffsetValue,
-        );
+        )];
       } finally {
         faces.forEach((face) => face.delete());
         edges.forEach((edge) => edge.delete());
       }
     } else {
-      const { x, y } = feature.profile.geometry;
-      const frame = resolveSketchFrame(feature.profile);
-      const position = frame.origin.map((value, axis) => value + frame.u[axis] * x + frame.v[axis] * y);
-      placement = { position, direction: frame.normal };
+      // Holes drill into the material: away from the support face's outward normal, or,
+      // on a base plane, towards the middle of the target body.
+      const bounds = shapeBounds(target.shape);
+      const middle = bounds[0].map((value, axis) => (value + bounds[1][axis]) / 2);
+      placements = (feature.profiles?.length ? feature.profiles : [feature.profile]).map((profile) => {
+        const { x, y } = profile.geometry;
+        const frame = resolveSketchFrame(profile);
+        const position = frame.origin.map((value, axis) => value + frame.u[axis] * x + frame.v[axis] * y);
+        if (!feature.intoMaterial) return { position, direction: frame.normal };
+        const outward = profile.supportReference?.descriptor?.normal;
+        const inward = outward
+          ? frame.normal.reduce((sum, value, axis) => sum + value * outward[axis], 0) > 0
+          : frame.normal.reduce((sum, value, axis) => sum + value * (middle[axis] - position[axis]), 0) < 0;
+        return { position, direction: inward ? frame.normal.map((value) => -value) : frame.normal };
+      });
     }
+    const allCutters = [];
+    for (const placement of placements) {
     const outside = placement.position.map((value, axis) => value - placement.direction[axis]);
     const usesConicalPreparation = feature.pipePreparation === 'conical' && feature.threadTaperValue > 0;
     const mainHoleLength = feature.depthValue + 2;
@@ -2028,17 +2087,22 @@ function runFeature(feature, bodyMap, bodyOrder) {
       });
       cutters.push(...grooves);
     }
-    // Cut the main hole and modeled thread grooves as one fused tool so the
+      allCutters.push(...cutters);
+    }
+    // Cut every hole and its modeled thread grooves as one fused tool so the
     // target B-Rep is rebuilt only once for the complete hole operation.
-    target.shape = target.shape.cut(combineShapes(cutters));
+    const holeTool = combineShapes(allCutters);
+    recordTool(feature.id, holeTool, 'cut', target.id);
+    target.shape = target.shape.cut(holeTool);
+    const placement = placements[0];
     target.manufacturingHoles = [...(target.manufacturingHoles || []), {
       featureId: feature.id,
       diameter: feature.effectiveDiameterValue,
-      quantity: 1,
+      quantity: placements.length,
       position: [...placement.position],
       direction: [...placement.direction],
       depth: feature.depthValue,
-      instances: [{ position: [...placement.position], direction: [...placement.direction], depth: feature.depthValue }],
+      instances: placements.map((item) => ({ position: [...item.position], direction: [...item.direction], depth: feature.depthValue })),
       holeType: feature.holeType,
       through: feature.extent === 'through-all',
       holeStandard: feature.holeStandard || 'custom',
@@ -2975,6 +3039,8 @@ async function evaluateRevision(document, quality, revision = null) {
   const historyStartedAt = performance.now();
   let slowestFeature = null;
   supportPlacements = new Map();
+  toolRecords.forEach((record) => record.shape.delete?.());
+  toolRecords = new Map();
   const history = await evaluateFeatureHistoryCooperatively(features, runFeature, {}, {
     onFeatureEvaluated: ({ feature, durationMs }) => {
       if (!slowestFeature || durationMs > slowestFeature.durationMs) {
