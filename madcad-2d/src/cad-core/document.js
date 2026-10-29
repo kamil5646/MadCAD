@@ -29,7 +29,7 @@ export const DOCUMENT_SCHEMA_VERSION = 28;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'sheetBase', 'sheetFlange', 'sheetHem', 'sheetRip', 'sheetUnfold', 'sheetRefold', 'plasticBoss', 'plasticSnapFit', 'plasticGrille', 'formBody', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'surfaceOffset', 'surfaceStitch', 'surfaceTrim', 'surfaceExtend', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'sheetBase', 'sheetFlange', 'sheetHem', 'sheetRip', 'sheetUnfold', 'sheetRefold', 'plasticBoss', 'plasticSnapFit', 'plasticGrille', 'formBody', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'surfaceOffset', 'surfaceStitch', 'surfaceTrim', 'surfaceExtend', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'mirror', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -606,7 +606,7 @@ export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', plane
 
 // Default display names per feature type; also used wherever the UI needs a
 // readable label for a stored feature type.
-export const FEATURE_TYPE_NAMES = Object.freeze({ extrude: 'Wyciągnięcie', sheetBase: 'Baza blachowa', sheetFlange: 'Kołnierz blachy', sheetHem: 'Zawinięcie blachy', sheetRip: 'Szczelina blachy', sheetUnfold: 'Rozwinięcie blachy', sheetRefold: 'Ponowne zagięcie blachy', plasticBoss: 'Boss', plasticSnapFit: 'Snap-fit', plasticGrille: 'Grille', formBody: 'Form', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', surfaceLoft: 'Powierzchnia przejściowa', surfaceOffset: 'Odsunięcie powierzchni', surfaceStitch: 'Zszycie powierzchni', surfaceTrim: 'Przycięcie powierzchni', surfaceExtend: 'Przedłużenie powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' });
+export const FEATURE_TYPE_NAMES = Object.freeze({ extrude: 'Wyciągnięcie', sheetBase: 'Baza blachowa', sheetFlange: 'Kołnierz blachy', sheetHem: 'Zawinięcie blachy', sheetRip: 'Szczelina blachy', sheetUnfold: 'Rozwinięcie blachy', sheetRefold: 'Ponowne zagięcie blachy', plasticBoss: 'Boss', plasticSnapFit: 'Snap-fit', plasticGrille: 'Grille', formBody: 'Form', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', surfaceLoft: 'Powierzchnia przejściowa', surfaceOffset: 'Odsunięcie powierzchni', surfaceStitch: 'Zszycie powierzchni', surfaceTrim: 'Przycięcie powierzchni', surfaceExtend: 'Przedłużenie powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', mirror: 'Lustro', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' });
 
 export function createFeature(type, options = {}) {
   const names = FEATURE_TYPE_NAMES;
@@ -1642,6 +1642,17 @@ export function validateDocument(document) {
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Nie znaleziono bryły docelowej Pipe.', 'BROKEN_REFERENCE');
     }
 
+    if (feature.type === 'pattern' || feature.type === 'mirror') {
+      const earlier = new Set(features.slice(0, featureIndex).map((item) => item.id));
+      (feature.sourceFeatureIds || []).forEach((sourceId, sourceIndex) => {
+        if (!earlier.has(sourceId)) add(`${base}.sourceFeatureIds[${sourceIndex}]`, 'Powtarzana operacja musi być wcześniej w historii.', 'BROKEN_REFERENCE');
+      });
+    }
+    if (feature.type === 'mirror') {
+      if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Lustro wymaga wcześniejszej bryły.', 'BROKEN_REFERENCE');
+      if (!['XY', 'XZ', 'YZ'].includes(feature.plane)) add(`${base}.plane`, 'Lustro wymaga płaszczyzny XY, XZ albo YZ.', 'UNSUPPORTED');
+    }
+
     if (feature.type === 'pattern') {
       if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Pattern wymaga wcześniejszej bryły docelowej.', 'BROKEN_REFERENCE');
       if (!['rectangular', 'circular', 'path'].includes(feature.patternType)) add(`${base}.patternType`, 'Nieobsługiwany typ Pattern.', 'UNSUPPORTED');
@@ -1744,7 +1755,13 @@ export function validateDocument(document) {
         if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 3) add(`${base}.referenceIds`, 'Otwór od krawędzi wymaga jednej ściany i dwóch krawędzi.', 'REQUIRED');
       } else {
         if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
-        if (feature.pointId) {
+        if (feature.pointIds !== undefined) {
+          if (!Array.isArray(feature.pointIds) || !feature.pointIds.length) add(`${base}.pointIds`, 'Otwór wymaga co najmniej jednego punktu.', 'REQUIRED');
+          else feature.pointIds.forEach((pointId, index) => {
+            const owner = entityOwners.get(pointId);
+            if (!owner || owner.type !== 'point' || owner.sketchId !== feature.sketchId) add(`${base}.pointIds[${index}]`, `Nie znaleziono punktu „${pointId}” w szkicu otworów.`, 'BROKEN_REFERENCE');
+          });
+        } else if (feature.pointId) {
           const owner = entityOwners.get(feature.pointId);
           if (!owner || owner.type !== 'point') add(`${base}.pointId`, `Nie znaleziono punktu „${feature.pointId}”.`, 'BROKEN_REFERENCE');
           else if (owner.sketchId !== feature.sketchId) add(`${base}.pointId`, `Punkt „${feature.pointId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');

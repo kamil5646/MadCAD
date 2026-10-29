@@ -3,7 +3,7 @@
 import { createDocument, createSketch } from '../src/cad-core/document.js';
 import { createTopologyReference } from '../src/cad-core/topology-references.js';
 import { insertTimelineFeature } from '../src/cad-core/timeline-operations.js';
-import { addDimension, addLine, addShape, dimensionForSelection } from '../src/studio/sketch-actions.js';
+import { addDimension, addLine, addPoint, addShape, dimensionForSelection, holePointIds } from '../src/studio/sketch-actions.js';
 import { buildFeature } from '../src/studio/features.js';
 import { profileArea } from '../src/modeling/extrude-source.js';
 
@@ -166,6 +166,59 @@ export const SCENARIOS = {
     engine = await evaluate(document);
     expectOk(engine, 'po zmianach');
     near(engine.bodyData[0].bounds[1][2], 21, 'nadlewy poszły za ścianą');
+  },
+  async 'otwory w punktach na ścianie, szyk i lustro'() {
+    const { document } = box(60, 30);
+    let engine = await evaluate(document);
+    const body = engine.bodyData[0];
+    const face = reference(engine, body, 'face', topFace(10))[0];
+    document.references.push(face);
+    const sketch = sketchOn(document, 'XY', { planeOffset: '10', support: { kind: 'face', referenceId: face.id } });
+    addPoint(document, sketch.id, [-20, 0]);
+    addPoint(document, sketch.id, [-20, 8]);
+    const hole = feature(document, { type: 'hole', sketchId: sketch.id, pointIds: holePointIds(sketch), targetBodyId: body.id, holeType: 'simple', extent: 'through-all', diameter: '4', depth: '10' });
+    engine = await evaluate(document);
+    expectOk(engine, 'otwory');
+    const plate = 60 * 30 * 10;
+    const drilled = Math.PI * 4 * 10;
+    near(volume(engine), plate - 2 * drilled, 'objętość z 2 otworami', 3);
+    feature(document, { type: 'pattern', targetBodyId: body.id, sourceId: hole.id, patternType: 'rectangular', plane: 'XY', countX: '3', spacingX: '15', countY: '1', spacingY: '0' });
+    engine = await evaluate(document);
+    expectOk(engine, 'szyk otworów');
+    near(volume(engine), plate - 6 * drilled, 'objętość po szyku', 5);
+    feature(document, { type: 'mirror', targetBodyId: body.id, sourceId: hole.id, plane: 'XZ' });
+    engine = await evaluate(document);
+    expectOk(engine, 'lustro otworów');
+    near(volume(engine), plate - 7 * drilled, 'objętość po lustrze (1 otwór się pokrywa)', 5);
+  },
+  async 'otwór z pogłębieniem na płaszczyźnie bazowej idzie w głąb'() {
+    const { document } = box();
+    let engine = await evaluate(document);
+    const sketch = sketchOn(document, 'XY');
+    addPoint(document, sketch.id, [0, 0]);
+    feature(document, { type: 'hole', sketchId: sketch.id, pointIds: holePointIds(sketch), targetBodyId: engine.bodyData[0].id, holeType: 'counterbore', extent: 'distance', diameter: '5', depth: '6' });
+    engine = await evaluate(document);
+    expectOk(engine, 'pogłębienie');
+    if (volume(engine) > 12000 - Math.PI * 6.25 * 6 + 1) throw new Error('Otwór nie wszedł w materiał.');
+  },
+  async 'szyk kołowy nadlewu i lustro całej bryły'() {
+    const document = createDocument('Test');
+    const base = sketchOn(document);
+    addShape(document, base.id, 'circle', [[0, 0], [30, 0]]);
+    extrude(document, base, { distance: '5' });
+    let engine = await evaluate(document);
+    const body = engine.bodyData[0];
+    const boss = sketchOn(document);
+    addShape(document, boss.id, 'circle', [[20, 0], [23, 0]]);
+    const bossFeature = extrude(document, boss, { operation: 'join', distance: '15', targetBodyId: body.id });
+    feature(document, { type: 'pattern', targetBodyId: body.id, sourceId: bossFeature.id, patternType: 'circular', occurrences: '6', totalAngle: '360', axisId: 'Z_AXIS' });
+    engine = await evaluate(document);
+    expectOk(engine, 'szyk kołowy');
+    near(volume(engine), Math.PI * 900 * 5 + 6 * Math.PI * 9 * 10, 'objętość z 6 nadlewami', 20);
+    feature(document, { type: 'mirror', targetBodyId: body.id, sourceId: 'body', plane: 'XY' });
+    engine = await evaluate(document);
+    expectOk(engine, 'lustro bryły');
+    near(engine.bodyData[0].bounds[0][2], -15, 'dół lustra');
   },
   async 'obrót 360° i 180°'() {
     const document = createDocument('Test');

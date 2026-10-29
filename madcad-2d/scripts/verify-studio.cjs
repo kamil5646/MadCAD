@@ -39,7 +39,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadStudio?.engine.status === 'ready'`, 'gotowy silnik CAD', 60000);
 
     const modelTools = await run(window, `[...document.querySelectorAll('.toolbar .tool')].map((item) => item.textContent.trim())`);
-    if (modelTools.join(',') !== 'Szkic,Wyciągnij,Obróć,Zaokrąglij,Fazuj,Skorupa') throw new Error(`Nieoczekiwany pasek modelu: ${modelTools}`);
+    if (modelTools.join(',') !== 'Szkic,Wyciągnij,Obróć,Zaokrąglij,Fazuj,Skorupa,Otwór,Szyk,Lustro') throw new Error(`Nieoczekiwany pasek modelu: ${modelTools}`);
 
     await clickTool(window, 'Szkic');
     await waitFor(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny');
