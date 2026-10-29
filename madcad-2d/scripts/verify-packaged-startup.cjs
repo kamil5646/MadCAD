@@ -166,7 +166,7 @@ async function removeTemporaryDirectory(directory) {
             url: location.href,
             title: document.title,
             desktopApi: Boolean(window.desktopApp?.isDesktop),
-            shell: Boolean(document.querySelector('.modeling-shell')),
+            shell: Boolean(document.querySelector('.studio')),
             license: Boolean(document.querySelector('.license-info-dialog')),
             verificationHook: typeof window.__madcadVerifyDocumentState
           })`);

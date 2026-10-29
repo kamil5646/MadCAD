@@ -1,6 +1,6 @@
 
 import React, { lazy, Suspense } from 'react';
-const ModelingWorkspace = lazy(() => import('./modeling/ModelingWorkspace.jsx'));
+const Studio = lazy(() => import('./studio/Studio.jsx'));
 
 export class AppErrorBoundary extends React.Component {
   constructor(props) {
@@ -47,7 +47,7 @@ export default function App() {
     <div className="react-ui-layer">
       <AppErrorBoundary>
         <Suspense fallback={<div className="app-loading">Ładowanie MadCAD…</div>}>
-          <ModelingWorkspace />
+          <Studio />
         </Suspense>
       </AppErrorBoundary>
     </div>

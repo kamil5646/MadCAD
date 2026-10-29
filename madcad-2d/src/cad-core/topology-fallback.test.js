@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { movedSupportFaceIndex, stretchedEdgeIndex, translatedFaceIndex } from './topology-fallback.js';
+import { movedSupportFaceIndex, relativeEdgeIndex, relativeFaceIndex, stretchedEdgeIndex, translatedFaceIndex } from './topology-fallback.js';
 
 const plane = (center, normal, area) => ({ geometry: 'PLANE', center, normal, area });
 const line = (first, second) => ({ geometry: 'LINE', endpoints: [first, second], length: Math.hypot(...second.map((value, axis) => value - first[axis])) });
@@ -60,5 +60,26 @@ describe('movedSupportFaceIndex', () => {
     const faces = [plane([22, -38, 40], [0, 0, 1], 812), plane([22, -38, 10], [0, 0, 1], 812)];
     expect(movedSupportFaceIndex(support, faces)).toBe(-1);
     expect(movedSupportFaceIndex(support, faces, new Set([1]))).toBe(0);
+  });
+});
+
+describe('relative topology fallback', () => {
+  const box = (height) => [[0, 0, 0], [40, 30, height]];
+  const edge = (z, y) => ({ geometry: 'LINE', endpoints: [[0, y, z], [40, y, z]], length: 40 });
+
+  it('keeps the top-front edge after the box gets taller', () => {
+    const expected = { ...edge(10, 0), bodyBounds: box(10) };
+    const after = [edge(0, 0), edge(25, 0), edge(0, 30), edge(25, 30)];
+    expect(relativeEdgeIndex(expected, after, box(25))).toBe(1);
+  });
+
+  it('refuses an edge without stored body bounds', () => {
+    expect(relativeEdgeIndex(edge(10, 0), [edge(25, 0)], box(25))).toBe(-1);
+  });
+
+  it('keeps the top face after the box gets taller', () => {
+    const face = (z, normal) => ({ geometry: 'PLANE', center: [20, 15, z], normal });
+    const expected = { ...face(10, [0, 0, 1]), bodyBounds: box(10) };
+    expect(relativeFaceIndex(expected, [face(0, [0, 0, -1]), face(25, [0, 0, 1])], box(25))).toBe(1);
   });
 });

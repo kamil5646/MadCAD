@@ -1,5 +1,19 @@
 # Changelog
 
+## 7.0.0 — nowy interfejs (2026-10-29)
+
+Cały interfejs napisany od nowa: tylko podstawy jak w Fusion, silnik 3D bez zmian.
+
+- dwa tryby: model (Szkic, Wyciągnij, Obróć, Zaokrąglij, Fazuj, Skorupa) i szkic (Linia, Prostokąt, Okrąg, Łuk, Przytnij, Wymiar, Więzy, Zakończ szkic);
+- duże podpisane przyciski, jeden panel operacji z podglądem na żywo i OK / Enter;
+- historia operacji na dole: dwuklik edytuje krok, można go wyłączyć albo usunąć;
+- przeglądarka projektu (bryły i szkice) pod przyciskiem „Projekt”;
+- wymiar sam dobiera typ: długość linii, odległość punktów, średnica okręgu, promień łuku, kąt dwóch linii;
+- więzy: poziomo, pionowo, połącz punkty, równolegle, prostopadle, równe, styczne, zablokuj;
+- zaokrąglenia, fazy i skorupa zostają na swoich krawędziach i ścianach po zmianie wymiarów bryły;
+- Plik: nowy, otwórz, zapisz, eksport STEP / STL / DXF szkicu;
+- usunięte z interfejsu: blachy, tworzywa, powierzchnie, złożenia, analizy, warstwy, bloki, arkusz 2D i dziesiątki rzadkich poleceń; stare projekty dalej się otwierają.
+
 ## 6.6.1 — szkic na bryle widoczny (2026-10-28)
 
 - szkic narysowany na ścianie bryły zostaje widoczny po „Zakończ szkic”, dopóki nie użyje go żadna operacja (wcześniej znikał po odznaczeniu);

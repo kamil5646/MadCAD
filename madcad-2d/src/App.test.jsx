@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App, { AppErrorBoundary } from './App.jsx';
 import { FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './modeling/AppDialogs.jsx';
-import { CRASH_RECOVERY_AUTO_DISMISS_MS, CrashRecoveryBanner } from './modeling/WorkspaceOverlays.jsx';
 
 describe('App', () => {
   it('renders the current modeling workspace as the only application interface', () => {
@@ -33,7 +32,7 @@ describe('App', () => {
     render(<LicenseInfoDialog licensePlan={{ mode: 'personal', signedIn: false, accessAllowed: false }} onLogin={onLogin} onClose={onClose} />);
     const dialog = screen.getByRole('dialog', { name: /Licencja MadCAD/i });
     expect(dialog).toHaveTextContent(/bezpłatny bez limitu czasu do użytku prywatnego/i);
-    expect(dialog).toHaveTextContent(/Wydanie 6.6.1 nie ma podpisu producenta/i);
+    expect(dialog).toHaveTextContent(/Wydanie 7.0.0 nie ma podpisu producenta/i);
     expect(dialog).toHaveTextContent(/40 dni pełnej wersji/i);
     expect(dialog).toHaveTextContent(/Użytek komercyjny jest płatny/i);
     expect(dialog).toHaveTextContent(/licencja imienna/i);
@@ -156,47 +155,5 @@ describe('App', () => {
     expect(screen.getByText(/Paczka wersji 6.1.9 jest gotowa/i)).toBeInTheDocument();
     expect(screen.getByText(/MadCAD otworzył zweryfikowaną paczkę/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
-  });
-
-  it('shows a clear recovery banner after an interrupted application session', () => {
-    const onSave = vi.fn();
-    const onDismiss = vi.fn();
-    render(<CrashRecoveryBanner info={{ backup: true, updatedAt: '2026-08-15T20:30:00.000Z' }} onSave={onSave} onDismiss={onDismiss} />);
-    const banner = screen.getByRole('alert', { name: /Odzyskiwanie projektu po awarii/i });
-    expect(banner).toHaveTextContent(/Odzyskano projekt po nieoczekiwanym zamknięciu/i);
-    expect(banner).toHaveTextContent(/poprzedniej poprawnej kopii autozapisu/i);
-    fireEvent.click(screen.getByRole('button', { name: /Zapisz odzyskany projekt/i }));
-    expect(onSave).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole('button', { name: /Zamknij komunikat odzyskiwania/i }));
-    expect(onDismiss).toHaveBeenCalledOnce();
-  });
-
-  it('dismisses the recovery banner by itself unless the user is hovering it', () => {
-    vi.useFakeTimers();
-    try {
-      const onDismiss = vi.fn();
-      const info = { updatedAt: '2026-08-15T20:30:00.000Z' };
-      const { rerender } = render(<CrashRecoveryBanner info={info} autoDismiss onSave={() => {}} onDismiss={() => onDismiss()} />);
-      const banner = screen.getByRole('alert', { name: /Odzyskiwanie projektu po awarii/i });
-      // A parent re-render with a fresh callback must not restart the countdown.
-      vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS - 1000);
-      rerender(<CrashRecoveryBanner info={info} autoDismiss onSave={() => {}} onDismiss={() => onDismiss()} />);
-      vi.advanceTimersByTime(1000);
-      expect(onDismiss).toHaveBeenCalledOnce();
-
-      onDismiss.mockClear();
-      rerender(<CrashRecoveryBanner info={info} autoDismiss={false} onSave={() => {}} onDismiss={() => onDismiss()} />);
-      vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS * 2);
-      expect(onDismiss).not.toHaveBeenCalled(); // still rebuilding the recovered model
-      rerender(<CrashRecoveryBanner info={info} autoDismiss onSave={() => {}} onDismiss={() => onDismiss()} />);
-      fireEvent.mouseEnter(banner);
-      vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS * 2);
-      expect(onDismiss).not.toHaveBeenCalled();
-      fireEvent.mouseLeave(banner);
-      vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS);
-      expect(onDismiss).toHaveBeenCalledOnce();
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

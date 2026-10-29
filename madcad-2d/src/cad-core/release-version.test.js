@@ -13,7 +13,7 @@ it('updates the next release body along with product metadata without rewriting 
   const next = `${major}.${minor}.${patch + 1}`;
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'madcad-version-test-'));
   const app = path.join(temporary, 'madcad-2d');
-  const files = ['package.json', 'package-lock.json', 'README.md', 'FIRST_PART.md', 'src/App.test.jsx', 'src/modeling/AppDialogs.jsx', 'src/modeling/i18n.js', 'server/seohost/madcad-site/index.html', '../README.md', '../docs/index.html', '../.github/workflows/release.yml', 'scripts/set-release-version.cjs', 'CHANGELOG.md'];
+  const files = ['package.json', 'package-lock.json', 'README.md', 'FIRST_PART.md', 'src/App.test.jsx', 'src/modeling/AppDialogs.jsx', 'server/seohost/madcad-site/index.html', '../README.md', '../docs/index.html', '../.github/workflows/release.yml', 'scripts/set-release-version.cjs', 'CHANGELOG.md'];
   try {
     for (const file of files) {
       const target = path.resolve(app, file);

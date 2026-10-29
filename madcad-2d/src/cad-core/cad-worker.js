@@ -46,7 +46,7 @@ import { drawingProjectionGroupKey, uniqueDrawingSegments } from './drawing-proj
 import { kernelDrawingCurveSegments, projectExactSections } from './drawing-sections.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
-import { stretchedEdgeIndex, translatedFaceIndex } from './topology-fallback.js';
+import { relativeEdgeIndex, relativeFaceIndex, stretchedEdgeIndex, translatedFaceIndex } from './topology-fallback.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
 import { createThreeMfArchive } from './three-mf.js';
 import { boundsOverlap } from './geometry-inspection.js';
@@ -2335,14 +2335,24 @@ function edgeReferenceDistance(reference, descriptor) {
   return Math.min(direct, reverse) + Math.abs(Number(expected.length || 0) - Number(descriptor.length || 0));
 }
 
+function shapeBounds(shape) {
+  const boundingBox = shape.boundingBox;
+  try {
+    return boundingBox.bounds.map((point) => [...point]);
+  } finally {
+    boundingBox.delete();
+  }
+}
+
 function selectedEdgeHashes(shape, references) {
   if (!references.length) return new Set();
   const edges = shape.edges;
   try {
     const descriptors = edges.map((edge) => edgeDescriptor(edge));
+    const bounds = shapeBounds(shape);
     const hashes = new Set();
     for (const reference of references) {
-      const bestIndex = matchingEdgeIndex(reference, descriptors);
+      const bestIndex = matchingEdgeIndex(reference, descriptors, bounds);
       hashes.add(edges[bestIndex].hashCode);
     }
     return hashes;
@@ -2351,7 +2361,7 @@ function selectedEdgeHashes(shape, references) {
   }
 }
 
-function matchingEdgeIndex(reference, descriptors) {
+function matchingEdgeIndex(reference, descriptors, bounds = null) {
   let bestIndex = -1;
   let bestDistance = Number.POSITIVE_INFINITY;
   descriptors.forEach((descriptor, index) => {
@@ -2364,6 +2374,8 @@ function matchingEdgeIndex(reference, descriptors) {
   if (bestIndex >= 0 && bestDistance <= 1e-4) return bestIndex;
   const stretched = stretchedEdgeIndex(reference?.descriptor, descriptors);
   if (stretched >= 0) return stretched;
+  const relative = bounds ? relativeEdgeIndex(reference?.descriptor, descriptors, bounds) : -1;
+  if (relative >= 0) return relative;
   throw new Error(`Nie odnaleziono wskazanej krawędzi „${reference?.label || reference?.topologyId}”.`);
 }
 
@@ -2377,7 +2389,7 @@ function faceReferenceDistance(reference, descriptor) {
   return centerDistance + normalDistance;
 }
 
-function matchingFaceIndex(reference, descriptors) {
+function matchingFaceIndex(reference, descriptors, bounds = null) {
   let bestIndex = -1;
   let bestDistance = Number.POSITIVE_INFINITY;
   descriptors.forEach((descriptor, index) => {
@@ -2390,6 +2402,8 @@ function matchingFaceIndex(reference, descriptors) {
   if (bestIndex >= 0 && bestDistance <= 1e-4) return bestIndex;
   const translated = translatedFaceIndex(reference?.descriptor, descriptors);
   if (translated >= 0) return translated;
+  const relative = bounds ? relativeFaceIndex(reference?.descriptor, descriptors, bounds) : -1;
+  if (relative >= 0) return relative;
   throw new Error(`Nie odnaleziono wskazanej ściany „${reference?.label || reference?.topologyId}”.`);
 }
 
@@ -2398,9 +2412,10 @@ function selectedFaceHashes(shape, references) {
   const faces = shape.faces;
   try {
     const descriptors = faces.map((face) => faceDescriptor(face));
+    const bounds = shapeBounds(shape);
     const hashes = new Set();
     for (const reference of references) {
-      const bestIndex = matchingFaceIndex(reference, descriptors);
+      const bestIndex = matchingFaceIndex(reference, descriptors, bounds);
       hashes.add(faces[bestIndex].hashCode);
     }
     return hashes;
