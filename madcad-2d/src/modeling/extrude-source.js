@@ -6,6 +6,27 @@ function standardLineEntities(sketch) {
     && entity.pointIds.length === 2);
 }
 
+function polygonArea(points = []) {
+  let area = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    const next = points[(index + 1) % points.length];
+    area += Number(point.x) * Number(next.y) - Number(next.x) * Number(point.y);
+  }
+  return Math.abs(area / 2) || 0;
+}
+
+export function profileArea(profile) {
+  const geometry = profile?.geometry || {};
+  return polygonArea(geometry.points) - (geometry.holes || []).reduce((sum, hole) => sum + polygonArea(hole.points), 0);
+}
+
+// The biggest free area is what the user most likely means (the plate, not its hole);
+// on a tie the newest profile wins.
+function largestProfile(profiles) {
+  return profiles.reduce((best, profile) => (!best || profileArea(profile) >= profileArea(best) ? profile : best), null);
+}
+
 function isSingleOpenChain(lines) {
   if (!lines.length) return false;
   const adjacency = new Map();
@@ -50,7 +71,7 @@ export function resolveExtrudeSource({ sketches = [], selection = null, features
   let consumed = null;
   for (const sketch of orderedSketches) {
     const profiles = sketch.profiles || [];
-    const profile = profiles.findLast((candidate) => !usedProfileIds.has(candidate.id));
+    const profile = largestProfile(profiles.filter((candidate) => !usedProfileIds.has(candidate.id)));
     if (profile) return { kind: 'profile', sketch, profile };
     if (profiles.length) {
       consumed ||= { kind: 'all-used', sketch };

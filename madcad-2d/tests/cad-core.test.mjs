@@ -3242,8 +3242,8 @@ test('import SVG tworzy profil szkicu, skaluje cale i odwraca oś Y', () => {
   const imported = parseSketchImport(svg, 'svg', { sourceUnit: 'auto' });
   assert.equal(imported.scale, 25.4);
   assert.equal(imported.curveCount, 5);
-  assert.equal(imported.profiles.length, 1);
-  assert.equal(imported.profiles[0].innerLoops.length, 1);
+  assert.equal(imported.profiles.length, 2);
+  assert.equal(imported.profiles.filter((profile) => profile.innerLoops.length === 1).length, 1);
   const coordinates = imported.entities.filter((entity) => entity.type === 'point').map((entity) => Number(entity.geometry.y));
   assert.equal(Math.min(...coordinates), -25.4);
 });
@@ -4525,15 +4525,17 @@ test('zagnieżdżone pętle tworzą otwór i osobną wyspę zgodnie z parzystoś
   ]);
   const result = detectSketchProfiles(sketch);
   assert.equal(result.diagnostics.length, 0);
-  assert.equal(result.profiles.length, 2);
-  const outer = result.profiles.find((profile) => profile.innerLoops.length === 1);
-  const island = result.profiles.find((profile) => profile !== outer);
-  assert.ok(outer);
-  assert.equal(outer.entityIds.length, 4);
-  assert.equal(outer.innerLoops[0].entityIds.length, 4);
-  assert.equal(outer.geometry.holes.length, 1);
-  assert.equal(island.innerLoops.length, 0);
-  assert.deepEqual(result.graph.loops.map((loop) => loop.depth).sort(), [0, 1, 2]);
+  // Every closed area is its own region, as in Fusion: two rings and the inner island.
+  assert.equal(result.profiles.length, 3);
+  const rings = result.profiles.filter((profile) => profile.innerLoops.length === 1);
+  const island = result.profiles.find((profile) => !profile.innerLoops.length);
+  assert.equal(rings.length, 2);
+  rings.forEach((ring) => {
+    assert.equal(ring.entityIds.length, 4);
+    assert.equal(ring.innerLoops[0].entityIds.length, 4);
+    assert.equal(ring.geometry.holes.length, 1);
+  });
+  assert.ok(island);
 });
 
 test('profil z otworem przechodzi walidację, zależności i przygotowanie kernela na XY, XZ i YZ', () => {
@@ -4572,12 +4574,13 @@ test('okrąg wewnętrzny jest poprawnym otworem dowolnego profilu', () => {
   const circle = createSketchCircleEntity({ centerPointId: center.id, radius: 6 });
   sketch.entities.push(center, circle);
   const result = detectSketchProfiles(sketch);
-  assert.equal(result.profiles.length, 1);
-  assert.deepEqual(result.profiles[0].innerLoops[0].entityIds, [circle.id]);
+  assert.equal(result.profiles.length, 2);
+  const plate = result.profiles.find((profile) => profile.innerLoops.length);
+  assert.deepEqual(plate.innerLoops[0].entityIds, [circle.id]);
   sketch.profiles = result.profiles;
   const document = createDocument('Otwór okrągły');
   document.sketches.push(sketch);
-  document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [result.profiles[0].id], distance: '5', operation: 'new' }));
+  document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [plate.id], distance: '5', operation: 'new' }));
   assert.equal(validateDocument(document).valid, true, validateDocument(document).errors.join('\n'));
   const hole = prepareDocument(document).features[0].profiles[0].geometry.holes[0].segments[0];
   assert.equal(hole.type, 'circle');
@@ -4596,10 +4599,11 @@ test('diagnostyka odrzuca przerwę, samoprzecięcie, nakładanie i zerowy segmen
   assert.equal(gap.profiles.length, 0);
   assert.ok(gap.diagnostics.some((entry) => entry.code === 'GAP' && entry.point));
 
+  // Crossing lines split into closed areas (a bow tie gives two triangles), as in Fusion.
   const crossing = sketchFromLoops([[[0, 0], [20, 20], [0, 20], [20, 0]]]);
   const crossingResult = detectSketchProfiles(crossing);
-  assert.equal(crossingResult.profiles.length, 0);
-  assert.ok(crossingResult.diagnostics.some((entry) => entry.code === 'SELF_INTERSECTION'));
+  assert.equal(crossingResult.profiles.length, 2);
+  assert.ok(crossingResult.profiles.every((profile) => profile.entityRanges));
 
   const overlapStart = createSketchPoint({ x: 0, y: 0 });
   const overlapMiddle = createSketchPoint({ x: 10, y: 0 });
@@ -4700,12 +4704,13 @@ test('wspornik łączy proste boki, łuk, slot i dwa otwory w jeden profil mecha
   const sketch = createSketch({ entities: [lowerLeft, lowerArc, arcCenter, upperArc, upperLeft, ...outline, ...slot.entities, ...firstHole.entities, ...secondHole.entities] });
   const detection = detectSketchProfiles(sketch);
   assert.equal(detection.diagnostics.length, 0);
-  assert.equal(detection.profiles.length, 1);
-  assert.equal(detection.profiles[0].innerLoops.length, 3);
+  assert.equal(detection.profiles.length, 4);
+  const plate = detection.profiles.find((profile) => profile.innerLoops.length === 3);
+  assert.ok(plate);
   sketch.profiles = detection.profiles;
   const document = createDocument('Wspornik mechaniczny');
   document.sketches.push(sketch);
-  document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [sketch.profiles[0].id], distance: '6', operation: 'new' }));
+  document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [plate.id], distance: '6', operation: 'new' }));
   const prepared = prepareDocument(document);
   assert.ok(prepared.features[0].profiles[0].geometry.segments.some((segment) => segment.type === 'arc'));
   assert.equal(prepared.features[0].profiles[0].geometry.holes.length, 3);

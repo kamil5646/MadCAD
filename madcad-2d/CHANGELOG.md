@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.1.0 — mocniejszy rdzeń (2026-10-29)
+
+- szkic dzieli się na obszary jak w Fusion: nachodzące figury, linia przez okrąg albo linia do boku dają osobne zamknięte obszary zamiast błędu „przecinają się”;
+- okrąg w prostokącie to jednocześnie otwór płyty i osobny obszar; Wyciągnij domyślnie bierze największy wolny obszar (płytę), Shift+klik dodaje kolejne;
+- szkic na ścianie bryły jest za każdym przeliczeniem kładziony na swojej ścianie, więc nadlewy i otwory idą za zmianą wysokości i szerokości (także nadlew na nadlewie);
+- zaokrąglenia, fazy i skorupa odnajdują krawędzie i ściany po zmianie wymiarów;
+- 15 scenariuszy rdzenia (obszary, szkice na ścianach, zaokrąglenia po zmianach, obrót, skorupa) sprawdzanych w Electronie przy każdym teście.
+
 ## 7.0.0 — nowy interfejs (2026-10-29)
 
 Cały interfejs napisany od nowa: tylko podstawy jak w Fusion, silnik 3D bez zmian.

@@ -7,6 +7,7 @@ import { BASE_PLANE_FRAMES, resolveConstructionPlane } from './construction-plan
 import { resolveConstructionAxis } from './construction-axes.js';
 import { FORM_CONTROL_EDGES, bridgeFormFaces, createBoxControlCage, fillFormHoles, formControlSymmetryPairs, insertFormEdgeLoop, symmetricFormFaceIndexes } from './subdivision-form.js';
 import { resolveSketchFrame } from './sketch-frame.js';
+import { trimResolvedSegment } from './sketch-regions.js';
 
 export const FEATURE_STATUS = Object.freeze({
   OK: 'ok',
@@ -57,9 +58,8 @@ function resolveClosedProfile(profile, parameters, sketch) {
     if (point?.type !== 'point') throw new Error(`Profil „${profile.name || 'bez nazwy'}” odwołuje się do usuniętego punktu.`);
     return [evaluateExpression(point.geometry.x, parameters), evaluateExpression(point.geometry.y, parameters)];
   };
-  const resolveLoop = (loop) => (loop.entityIds || []).map((entityId, entityIndex) => {
+  const resolveEntity = (loop, entityId, entityIndex, reversed) => {
     const entity = entityMap.get(entityId);
-    const reversed = loop.entityDirections?.[entityIndex] === -1;
     if (entity?.type === 'line') {
       const first = readPoint(entity.pointIds[0]);
       const second = readPoint(entity.pointIds[1]);
@@ -136,7 +136,7 @@ function resolveClosedProfile(profile, parameters, sketch) {
         continuity: entity.geometry?.continuity || 'free',
       };
     }
-    if (entity?.type === 'circle' && (loop.entityIds || []).length === 1) {
+    if (entity?.type === 'circle' && ((loop.entityIds || []).length === 1 || loop.entityRanges?.[entityIndex])) {
       const center = readPoint(entity.pointIds[0]);
       const radius = positive(evaluateExpression(entity.geometry.radius, parameters), 'Promień okręgu');
       return { type: 'circle', id: entity.id, center, radius, start: [center[0] + radius, center[1]], end: [center[0] + radius, center[1]] };
@@ -149,6 +149,15 @@ function resolveClosedProfile(profile, parameters, sketch) {
       return { type: 'ellipse', id: entity.id, center, majorRadius, minorRadius, rotation, start: [center[0] + majorRadius, center[1]], end: [center[0] + majorRadius, center[1]] };
     }
     throw new Error(`Profil „${profile.name || 'bez nazwy'}” zawiera nieobsługiwany element.`);
+  };
+  // Regions cut out of crossing geometry use only a piece [t0, t1] of an entity: resolve the
+  // whole entity forwards, trim it, then flip it when the loop runs the other way.
+  const resolveLoop = (loop) => (loop.entityIds || []).map((entityId, entityIndex) => {
+    const reversed = loop.entityDirections?.[entityIndex] === -1;
+    const range = loop.entityRanges?.[entityIndex];
+    if (!range) return resolveEntity(loop, entityId, entityIndex, reversed);
+    const piece = trimResolvedSegment(resolveEntity(loop, entityId, entityIndex, false), range);
+    return reversed ? { ...piece, start: piece.end, end: piece.start, ...(piece.direction ? { direction: piece.direction === 'cw' ? 'ccw' : 'cw' } : {}) } : piece;
   });
   const segments = resolveLoop(profile);
   const holes = (profile.innerLoops || []).map((loop) => ({ segments: resolveLoop(loop) }));
@@ -357,6 +366,14 @@ function validateAndSortLoftProfiles(profiles, operationName) {
     throw new Error(`Profile ${operationName} muszą leżeć na różnych płaszczyznach.`);
   }
   return positioned.sort((left, right) => left.coordinate - right.coordinate).map((entry) => entry.profile);
+}
+
+// A sketch drawn on a body face carries its face reference, so the kernel can put the
+// profile back on that face after upstream changes moved it.
+function faceSupport(document, sketch) {
+  if (sketch?.support?.kind !== 'face') return {};
+  const reference = document.references.find((item) => item.id === sketch.support.referenceId);
+  return reference ? { supportReference: reference, supportSketchId: sketch.id } : {};
 }
 
 function resolveSupportedSketch(document, sketch, parameters) {
@@ -587,7 +604,7 @@ export function prepareDocument(document) {
         : feature.profileIds.map((profileId) => {
           const match = findProfile(evaluationDocument, profileId);
           if (!match) throw new Error(`Nie znaleziono profilu ${profileId}.`);
-          return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+          return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values), ...faceSupport(document, match.sketch) };
         });
       const startOffsetValue = evaluateExpression(feature.startOffset ?? 0, parameterResult.values);
       const distanceValue = extent === 'to-object'
@@ -615,7 +632,7 @@ export function prepareDocument(document) {
     if (feature.type === 'revolve') {
       const match = findProfile(evaluationDocument, feature.profileIds[0]);
       if (!match) throw new Error(`Nie znaleziono profilu ${feature.profileIds[0]}.`);
-      const profile = { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+      const profile = { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values), ...faceSupport(document, match.sketch) };
       const { axis, angleValue } = resolveRevolveAxis(document, feature, profile, parameterResult.values);
       return { ...feature, status: 'ready', diagnostics: [], profile, axis, angleValue };
     }

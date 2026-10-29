@@ -1176,6 +1176,14 @@ export function validateDocument(document) {
           add(`${loopBase}.entityDirections`, 'Kierunki pętli muszą odpowiadać krawędziom i mieć wartość -1 albo 1.', 'VALUE');
         }
         if (loop.entityIds.length === 1 && ['circle', 'ellipse'].includes(entityMap.get(loop.entityIds[0])?.type)) return;
+        // Regions of crossing geometry use pieces of entities; their ends are not sketch points.
+        if (loop.entityRanges !== undefined) {
+          if (!Array.isArray(loop.entityRanges) || loop.entityRanges.length !== loop.entityIds.length
+            || loop.entityRanges.some((range) => range !== null && !(Array.isArray(range) && range.length === 2 && range.every(Number.isFinite) && range[1] > range[0]))) {
+            add(`${loopBase}.entityRanges`, 'Zakresy fragmentów pętli muszą odpowiadać krawędziom.', 'VALUE');
+          }
+          return;
+        }
         const endpoints = loop.entityIds.map((entityId, entityIndex) => {
           const pair = boundaryPointIds(entityMap.get(entityId));
           return loop.entityDirections?.[entityIndex] === -1 ? [...pair].reverse() : pair;

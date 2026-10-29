@@ -100,6 +100,18 @@ export default function Studio() {
   const [updateState, setUpdateState] = useState({ open: false, status: 'idle', result: null, handoff: null, error: '' });
   const fileInputRef = useRef(null);
   const pointerRef = useRef(null);
+  const shiftRef = useRef(false);
+  useEffect(() => {
+    const track = (event) => { shiftRef.current = event.shiftKey; };
+    window.addEventListener('keydown', track);
+    window.addEventListener('keyup', track);
+    window.addEventListener('pointerdown', track, true);
+    return () => {
+      window.removeEventListener('keydown', track);
+      window.removeEventListener('keyup', track);
+      window.removeEventListener('pointerdown', track, true);
+    };
+  }, []);
 
   const serialized = useMemo(() => JSON.stringify(document), [document]);
   const dirty = serialized !== savedText;
@@ -160,21 +172,46 @@ export default function Studio() {
     ? document.sketches.flatMap((sketch) => sketch.profiles.map((profile) => ({ sketch, profile }))).find(({ profile }) => profile.id === selection.id) || null
     : null;
 
+  // The kernel puts face-supported profiles back on their face; store that placement so
+  // the sketch is drawn and edited where the model uses it.
+  useEffect(() => {
+    if (previewFeature || engine.status !== 'ready' || !engine.isCurrent || !engine.supportPlacements?.length) return;
+    const differs = (sketch, placement) => (placement.frame
+      ? JSON.stringify(sketch.frame?.origin) !== JSON.stringify(placement.frame.origin)
+      : Math.abs(Number(sketch.planeOffset || 0) - Number(placement.planeOffset)) > 1e-6);
+    const updates = engine.supportPlacements.filter((placement) => {
+      const sketch = document.sketches.find((item) => item.id === placement.sketchId);
+      return sketch && differs(sketch, placement);
+    });
+    if (!updates.length) return;
+    history.synchronize((next) => {
+      for (const placement of updates) {
+        const sketch = next.sketches.find((item) => item.id === placement.sketchId);
+        if (!sketch) continue;
+        if (placement.frame) sketch.frame = placement.frame;
+        else sketch.planeOffset = String(Number(Number(placement.planeOffset).toFixed(9)));
+      }
+    });
+  }, [document.sketches, engine.isCurrent, engine.status, engine.supportPlacements, history, previewFeature]);
+
   // ---- Session hooks used by Electron when the window closes.
   useEffect(() => {
     const timeout = window.setTimeout(() => { if (dirty) writeLocalAutosave(serialized); }, 400);
     return () => window.clearTimeout(timeout);
   }, [dirty, serialized]);
+  // Refreshed on every render so Electron and verification always read the live state.
   useEffect(() => {
     window.__madcadGetSessionExport = () => JSON.stringify(document, null, 2);
     window.__madcadHasDrawableContent = () => Boolean(document.features.length || document.sketches.some((sketch) => sketch.entities.length));
     window.__madcadHasUnsavedChanges = () => dirty;
     window.__madcadPersistenceReady = () => true;
     window.__madcadClearRuntimeSession = () => clearLocalAutosave();
-    window.__madcadStudio = { document, engine: { status: engine.status, bodies: engine.bodies.length, error: engine.error } };
+    window.__madcadStudio = { document, engine: { status: engine.status, bodies: engine.bodies.length, error: engine.error, revision: engine.revision, timeline: engine.timeline, current: engine.isCurrent, ...(verifyMode ? { bodyData: engine.bodies } : {}) } };
+    if (verifyMode) window.__madcadStudioLoad = (next) => { history.replace(next); resetView(); };
+    if (verifyMode) window.__madcadScenarios = () => import('../../tests/studio-scenarios.js').then((module) => module.runScenarios());
     // Verification runs pick sketch geometry directly instead of hunting pixels.
     if (verifyMode) window.__madcadStudioSelect = (ids) => setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids });
-  }, [activeSketchId, dirty, document, engine.bodies.length, engine.error, engine.status, verifyMode]);
+  });
 
   // ---- Licence and updates (same desktop bridge as before).
   const runLicenseAction = useCallback(async (action, payload) => {
@@ -493,7 +530,8 @@ export default function Studio() {
       if (!source) return flash('Najpierw narysuj zamknięty szkic (np. prostokąt) i zakończ go.');
       setSelection({ kind: 'profile', id: source.profile.id, sketchId: source.sketch.id });
       const operation = engine.bodies.length ? 'join' : 'new';
-      const base = { sketchId: source.sketch.id, profileIds: [source.profile.id], operation, hasBodies: engine.bodies.length > 0, targetBodyId: selectedBodyIds[0] || selectedFaces[0]?.bodyId || null };
+      const picked = selection?.kind === 'profile' && selection.sketchId === source.sketch.id && selection.ids?.length > 1 && id === 'extrude' ? selection.ids : [source.profile.id];
+      const base = { sketchId: source.sketch.id, profileIds: picked, operation, hasBodies: engine.bodies.length > 0, targetBodyId: selectedBodyIds[0] || selectedFaces[0]?.bodyId || null };
       if (id === 'extrude') setCommand({ type: 'extrude', ...base, distance: '10', extent: 'one-side', flip: false });
       else setCommand({ type: 'revolve', ...base, axisId: revolveAxes(source.sketch.plane)[0].id, angle: '360' });
       return;
@@ -570,6 +608,24 @@ export default function Studio() {
       const has = existing.some((entry) => entry.kind === item.kind && entry.id === item.id);
       const next = has ? existing.filter((entry) => !(entry.kind === item.kind && entry.id === item.id)) : [...existing, item];
       return next.length ? { ...next.at(-1), items: next } : null;
+    });
+  };
+
+  // Clicking an area picks it; Shift adds or removes areas, also while Extrude is open.
+  const handleProfilePick = (profileId, pickedSketchId) => {
+    const sketchId = pickedSketchId || activeSketchId;
+    const toggle = (ids) => (ids.includes(profileId) ? ids.filter((id) => id !== profileId) : [...ids, profileId]);
+    if (command?.type === 'extrude' || command?.type === 'revolve') {
+      if (command.sketchId !== sketchId) return flash('Obszary muszą pochodzić z jednego szkicu.');
+      const profileIds = shiftRef.current && command.type === 'extrude' ? toggle(command.profileIds) : [profileId];
+      if (!profileIds.length) return;
+      updateCommand({ profileIds });
+      setSelection({ kind: 'profile', id: profileIds.at(-1), sketchId, ids: profileIds });
+      return;
+    }
+    setSelection((current) => {
+      const ids = shiftRef.current && current?.kind === 'profile' && current.sketchId === sketchId ? toggle(current.ids || [current.id]) : [profileId];
+      return ids.length ? { kind: 'profile', id: ids.at(-1), sketchId, ids } : null;
     });
   };
 
@@ -794,7 +850,7 @@ export default function Studio() {
             onDeleteSketchSelection={deleteSketchEntities}
             sketchModifierMode={activeSketchId && tool?.type === 'trim' ? 'trim' : null}
             onSketchModify={handleTrim}
-            onSketchProfileSelection={(profileId, sketchId) => setSelection({ kind: 'profile', id: profileId, sketchId: sketchId || activeSketchId })}
+            onSketchProfileSelection={handleProfilePick}
             onSketchMove={({ ids = selectedSketchEntityIds, dx = 0, dy = 0 } = {}) => safeEdit((next) => moveEntities(next, activeSketchId, ids, dx, dy))}
             showGrid
             selectedBodyId={selectedBodyIds[0] || null}
@@ -848,6 +904,7 @@ export default function Studio() {
                   )}
                   {command.type === 'extrude' && (
                     <>
+                      <p className="hint">Obszary: {command.profileIds.length} · Shift+klik dodaje kolejny</p>
                       <Field label="Zakres"><Segmented value={command.extent} options={[{ id: 'one-side', label: 'Odległość' }, { id: 'symmetric', label: 'Symetrycznie' }, ...(command.operation === 'cut' ? [{ id: 'through-all', label: 'Na wylot' }] : [])]} onChange={(extent) => updateCommand({ extent })} /></Field>
                       {command.extent !== 'through-all' && (
                         <Field label="Odległość">
