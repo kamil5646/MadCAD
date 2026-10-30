@@ -21,7 +21,7 @@ import { resolveVisibleSketchId } from '../modeling/sketch-visibility.js';
 import { resolveExtrudeSource } from '../modeling/extrude-source.js';
 import {
   ChamferCadIcon, ExtrudeCadIcon, FilletCadIcon, FinishSketchCadIcon, HoleCadIcon, MirrorCadIcon, PatternCadIcon, PointCadIcon, RevolveCadIcon, ShellCadIcon, SketchArcCadIcon, SketchCadIcon,
-  SketchCircleCadIcon, SketchConstraintCadIcon, SketchDimensionCadIcon, SketchLineCadIcon, SketchRectangleCadIcon, SketchTrimCadIcon,
+  SketchCircleCadIcon, SketchConstraintCadIcon, SketchDimensionCadIcon, SketchLineCadIcon, SketchPolylineCadIcon, SketchRectangleCadIcon, SketchTrimCadIcon,
 } from '../modeling/CadToolIcons.jsx';
 import {
   addConstraint, addDimension, addLine, addPoint, addShape, constraintAvailable, holePointIds, CONSTRAINTS, dimensionForSelection, moveEntities, setConstraintValue, tryEdit,
@@ -36,9 +36,10 @@ import './studio.css';
 const EMPTY = Object.freeze([]);
 const PLANE_NAMES = Object.freeze({ XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' });
 const SKETCH_TOOLS = Object.freeze([
-  { id: 'line', label: 'Linia', key: 'l', Icon: SketchLineCadIcon, points: 2, prompt: ['Kliknij początek linii', 'Kliknij koniec linii'] },
-  { id: 'rectangle', label: 'Prostokąt', key: 'r', Icon: SketchRectangleCadIcon, points: 2, prompt: ['Kliknij pierwszy narożnik', 'Kliknij przeciwległy narożnik'] },
-  { id: 'circle', label: 'Okrąg', key: 'c', Icon: SketchCircleCadIcon, points: 2, prompt: ['Kliknij środek okręgu', 'Kliknij punkt na okręgu'] },
+  { id: 'line', label: 'Linia', key: 'l', Icon: SketchLineCadIcon, points: 2, prompt: ['Kliknij początek linii', 'Kliknij koniec albo wpisz długość i Enter'] },
+  { id: 'polyline', label: 'Polilinia', key: 'k', Icon: SketchPolylineCadIcon, points: 2, prompt: ['Kliknij początek', 'Kliknij kolejny punkt albo wpisz długość i Enter · Esc kończy'] },
+  { id: 'rectangle', label: 'Prostokąt', key: 'r', Icon: SketchRectangleCadIcon, points: 2, prompt: ['Kliknij pierwszy narożnik', 'Kliknij narożnik albo wpisz np. 40x30 i Enter'] },
+  { id: 'circle', label: 'Okrąg', key: 'c', Icon: SketchCircleCadIcon, points: 2, prompt: ['Kliknij środek okręgu', 'Kliknij punkt albo wpisz średnicę i Enter'] },
   { id: 'arc', label: 'Łuk', key: 'a', Icon: SketchArcCadIcon, points: 3, prompt: ['Kliknij początek łuku', 'Kliknij koniec łuku', 'Kliknij punkt, przez który przechodzi łuk'] },
   { id: 'point', label: 'Punkt', key: 'p', Icon: PointCadIcon, points: 1, prompt: ['Kliknij miejsce punktu (np. środek otworu)'] },
   { id: 'trim', label: 'Przytnij', key: 't', Icon: SketchTrimCadIcon, prompt: ['Kliknij fragment linii do usunięcia'] },
@@ -526,19 +527,69 @@ export default function Studio() {
     setTool((current) => (current?.type === id ? null : { type: id, points: [] }));
   };
   const toolDefinition = SKETCH_TOOLS.find((item) => item.id === tool?.type) || null;
-  const handleSketchPoint = (coordinates) => {
+  // `typed` is a dimension typed while drawing: the shape gets a driving dimension with it.
+  const handleSketchPoint = (coordinates, _snap, typed = null) => {
     if (!toolDefinition?.points || !activeSketchId) return;
     const point = coordinates.map(Number);
     const points = [...tool.points, point];
     if (points.length < toolDefinition.points) {
-      setTool({ ...tool, points });
+      setTool({ ...tool, points, typed: '', first: tool.first || point });
       return;
     }
-    const ok = safeEdit((next) => (tool.type === 'line' ? addLine(next, activeSketchId, points[0], points[1])
-      : tool.type === 'point' ? addPoint(next, activeSketchId, points[0])
-        : addShape(next, activeSketchId, tool.type, points)));
-    // Line restarts from scratch; every tool stays armed for the next shape.
-    setTool({ type: tool.type, points: ok || points.length > 1 ? [] : tool.points });
+    if (tool.type === 'polyline') {
+      const closes = tool.first && points.length === 2 && tool.segments > 0 && Math.hypot(point[0] - tool.first[0], point[1] - tool.first[1]) < 1e-3;
+      let end = point;
+      const ok = safeEdit((next) => {
+        const line = addLine(next, activeSketchId, points[0], points[1]);
+        if (typed) addDimension(next, activeSketchId, { type: 'aligned', entityIds: [line.id] }, typed[0]);
+        // A typed length makes the solver move the end point: continue from where it is now.
+        const sketch = next.sketches.find((item) => item.id === activeSketchId);
+        const endPoint = sketch.entities.find((entity) => entity.id === line.pointIds[1]);
+        end = [Number(endPoint.geometry.x), Number(endPoint.geometry.y)];
+      });
+      // A polyline keeps going from its last point until it closes or Esc ends it.
+      setTool(ok && !closes ? { type: 'polyline', points: [end], first: tool.first, segments: (tool.segments || 0) + 1, typed: '' } : { type: 'polyline', points: ok ? [] : tool.points, typed: '' });
+      if (closes) flash('Polilinia zamknięta.');
+      return;
+    }
+    const ok = safeEdit((next) => {
+      if (tool.type === 'line') {
+        const line = addLine(next, activeSketchId, points[0], points[1]);
+        if (typed) addDimension(next, activeSketchId, { type: 'aligned', entityIds: [line.id] }, typed[0]);
+        return;
+      }
+      if (tool.type === 'point') return addPoint(next, activeSketchId, points[0]);
+      const curves = addShape(next, activeSketchId, tool.type, points);
+      if (typed && tool.type === 'rectangle') {
+        addDimension(next, activeSketchId, { type: 'aligned', entityIds: [curves[0]] }, typed[0]);
+        addDimension(next, activeSketchId, { type: 'aligned', entityIds: [curves[1]] }, typed[1]);
+      }
+      if (typed && tool.type === 'circle') addDimension(next, activeSketchId, { type: 'diameter', entityIds: [curves[0]] }, typed[0]);
+    });
+    // Every tool stays armed for the next shape.
+    setTool({ type: tool.type, points: ok || points.length > 1 ? [] : tool.points, typed: '' });
+  };
+
+  // Typed values: "40" for a line or circle, "40x30" for a rectangle; the cursor gives
+  // the direction and any missing value.
+  const applyTypedValue = () => {
+    const values = (tool.typed || '').replaceAll(',', '.').split(/[x*\s]+/).filter(Boolean).map(Number);
+    if (!values.length || values.some((value) => !(value > 0))) return flash('Wpisz dodatnią wartość, np. 40 albo 40x30.');
+    const start = tool.points[0];
+    const pointer = pointerRef.current || [start[0] + 1, start[1]];
+    const dx = pointer[0] - start[0];
+    const dy = pointer[1] - start[1];
+    if (tool.type === 'line' || tool.type === 'polyline') {
+      const length = Math.hypot(dx, dy) || 1;
+      return handleSketchPoint([start[0] + (dx / length) * values[0], start[1] + (dy / length) * values[0]], null, [values[0]]);
+    }
+    if (tool.type === 'rectangle') {
+      const width = values[0];
+      const height = values[1] ?? (Math.abs(dy) || width);
+      return handleSketchPoint([start[0] + (dx < 0 ? -width : width), start[1] + (dy < 0 ? -height : height)], null, [width, height]);
+    }
+    if (tool.type === 'circle') return handleSketchPoint([start[0] + values[0] / 2, start[1]], null, [values[0]]);
+    return undefined;
   };
   const handleTrim = ({ entityId, point }) => {
     safeEdit((next) => trimSketchEntity(next, activeSketchId, entityId, point), 'Przycięto.');
@@ -805,8 +856,27 @@ export default function Studio() {
       if (primary && event.key.toLowerCase() === 's') { event.preventDefault(); void saveProject(); return; }
       if (primary && event.key.toLowerCase() === 'o') { event.preventDefault(); void openProject(); return; }
       if (primary || event.altKey || mode === 'drawing') return;
+      // While a shape is being drawn, number keys type its dimension.
+      if (activeSketchId && tool?.points?.length && ['line', 'polyline', 'rectangle', 'circle'].includes(tool.type)) {
+        if (/^[0-9.,x*]$/i.test(event.key) || (event.key === ' ' && tool.typed)) {
+          event.preventDefault();
+          setTool({ ...tool, typed: `${tool.typed || ''}${event.key.toLowerCase()}` });
+          return;
+        }
+        if (event.key === 'Backspace' && tool.typed) {
+          event.preventDefault();
+          setTool({ ...tool, typed: tool.typed.slice(0, -1) });
+          return;
+        }
+        if (event.key === 'Enter' && tool.typed) {
+          event.preventDefault();
+          applyTypedValue();
+          return;
+        }
+      }
       if (event.key === 'Escape') {
         if (constraintMenuOpen || fileMenuOpen) { setConstraintMenuOpen(false); setFileMenuOpen(false); return; }
+        if (tool?.typed) return setTool({ ...tool, typed: '' });
         if (tool?.points?.length) return setTool({ ...tool, points: [] });
         if (command) return cancelCommand();
         if (tool) return setTool(null);
@@ -838,7 +908,9 @@ export default function Studio() {
   const sketchToolId = activeSketchId && toolDefinition?.points ? tool.type : null;
   const lastPoint = tool?.points?.at(-1) || null;
   const polylineDraft = sketchToolId ? { lastPoint, shape: tool.type === 'rectangle' && tool.points.length === 1 ? 'rectangle' : undefined } : null;
-  const prompt = toolDefinition ? toolDefinition.prompt[Math.min(tool.points?.length || 0, toolDefinition.prompt.length - 1)] : '';
+  const prompt = toolDefinition
+    ? (tool.typed ? `Wpisano: ${tool.typed} · Enter zatwierdza` : toolDefinition.prompt[Math.min(tool.points?.length || 0, toolDefinition.prompt.length - 1)])
+    : '';
   const constructionPlanes = EMPTY;
   const cameraRequest = useMemo(() => {
     if (!cameraView) return null;
@@ -852,7 +924,7 @@ export default function Studio() {
   const solidFeatures = document.features;
 
   return (
-    <div className={`studio ${inSketch ? 'is-sketch' : ''}`}>
+    <div className={`studio ${inSketch ? 'is-sketch' : ''} platform-${window.desktopApp?.platform || 'web'}`}>
       <header className="topbar">
         <div className="brand"><Box size={18} /><strong>MadCAD</strong></div>
         <div className="menu-wrap">
@@ -983,6 +1055,7 @@ export default function Studio() {
             visibleSketchId={visibleSketchId}
             sketchTool={sketchToolId}
             sketchToolPrompt={prompt}
+            sketchDynamicLength={['line', 'polyline'].includes(tool?.type) ? tool.typed || '' : ''}
             polylineDraft={polylineDraft}
             onSketchPoint={handleSketchPoint}
             onSketchPointerMove={(point) => { pointerRef.current = point; }}
