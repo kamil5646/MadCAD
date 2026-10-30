@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.3.1 — Polilinia i wpisywanie wymiarów (2026-10-30)
+
+- narzędzie **Polilinia** (K): kolejne odcinki z jednego ciągu, klik w punkt startowy zamyka obrys, Esc kończy;
+- w trakcie rysowania można wpisać wymiar z klawiatury: długość linii/polilinii (kierunek z kursora), prostokąt „40x30”, średnicę okręgu — Enter zatwierdza i dodaje wymiar sterujący;
+- napis MadCAD nie nachodzi już na przyciski okna (macOS i Windows), pasek u góry przesuwa okno;
+- naprawiony plik zależności (`package-lock.json`): podbijanie wersji zmieniało też wymagania innych pakietów.
+
 ## 7.3.0 — rysunek 2D z modelu (2026-10-29)
 
 - zakładka **Rysunek** obok Modelu: jednym przyciskiem arkusz z widokami przód, góra (pod przodem), bok i izometria;

@@ -878,15 +878,15 @@ function createMainWindow() {
     ...(isMac
       ? {
           titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 13, y: 10 }
+          trafficLightPosition: { x: 14, y: 15 }
         }
       : isWindows
       ? {
           titleBarStyle: 'hidden',
           titleBarOverlay: {
-            color: '#20314a',
-            symbolColor: '#dbe7ff',
-            height: 30
+            color: '#1f2328',
+            symbolColor: '#e6eaee',
+            height: 44
           }
         }
       : {}),

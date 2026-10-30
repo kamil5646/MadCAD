@@ -350,3 +350,10 @@
 .drawing-host.empty-state h2 { margin: 6px 0 0; color: var(--text); font-size: 18px; }
 .drawing-host.empty-state p { max-width: 360px; margin: 0 0 8px; }
 .drawing-host.empty-state .primary { height: 36px; padding: 0 18px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; }
+
+/* The top bar doubles as the window title bar: leave room for the system window
+   buttons (macOS on the left, Windows on the right) and let it drag the window. */
+.topbar { -webkit-app-region: drag; }
+.topbar button, .topbar input, .topbar .menu, .topbar .mode-tabs { -webkit-app-region: no-drag; }
+.platform-darwin .topbar { padding-left: 84px; }
+.platform-win32 .topbar { padding-right: 150px; }
