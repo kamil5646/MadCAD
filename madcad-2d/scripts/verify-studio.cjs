@@ -84,6 +84,14 @@ app.whenReady().then(async () => {
     await run(window, `document.querySelector('.license-info-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadStudio?.engine.status === 'ready' && window.__madcadStudio.engine.bodies === 1`, 'bryła z autozapisu', 60000);
 
+    // Every model tool opened with nothing selected must explain what to pick, never crash.
+    for (const label of ['Wyciągnij', 'Obróć', 'Zaokrąglij', 'Fazuj', 'Skorupa', 'Otwór', 'Szyk', 'Lustro']) {
+      await run(window, `document.querySelector('.notice button')?.click(); document.querySelector('[data-tool="${label}"]').click()`);
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (await run(window, `Boolean(document.querySelector('.app-error-screen'))`)) throw new Error(`Narzędzie ${label} bez zaznaczenia wywaliło interfejs.`);
+      await run(window, `[...document.querySelectorAll('.panel button')].find((item) => item.textContent.includes('Anuluj'))?.click()`);
+    }
+
     // Drawing: a standard sheet with exact projections of the body.
     await run(window, `[...document.querySelectorAll('.mode-tabs button')].find((item) => item.textContent === 'Rysunek').click()`);
     await waitFor(window, `document.querySelector('.empty-state .primary')`, 'przycisk tworzenia rysunku');

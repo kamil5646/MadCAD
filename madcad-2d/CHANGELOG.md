@@ -1,5 +1,10 @@
 # Changelog
 
+## 7.3.5 — narzędzia nie wywalają interfejsu (2026-11-01)
+
+- Skorupa, Zaokrąglij czy Fazuj otwarte bez zaznaczonych ścian lub krawędzi wywalały interfejs („Shell wymaga co najmniej jednej usuwanej ściany”); teraz czekają na wybór, a każdy błąd podglądu pokazuje się w panelu operacji;
+- zatwierdzana operacja zapisuje dokładnie sprawdzony podgląd.
+
 ## 7.3.4 — blok na bloku jednym ruchem (2026-10-31)
 
 - kliknij ścianę bryły i „Wyciągnij” (E): otwiera się szkic na tej ścianie z wybranym prostokątem, a po „Zakończ szkic” samo otwiera się wyciąganie — nowy blok dołącza do bryły pod spodem;
