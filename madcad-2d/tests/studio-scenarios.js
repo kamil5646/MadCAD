@@ -9,16 +9,20 @@ import { profileArea } from '../src/modeling/extrude-source.js';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Waits for a rebuild of exactly this document: on a slow machine the previous result
+// can still look current for a moment after the load, so require a newer revision.
 async function evaluate(document) {
+  const before = window.__madcadStudio.engine.revision;
   window.__madcadStudioLoad(structuredClone(document));
-  await wait(50);
+  const expected = JSON.stringify(document.features);
   const startedAt = Date.now();
-  while (Date.now() - startedAt < 30000) {
-    const state = window.__madcadStudio;
-    if (state.document.id === document.id && state.engine.current && ['ready', 'error'].includes(state.engine.status)) return state.engine;
+  while (Date.now() - startedAt < 60000) {
     await wait(40);
+    const state = window.__madcadStudio;
+    if (JSON.stringify(state.document.features) !== expected) continue;
+    if (state.engine.revision > before && state.engine.current && ['ready', 'error'].includes(state.engine.status)) return state.engine;
   }
-  throw new Error('Silnik nie przeliczył dokumentu w 30 s.');
+  throw new Error('Silnik nie przeliczył dokumentu w 60 s.');
 }
 
 function sketchOn(document, plane = 'XY', extra = {}) {
