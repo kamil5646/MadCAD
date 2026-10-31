@@ -1,5 +1,10 @@
 # Changelog
 
+## 7.3.4 — blok na bloku jednym ruchem (2026-10-31)
+
+- kliknij ścianę bryły i „Wyciągnij” (E): otwiera się szkic na tej ścianie z wybranym prostokątem, a po „Zakończ szkic” samo otwiera się wyciąganie — nowy blok dołącza do bryły pod spodem;
+- wyciągnięcie szkicu ze ściany zawsze dołącza do bryły, na której leży ta ściana.
+
 ## 7.3.3 — wyraźne linie, mniej napisów (2026-10-31)
 
 - linie szkicu są grubsze (2,5 px) i nie giną na ekranie Retina ani na liniach siatki;
