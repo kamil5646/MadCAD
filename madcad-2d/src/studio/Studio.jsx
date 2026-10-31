@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Box, Check, ChevronDown, Download, Eye, EyeOff, FilePlus2, FileText, FolderOpen, Pencil, Printer, Redo2, Ruler, Save, Trash2, Undo2, X,
 } from 'lucide-react';
-import { createDocument, createSketch, nextSketchName, openDocument } from '../cad-core/document.js';
+import { createDocument, createSketch, nextSketchName, openDocument, validateDocument } from '../cad-core/document.js';
 import { deleteSketchSelection } from '../cad-core/sketch-model.js';
 import { trimSketchEntity } from '../cad-core/sketch-modifiers.js';
 import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
@@ -165,22 +165,34 @@ export default function Studio() {
 
   // ---- Preview: the active command's feature is inserted into a copy of the document.
   const formProblem = command && command.type !== 'dimension' && command.type !== 'pickPlane' ? commandProblem(command, document.parameters) : '';
-  const previewFeature = useMemo(() => (command && command.type !== 'dimension' && !formProblem ? buildFeature(command, { features: document.features, firstBodyId }) : null), [command, document.features, firstBodyId, formProblem]);
-  const previewDocument = useMemo(() => {
-    if (!previewFeature) return document;
-    const next = structuredClone(document);
-    for (const reference of command.references || []) {
-      if (!next.references.some((item) => item.id === reference.id)) next.references.push({ ...reference, ownerFeatureId: previewFeature.id });
+  // The command's feature placed into a copy of the document. Anything the document rules
+  // reject (a Shell with no faces yet) becomes a message in the panel, never a thrown error.
+  const preview = useMemo(() => {
+    if (!command || ['dimension', 'pickPlane'].includes(command.type) || formProblem) return { feature: null, document, problem: '' };
+    if (command.references && !command.references.length) return { feature: null, document, problem: '' };
+    try {
+      const feature = buildFeature(command, { features: document.features, firstBodyId });
+      if (!feature) return { feature: null, document, problem: '' };
+      const next = structuredClone(document);
+      for (const reference of command.references || []) {
+        if (!next.references.some((item) => item.id === reference.id)) next.references.push({ ...reference, ownerFeatureId: feature.id });
+      }
+      if (command.editId) {
+        const index = next.features.findIndex((item) => item.id === command.editId);
+        if (index >= 0) next.features[index] = feature;
+      } else insertTimelineFeature(next, feature);
+      const validation = validateDocument(next);
+      if (!validation.valid) return { feature: null, document, problem: String(validation.errors[0] || '').replace(/^[\w[\].]+:\s*/, '') };
+      return { feature, document: next, problem: '' };
+    } catch (error) {
+      return { feature: null, document, problem: error.message };
     }
-    if (command.editId) {
-      const index = next.features.findIndex((feature) => feature.id === command.editId);
-      if (index >= 0) next.features[index] = previewFeature;
-    } else insertTimelineFeature(next, previewFeature);
-    return next;
-  }, [command, document, previewFeature]);
+  }, [command, document, firstBodyId, formProblem]);
+  const previewFeature = preview.feature;
+  const previewDocument = preview.document;
   const engine = useCadEngine(previewDocument, { quality: previewFeature ? 'preview' : 'display' });
   const timelineStatus = useMemo(() => new Map((engine.timeline || []).map((entry) => [entry.id, entry])), [engine.timeline]);
-  const previewError = formProblem || (previewFeature ? timelineStatus.get(previewFeature.id)?.error || '' : '');
+  const previewError = formProblem || preview.problem || (previewFeature ? timelineStatus.get(previewFeature.id)?.error || '' : '');
   const bodies = useMemo(() => engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false), [engine.bodies, document.features]);
 
   const visibleSketchId = resolveVisibleSketchId({ activeSketchId, selection, sketches: document.sketches, bodyCount: document.bodies.length, featureCount: document.features.length, features: document.features });
@@ -775,14 +787,12 @@ export default function Studio() {
     if (!previewFeature) return;
     if (previewError) return flash(`Nie można zatwierdzić: ${previewError}`);
     const feature = previewFeature;
+    // The checked preview document is exactly what gets stored.
+    const stored = structuredClone(previewDocument);
     commit((next) => {
-      for (const reference of command.references || []) {
-        if (!next.references.some((item) => item.id === reference.id)) next.references.push({ ...reference, ownerFeatureId: feature.id });
-      }
-      if (command.editId) {
-        const index = next.features.findIndex((item) => item.id === command.editId);
-        next.features[index] = feature;
-      } else insertTimelineFeature(next, feature);
+      next.features = stored.features;
+      next.references = stored.references;
+      next.timelineRollbackFeatureId = stored.timelineRollbackFeatureId;
     });
     setCommand(null);
     setSelection(null);
