@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.3.3 — wyraźne linie, mniej napisów (2026-10-31)
+
+- linie szkicu są grubsze (2,5 px) i nie giną na ekranie Retina ani na liniach siatki;
+- wpisana długość, wymiar prostokąta czy średnica ustawia dokładny rozmiar, ale nie dokleja wymiaru do szkicu (wymiar dodaje narzędzie „Wymiar”);
+- schowane mylące plakietki „Niedowiązany · N do ustalenia” i „Kształt nie jest zamknięty” — miejsce przerwy podaje „Zakończ szkic”.
+
 ## 7.3.2 — szkic się domyka (2026-10-31)
 
 - końce linii bliżej niż 0,01 mm są jednym punktem: kształt, który wygląda na zamknięty, jest zamknięty — także gdy wpisana długość przesunęła narożnik o ułamek mikrometra;
