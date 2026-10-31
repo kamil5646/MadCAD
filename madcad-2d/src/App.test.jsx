@@ -32,7 +32,7 @@ describe('App', () => {
     render(<LicenseInfoDialog licensePlan={{ mode: 'personal', signedIn: false, accessAllowed: false }} onLogin={onLogin} onClose={onClose} />);
     const dialog = screen.getByRole('dialog', { name: /Licencja MadCAD/i });
     expect(dialog).toHaveTextContent(/bezpłatny bez limitu czasu do użytku prywatnego/i);
-    expect(dialog).toHaveTextContent(/Wydanie 7.3.1 nie ma podpisu producenta/i);
+    expect(dialog).toHaveTextContent(/Wydanie 7.3.2 nie ma podpisu producenta/i);
     expect(dialog).toHaveTextContent(/40 dni pełnej wersji/i);
     expect(dialog).toHaveTextContent(/Użytek komercyjny jest płatny/i);
     expect(dialog).toHaveTextContent(/licencja imienna/i);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.3.2 — szkic się domyka (2026-10-31)
+
+- końce linii bliżej niż 0,01 mm są jednym punktem: kształt, który wygląda na zamknięty, jest zamknięty — także gdy wpisana długość przesunęła narożnik o ułamek mikrometra;
+- „Zakończ szkic” i „Wyciągnij” same naprawiają takie szczeliny w już narysowanych szkicach;
+- gdy obrys naprawdę jest otwarty, komunikat podaje miejsce przerwy.
+
 ## 7.3.1 — Polilinia i wpisywanie wymiarów (2026-10-30)
 
 - narzędzie **Polilinia** (K): kolejne odcinki z jednego ciągu, klik w punkt startowy zamyka obrys, Esc kończy;

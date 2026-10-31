@@ -7,7 +7,9 @@ import { addAutomaticConstraintsForLine } from '../cad-core/sketch-constraint-su
 import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 
-const POINT_MERGE_TOLERANCE = 1e-4;
+// Clicks snap to existing points rounded to 0.001 mm, and the solver can move a corner by
+// a few ten-thousandths when a typed length is applied: anything closer than this is one point.
+export const POINT_MERGE_TOLERANCE = 0.01;
 
 export function findSketch(document, sketchId) {
   const sketch = document.sketches.find((item) => item.id === sketchId);
@@ -41,6 +43,32 @@ function solveOrThrow(sketch, parameters) {
     throw new Error(solution.diagnostics?.[0]?.message || 'Nie da się tego ustawić — więzy się wykluczają.');
   }
   applySketchConstraintSolution(sketch, solution);
+}
+
+// Joins endpoints that lie within POINT_MERGE_TOLERANCE of each other into one point, so a
+// shape that looks closed is closed. Returns how many points were merged.
+export function weldSketchPoints(document, sketchId) {
+  const sketch = findSketch(document, sketchId);
+  const values = parameterValues(document);
+  const kept = [];
+  const replaced = new Map();
+  for (const entity of sketch.entities) {
+    if (entity.type !== 'point' || entity.role === 'construction') continue;
+    const [x, y] = pointCoordinates(entity, values);
+    const twin = kept.find((candidate) => Math.hypot(candidate.x - x, candidate.y - y) <= POINT_MERGE_TOLERANCE);
+    if (twin) replaced.set(entity.id, twin.id);
+    else kept.push({ id: entity.id, x, y });
+  }
+  if (!replaced.size) return 0;
+  const swap = (id) => replaced.get(id) || id;
+  sketch.entities = sketch.entities.filter((entity) => !replaced.has(entity.id))
+    .map((entity) => (entity.pointIds?.length ? { ...entity, pointIds: entity.pointIds.map(swap) } : entity));
+  // A constraint that tied the merged points together (coincident) is now pointless.
+  sketch.constraints = (sketch.constraints || []).map((constraint) => ({ ...constraint, entityIds: constraint.entityIds.map(swap) }))
+    .filter((constraint) => !(constraint.type === 'coincident' && new Set(constraint.entityIds).size < 2));
+  sketch.dimensions = (sketch.dimensions || []).map((dimension) => ({ ...dimension, entityIds: dimension.entityIds.map(swap) }));
+  refreshDetectedSketchProfiles(sketch, document.parameters);
+  return replaced.size;
 }
 
 export function addLine(document, sketchId, start, end) {
