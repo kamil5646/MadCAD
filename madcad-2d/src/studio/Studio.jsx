@@ -547,8 +547,8 @@ export default function Studio() {
     setTool((current) => (current?.type === id ? null : { type: id, points: [] }));
   };
   const toolDefinition = SKETCH_TOOLS.find((item) => item.id === tool?.type) || null;
-  // `typed` is a dimension typed while drawing: the shape gets a driving dimension with it.
-  const handleSketchPoint = (coordinates, _snap, typed = null) => {
+  // A value typed while drawing only sets the exact size; it adds no dimension to the sketch.
+  const handleSketchPoint = (coordinates) => {
     if (!toolDefinition?.points || !activeSketchId) return;
     const point = coordinates.map(Number);
     const points = [...tool.points, point];
@@ -561,8 +561,7 @@ export default function Studio() {
       let end = point;
       const ok = safeEdit((next) => {
         const line = addLine(next, activeSketchId, points[0], points[1]);
-        if (typed) addDimension(next, activeSketchId, { type: 'aligned', entityIds: [line.id] }, typed[0]);
-        // A typed length makes the solver move the end point: continue from where it is now.
+        // Continue from the stored end point (it may have been merged with an existing one).
         const sketch = next.sketches.find((item) => item.id === activeSketchId);
         const endPoint = sketch.entities.find((entity) => entity.id === line.pointIds[1]);
         end = [Number(endPoint.geometry.x), Number(endPoint.geometry.y)];
@@ -573,18 +572,9 @@ export default function Studio() {
       return;
     }
     const ok = safeEdit((next) => {
-      if (tool.type === 'line') {
-        const line = addLine(next, activeSketchId, points[0], points[1]);
-        if (typed) addDimension(next, activeSketchId, { type: 'aligned', entityIds: [line.id] }, typed[0]);
-        return;
-      }
+      if (tool.type === 'line') return addLine(next, activeSketchId, points[0], points[1]);
       if (tool.type === 'point') return addPoint(next, activeSketchId, points[0]);
-      const curves = addShape(next, activeSketchId, tool.type, points);
-      if (typed && tool.type === 'rectangle') {
-        addDimension(next, activeSketchId, { type: 'aligned', entityIds: [curves[0]] }, typed[0]);
-        addDimension(next, activeSketchId, { type: 'aligned', entityIds: [curves[1]] }, typed[1]);
-      }
-      if (typed && tool.type === 'circle') addDimension(next, activeSketchId, { type: 'diameter', entityIds: [curves[0]] }, typed[0]);
+      return addShape(next, activeSketchId, tool.type, points);
     });
     // Every tool stays armed for the next shape.
     setTool({ type: tool.type, points: ok || points.length > 1 ? [] : tool.points, typed: '' });
@@ -601,14 +591,14 @@ export default function Studio() {
     const dy = pointer[1] - start[1];
     if (tool.type === 'line' || tool.type === 'polyline') {
       const length = Math.hypot(dx, dy) || 1;
-      return handleSketchPoint([start[0] + (dx / length) * values[0], start[1] + (dy / length) * values[0]], null, [values[0]]);
+      return handleSketchPoint([start[0] + (dx / length) * values[0], start[1] + (dy / length) * values[0]]);
     }
     if (tool.type === 'rectangle') {
       const width = values[0];
       const height = values[1] ?? (Math.abs(dy) || width);
-      return handleSketchPoint([start[0] + (dx < 0 ? -width : width), start[1] + (dy < 0 ? -height : height)], null, [width, height]);
+      return handleSketchPoint([start[0] + (dx < 0 ? -width : width), start[1] + (dy < 0 ? -height : height)]);
     }
-    if (tool.type === 'circle') return handleSketchPoint([start[0] + values[0] / 2, start[1]], null, [values[0]]);
+    if (tool.type === 'circle') return handleSketchPoint([start[0] + values[0] / 2, start[1]]);
     return undefined;
   };
   const handleTrim = ({ entityId, point }) => {

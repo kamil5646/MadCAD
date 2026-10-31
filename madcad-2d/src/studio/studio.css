@@ -357,3 +357,8 @@
 .topbar button, .topbar input, .topbar .menu, .topbar .mode-tabs { -webkit-app-region: no-drag; }
 .platform-darwin .topbar { padding-left: 84px; }
 .platform-win32 .topbar { padding-right: 150px; }
+
+/* Solver bookkeeping ("10 do ustalenia") and the live open-outline card only confused people;
+   "Zakończ szkic" says where an outline is open. */
+.studio .sketch-solver-status,
+.studio .sketch-diagnostics { display: none; }

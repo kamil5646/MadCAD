@@ -56,6 +56,27 @@ const MODEL_SELECTION_FILTERS = Object.freeze([
   ['vertex', 'Punkty', null],
 ]);
 
+// WebGL draws plain lines 1 px wide whatever linewidth says; on a Retina screen a sketch
+// line on top of a grid line all but disappears. Each sketch line gets a fat twin that
+// shares its colour, so hover and selection recolouring still apply.
+const SKETCH_LINE_RESOLUTION = new THREE.Vector2(1, 1);
+
+function addFatSketchLine(line, opacity, width) {
+  const position = line.geometry.getAttribute('position');
+  const segments = [];
+  for (let index = 0; index + 1 < position.count; index += 1) {
+    segments.push(position.getX(index), position.getY(index), position.getZ(index), position.getX(index + 1), position.getY(index + 1), position.getZ(index + 1));
+  }
+  if (!segments.length) return;
+  const fat = new LineSegments2(new LineSegmentsGeometry().setPositions(segments), new LineMaterial({ linewidth: width, worldUnits: false, transparent: true, opacity }));
+  fat.material.uniforms.diffuse.value = line.material.color;
+  fat.material.uniforms.resolution.value = SKETCH_LINE_RESOLUTION;
+  fat.material.depthTest = line.material.depthTest;
+  fat.renderOrder = line.renderOrder;
+  fat.raycast = () => {};
+  line.add(fat);
+}
+
 function disposeObject(object) {
   object.traverse((child) => {
     child.geometry?.dispose();
@@ -443,6 +464,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
       line.renderOrder = 2;
     }
     if (lineType.id !== 'continuous') line.computeLineDistances();
+    else addFatSketchLine(line, lineOpacity, reference ? 1.5 : 2.5);
     line.userData = { sketchEntityId: entity.id, sketchEntityType: entity.type, sketchState: sketchEntityState(entity, selected.has(entity.id), hasError), baseColor, layerId: appearance.layer.id, layerLocked: appearance.locked };
     group.add(line);
     entries.push({ entity, object: line, lineElevation });
@@ -2852,6 +2874,7 @@ export default function ModelViewport({
       const width = Math.max(1, host.clientWidth);
       const height = Math.max(1, host.clientHeight);
       renderer.setSize(width, height, false);
+      SKETCH_LINE_RESOLUTION.set(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       controls.update();
