@@ -218,7 +218,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.') }}
           generate_release_notes: true
           body: |
-            ## CAD 2D/3D — 7.3.5
+            ## CAD 2D/3D — 7.3.6
 
             Nowy interfejs z podstawami jak w Fusion: szkic z obszarami, wyciągnij, obróć, zaokrąglij, fazuj, skorupa, otwór, szyk, lustro oraz rysunek 2D z modelu (PDF, DXF). Szkice na ścianach i zaokrąglenia idą za zmianą wymiarów.
 
