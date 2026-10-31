@@ -275,6 +275,23 @@ export const SCENARIOS = {
     engine = await evaluate(document);
     expectOk(engine, 'shell');
   },
+  async 'trójkąt z wpisanych długości domyka się mimo przesunięć solvera'() {
+    const document = createDocument('Test');
+    const sketch = sketchOn(document);
+    const first = addLine(document, sketch.id, [-95, 39], [3.9, 24.3]);
+    addDimension(document, sketch.id, { type: 'aligned', entityIds: [first.id] }, '100');
+    // Clicks snap to the drifted corners but land rounded to 0.001 mm, as in the viewport.
+    const corner = (id) => sketch.entities.find((entity) => entity.id === id).geometry;
+    const start = corner(first.pointIds[0]);
+    const end = corner(first.pointIds[1]);
+    const rounded = (point) => [Number(Number(point.x).toFixed(3)), Number(Number(point.y).toFixed(3))];
+    addLine(document, sketch.id, rounded(start), [-38, -43.2]);
+    addLine(document, sketch.id, [-38, -43.2], rounded(end));
+    if (sketch.profiles.length !== 1) throw new Error(`Obszarów ${sketch.profiles.length}, oczekiwano 1.`);
+    extrude(document, sketch, {});
+    const engine = await evaluate(document);
+    expectOk(engine, 'trójkąt');
+  },
   async 'kontur z linii i łuku'() {
     const document = createDocument('Test');
     const sketch = sketchOn(document);

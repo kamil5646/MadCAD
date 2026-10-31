@@ -24,7 +24,7 @@ import {
   SketchCircleCadIcon, SketchConstraintCadIcon, SketchDimensionCadIcon, SketchLineCadIcon, SketchPolylineCadIcon, SketchRectangleCadIcon, SketchTrimCadIcon,
 } from '../modeling/CadToolIcons.jsx';
 import {
-  addConstraint, addDimension, addLine, addPoint, addShape, constraintAvailable, holePointIds, CONSTRAINTS, dimensionForSelection, moveEntities, setConstraintValue, tryEdit,
+  addConstraint, addDimension, addLine, addPoint, addShape, constraintAvailable, holePointIds, weldSketchPoints, CONSTRAINTS, dimensionForSelection, moveEntities, setConstraintValue, tryEdit,
 } from './sketch-actions.js';
 import { buildFeature, commandFromFeature, commandProblem, FEATURE_LABELS, featureLabel, OPERATIONS, REPEATABLE_TYPES, revolveAxes } from './features.js';
 import { attachDrawingProjections, drawingProjectionGroups } from '../cad-core/drawing-projections.js';
@@ -480,8 +480,25 @@ export default function Studio() {
     setTool(null);
     flash('Wybierz płaszczyznę bazową albo płaską ścianę bryły.');
   };
+  // Joins near-touching endpoints of a sketch (left by snapping or by a typed length) and
+  // stores the result; returns the healed sketch, or null when nothing needed joining.
+  const weldSketch = (sketchId) => {
+    const probe = structuredClone(document);
+    try {
+      if (!weldSketchPoints(probe, sketchId)) return null;
+    } catch {
+      return null;
+    }
+    const welded = probe.sketches.find((item) => item.id === sketchId);
+    commit((next) => {
+      const index = next.sketches.findIndex((item) => item.id === sketchId);
+      if (index >= 0) next.sketches[index] = structuredClone(welded);
+    });
+    return welded;
+  };
+
   const finishSketch = () => {
-    const sketch = activeSketch;
+    const sketch = activeSketch ? weldSketch(activeSketch.id) || activeSketch : null;
     setActiveSketchId(null);
     setTool(null);
     setConstraintMenuOpen(false);
@@ -507,7 +524,10 @@ export default function Studio() {
       flash('Szkic gotowy. Kliknij „Wyciągnij”, aby zrobić z niego bryłę.');
     } else {
       setSelection({ kind: 'sketch', id: sketch.id });
-      flash('Szkic zakończony. Obrys nie jest zamknięty — domknij go, aby zrobić bryłę.');
+      const gap = (sketch.diagnostics || []).find((entry) => entry.code === 'GAP' && entry.point);
+      flash(gap
+        ? `Szkic zakończony. Obrys ma otwarty koniec w punkcie ${gap.point.map((value) => Number(value).toFixed(1)).join(', ')} — połącz tam linie, aby zrobić bryłę.`
+        : 'Szkic zakończony. Obrys nie jest zamknięty — domknij go, aby zrobić bryłę.');
     }
   };
   const editSketch = (sketchId) => {
@@ -652,7 +672,16 @@ export default function Studio() {
   const profileSource = () => {
     if (selectedProfileMatch) return { sketch: selectedProfileMatch.sketch, profile: selectedProfileMatch.profile };
     const source = resolveExtrudeSource({ sketches: document.sketches, selection, features: document.features });
-    return source.kind === 'profile' ? source : null;
+    if (source.kind === 'profile') return source;
+    // Older sketches can hold corners that miss each other by a hair: heal them and retry.
+    for (const sketch of [...document.sketches].reverse()) {
+      if (sketch.profiles?.length) continue;
+      const welded = weldSketch(sketch.id);
+      if (!welded?.profiles?.length) continue;
+      const retry = resolveExtrudeSource({ sketches: [welded], selection: { kind: 'sketch', id: welded.id }, features: document.features });
+      if (retry.kind === 'profile') return retry;
+    }
+    return null;
   };
   // Hole drills at the free points of a sketch; with a face picked it first opens a sketch
   // there with the Point tool and continues after "Zakończ szkic".
