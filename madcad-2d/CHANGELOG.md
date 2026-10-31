@@ -1,5 +1,10 @@
 # Changelog
 
+## 7.3.6 — zaznaczenie po usuniętej bryle (2026-11-01)
+
+- po cofnięciu lub usunięciu bryły jej ściany i krawędzie znikają z zaznaczenia, więc Skorupa, Zaokrąglij i Fazuj nie biorą nieistniejącej bryły;
+- komunikaty operacji mówią, co zrobić, zamiast pokazywać techniczne ścieżki.
+
 ## 7.3.5 — narzędzia nie wywalają interfejsu (2026-11-01)
 
 - Skorupa, Zaokrąglij czy Fazuj otwarte bez zaznaczonych ścian lub krawędzi wywalały interfejs („Shell wymaga co najmniej jednej usuwanej ściany”); teraz czekają na wybór, a każdy błąd podglądu pokazuje się w panelu operacji;

@@ -57,6 +57,13 @@ const MODEL_TOOLS = Object.freeze([
 const PLANE_OPTIONS = Object.freeze([{ id: 'XY', label: 'XY' }, { id: 'XZ', label: 'XZ' }, { id: 'YZ', label: 'YZ' }]);
 const AXIS_OPTIONS = Object.freeze([{ id: 'Z_AXIS', label: 'Oś Z' }, { id: 'X_AXIS', label: 'Oś X' }, { id: 'Y_AXIS', label: 'Oś Y' }]);
 
+// Document checks speak in paths ("features[0].targetBodyId: …"); show people what to do.
+function readableProblem(message) {
+  const text = String(message || '').replace(/^[\w[\].]+:\s*/, '');
+  if (/Nie znaleziono wcześniejszej bryły|bryły docelowej/.test(text)) return 'Ta bryła już nie istnieje. Kliknij ścianę albo krawędź bryły widocznej na ekranie.';
+  return text;
+}
+
 function selectionItems(selection) {
   if (!selection) return EMPTY;
   return selection.items || [selection];
@@ -182,10 +189,10 @@ export default function Studio() {
         if (index >= 0) next.features[index] = feature;
       } else insertTimelineFeature(next, feature);
       const validation = validateDocument(next);
-      if (!validation.valid) return { feature: null, document, problem: String(validation.errors[0] || '').replace(/^[\w[\].]+:\s*/, '') };
+      if (!validation.valid) return { feature: null, document, problem: readableProblem(validation.errors[0]) };
       return { feature, document: next, problem: '' };
     } catch (error) {
-      return { feature: null, document, problem: error.message };
+      return { feature: null, document, problem: readableProblem(error.message) };
     }
   }, [command, document, firstBodyId, formProblem]);
   const previewFeature = preview.feature;
@@ -221,6 +228,15 @@ export default function Studio() {
       }
     });
   }, [document.sketches, engine.isCurrent, engine.status, engine.supportPlacements, history, previewFeature]);
+
+  // Drop picks of bodies that no longer exist (after undo, delete or an edit).
+  useEffect(() => {
+    if (engine.status !== 'ready' || !engine.isCurrent || !selection) return;
+    const live = new Set(engine.bodies.map((body) => body.id));
+    const items = selectionItems(selection).filter((item) => !item.bodyId || live.has(item.bodyId));
+    if (items.length === selectionItems(selection).length) return;
+    setSelection(items.length ? { ...items.at(-1), items } : null);
+  }, [engine.bodies, engine.isCurrent, engine.status, selection]);
 
   // ---- Session hooks used by Electron when the window closes.
   useEffect(() => {
@@ -767,8 +783,10 @@ export default function Studio() {
       return;
     }
     const edgeTool = id === 'fillet' || id === 'chamfer';
-    const picks = edgeTool ? selectedEdges : selectedFaces;
-    const targetBodyId = picks[0]?.bodyId || selectedBodyIds[0] || engine.bodies[0]?.id;
+    // Only bodies that exist now: a selection can outlive an undone extrude.
+    const liveBodyIds = new Set(engine.bodies.map((body) => body.id));
+    const picks = (edgeTool ? selectedEdges : selectedFaces).filter((item) => liveBodyIds.has(item.bodyId));
+    const targetBodyId = picks[0]?.bodyId || selectedBodyIds.find((bodyId) => liveBodyIds.has(bodyId)) || engine.bodies[0]?.id;
     if (!targetBodyId) return flash('Najpierw zrób bryłę.');
     const references = picks.filter((item) => item.bodyId === targetBodyId).map((item) => referenceFor(item, FEATURE_LABELS[id]));
     setCommand({ type: id, targetBodyId, references, ...(edgeTool ? { size: id === 'fillet' ? '2' : '1' } : { thickness: '2' }) });
