@@ -105,7 +105,7 @@ jobs:
         run: npm run verify:desktop-suite -- ${{ matrix.shard }}
       - name: Upload verification artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: desktop-verification-${{ matrix.os }}-${{ matrix.shard }}
           path: madcad-2d/artifacts/
@@ -159,7 +159,7 @@ jobs:
         shell: bash
         run: npm run checksums:package && MADCAD_REQUIRE_CHECKSUM=1 npm run verify:package -- ${{ matrix.kind }}
       - name: Upload installer
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: MadCAD-${{ matrix.kind }}
           path: madcad-2d/release/MadCAD-*
