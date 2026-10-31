@@ -113,6 +113,7 @@ export default function Studio() {
   const pointerRef = useRef(null);
   const shiftRef = useRef(false);
   const pendingHoleRef = useRef(null);
+  const pendingExtrudeRef = useRef(null);
   const [mode, setMode] = useState('model');
   const [projection, setProjection] = useState({ revision: -1, data: null });
   const fitPendingRef = useRef(true);
@@ -456,7 +457,7 @@ export default function Studio() {
     setCameraView({ requestId: `view:${Date.now()}`, plane });
     enterSketch(sketch, `Rysujesz na płaszczyźnie ${PLANE_NAMES[plane]}. Wybierz narzędzie albo zacznij od linii.`);
   };
-  const createFaceSketch = (faceItem, firstTool = 'line') => {
+  const createFaceSketch = (faceItem, firstTool = 'line', then = null) => {
     const body = engine.bodies.find((candidate) => candidate.id === faceItem.bodyId);
     const face = body?.topology?.faces?.find((candidate) => candidate.id === faceItem.id);
     if (face?.descriptor?.geometry !== 'PLANE') return flash('Szkic można założyć tylko na płaskiej ścianie.');
@@ -470,7 +471,10 @@ export default function Studio() {
     const sketch = createSketch({ name: 'Szkic', plane, planeOffset, ...(axisAligned ? {} : { frame: frameFromNormal(center, normal) }), support: { kind: 'face', referenceId: reference.id } });
     commit((next) => { next.references.push(reference); sketch.name = nextSketchName(next.sketches); next.sketches.push(sketch); });
     if (firstTool === 'point') pendingHoleRef.current = sketch.id;
-    enterSketch(sketch, firstTool === 'point' ? 'Kliknij środki otworów, potem „Zakończ szkic”.' : 'Rysujesz na ścianie bryły.', firstTool);
+    if (then === 'extrude') pendingExtrudeRef.current = sketch.id;
+    enterSketch(sketch, firstTool === 'point' ? 'Kliknij środki otworów, potem „Zakończ szkic”.'
+      : then === 'extrude' ? 'Narysuj kształt nowego bloku na ścianie (prostokąt jest wybrany), potem „Zakończ szkic” — wyciąganie otworzy się samo.'
+        : 'Rysujesz na ścianie bryły.', firstTool);
   };
   const startSketch = () => {
     if (activeSketchId) return;
@@ -519,6 +523,14 @@ export default function Studio() {
       return flash('Pusty szkic został usunięty.');
     }
     const source = resolveExtrudeSource({ sketches: [sketch], selection: { kind: 'sketch', id: sketch.id }, features: document.features });
+    if (pendingExtrudeRef.current === sketch.id) {
+      pendingExtrudeRef.current = null;
+      if (source.kind === 'profile') {
+        setNotice('');
+        window.setTimeout(() => openProfileTool('extrude', source), 0);
+        return;
+      }
+    }
     if (source.kind === 'profile') {
       setSelection({ kind: 'profile', id: source.profile.id, sketchId: sketch.id });
       flash('Szkic gotowy. Kliknij „Wyciągnij”, aby zrobić z niego bryłę.');
@@ -700,6 +712,16 @@ export default function Studio() {
     }
   };
 
+  const openProfileTool = (id, source, picked = [source.profile.id]) => {
+    setSelection({ kind: 'profile', id: source.profile.id, sketchId: source.sketch.id });
+    const operation = engine.bodies.length ? 'join' : 'new';
+    // A sketch on a body face joins that body.
+    const supportBodyId = document.references.find((reference) => reference.id === source.sketch.support?.referenceId)?.bodyId;
+    const base = { sketchId: source.sketch.id, profileIds: picked, operation, hasBodies: engine.bodies.length > 0, targetBodyId: supportBodyId || selectedBodyIds[0] || selectedFaces[0]?.bodyId || null };
+    if (id === 'extrude') setCommand({ type: 'extrude', ...base, distance: '10', extent: 'one-side', flip: false });
+    else setCommand({ type: 'revolve', ...base, axisId: revolveAxes(source.sketch.plane)[0].id, angle: '360' });
+  };
+
   const openSolidTool = (id) => {
     if (activeSketchId && id !== 'hole') finishSketch();
     setNotice('');
@@ -719,15 +741,17 @@ export default function Studio() {
       return flash('Kliknij płaską ścianę bryły, potem „Otwór”.');
     }
     if (id === 'pattern' || id === 'mirror') return openRepeatTool(id);
+    // Face picked + Wyciągnij, as in Fusion: draw the new block's outline on that face first;
+    // the extrude opens by itself after "Zakończ szkic".
+    if (id === 'extrude' && selectedFaces[0] && selection?.kind !== 'profile') {
+      createFaceSketch(selectedFaces[0], 'rectangle', 'extrude');
+      return;
+    }
     if (id === 'extrude' || id === 'revolve') {
       const source = profileSource();
-      if (!source) return flash('Najpierw narysuj zamknięty szkic (np. prostokąt) i zakończ go.');
-      setSelection({ kind: 'profile', id: source.profile.id, sketchId: source.sketch.id });
-      const operation = engine.bodies.length ? 'join' : 'new';
+      if (!source) return flash('Kliknij płaską ścianę bryły albo narysuj zamknięty szkic, potem „Wyciągnij”.');
       const picked = selection?.kind === 'profile' && selection.sketchId === source.sketch.id && selection.ids?.length > 1 && id === 'extrude' ? selection.ids : [source.profile.id];
-      const base = { sketchId: source.sketch.id, profileIds: picked, operation, hasBodies: engine.bodies.length > 0, targetBodyId: selectedBodyIds[0] || selectedFaces[0]?.bodyId || null };
-      if (id === 'extrude') setCommand({ type: 'extrude', ...base, distance: '10', extent: 'one-side', flip: false });
-      else setCommand({ type: 'revolve', ...base, axisId: revolveAxes(source.sketch.plane)[0].id, angle: '360' });
+      openProfileTool(id, source, picked);
       return;
     }
     const edgeTool = id === 'fillet' || id === 'chamfer';
