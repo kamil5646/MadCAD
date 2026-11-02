@@ -3186,6 +3186,51 @@ fn auto_operation(app: &SolveApp, d: &mut Dialog) {
     }
 }
 
+/// MadCAD: a pattern of bodies spaces its copies by the bodies' size along each direction plus
+/// 10 mm, so they stand apart instead of inside each other (the 20 mm default suits a hole, not a
+/// 100 mm block). Only while the spacing is the default or the size this set: a typed one stays.
+fn pattern_spacing(app: &SolveApp, d: &mut Dialog) {
+    let Kind::PatternRect { spacing, spacing2, .. } = &d.kind else { return };
+    let bodies: Vec<&str> = sels(d, 0)
+        .iter()
+        .filter_map(|s| match s {
+            Sel::Body { name } => Some(name.as_str()),
+            _ => None,
+        })
+        .collect();
+    if bodies.is_empty() {
+        return;
+    }
+    let st = app.session.world_state();
+    let bb = bodies.iter().filter_map(|n| st.body(n)).fold(solidcraft_engine::geom::Aabb3::EMPTY, |b, x| b.union(&x.mesh().bounds()));
+    if bb.is_empty() {
+        return;
+    }
+    let size = bb.max - bb.min;
+    let default = length_default(&app.session, "20");
+    let fit = |input: usize, key: &str, current: &str| -> Option<String> {
+        let auto = d.extra.get(key).and_then(Value::as_str);
+        if current != default && Some(current) != auto {
+            return None;
+        }
+        let dir = axis_of(app, sels(d, input).first()?)?.1.normalized()?;
+        let along = dir.x.abs() * size.x + dir.y.abs() * size.y + dir.z.abs() * size.z;
+        let value = length_default(&app.session, &format!("{}", (along + 10.0).ceil()));
+        (value != current).then_some(value)
+    };
+    let new1 = fit(1, "auto_spacing1", spacing);
+    let new2 = fit(2, "auto_spacing2", spacing2);
+    let Kind::PatternRect { spacing, spacing2, .. } = &mut d.kind else { return };
+    if let Some(v) = new1 {
+        *spacing = v.clone();
+        d.extra.insert("auto_spacing1".into(), json!(v));
+    }
+    if let Some(v) = new2 {
+        *spacing2 = v.clone();
+        d.extra.insert("auto_spacing2".into(), json!(v));
+    }
+}
+
 /// MadCAD: a Cut or Intersect chosen by hand goes into the body. Off a face sketch the extrude
 /// first grows outward (a Join), so picking Cut there cut only air and nothing seemed to happen:
 /// the direction flips when the other side meets a body and this one does not. Once per choice,
@@ -3338,6 +3383,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     sync_reach(app, &mut d);
     auto_operation(app, &mut d);
     cut_into_body(app, &mut d);
+    pattern_spacing(app, &mut d);
     crate::op_auto::update(app, &mut d, ctx);
     d.sync_thread(&app.session);
     d.sync_material(&app.session);
