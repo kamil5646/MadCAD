@@ -8,7 +8,8 @@ if (!/^\d+\.\d+\.\d+$/.test(next || '')) throw new Error('Podaj stabilnÄ… wersjÄ
 const files = [
   'package.json', 'package-lock.json', 'README.md', 'FIRST_PART.md',
   'src/App.test.jsx', 'src/modeling/AppDialogs.jsx',
-  'server/seohost/madcad-site/index.html', '../README.md', '../docs/index.html',
+  // The SEOHOST site advertises MadCAD 8 (branch madcad8) since 8.0.0, so 7.x bumps leave it alone.
+  '../README.md', '../docs/index.html',
   '../.github/workflows/release.yml',
 ];
 // Only current product metadata: historical changelogs and audit evidence stay intact.

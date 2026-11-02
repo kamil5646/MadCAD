@@ -1,4 +1,10 @@
-# MadCAD 7.3
+# MadCAD
+
+> **Nowość: MadCAD 8.** Nowy MadCAD napisany w Rust (na bazie otwartego SolidCraft)
+> dla macOS i Windows — **[pobierz 8.0.0](https://github.com/kamil5646/MadCAD/releases/tag/v8.0.0)**,
+> kod na gałęzi [`madcad8`](https://github.com/kamil5646/MadCAD/tree/madcad8).
+> MadCAD 8 zapisuje projekty jako `.sc` i nie otwiera plików `.madcad`; ta gałąź (`main`)
+> zawiera linię 7.x, a ostatnie wydanie 7.x to [7.3.5](https://github.com/kamil5646/MadCAD/releases/tag/v7.3.5).
 
 ![MadCAD](./docs/readme-banner.png)
 
