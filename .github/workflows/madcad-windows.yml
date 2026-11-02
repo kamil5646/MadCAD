@@ -1,4 +1,4 @@
-# MadCAD 8 for Windows x64: a portable MadCAD.exe and a zip with the CLI and licences.
+# MadCAD 8 for Windows x64: an installer, a portable MadCAD.exe and a zip with the CLI and licences.
 # Runs on every push to the madcad8 branch; the release takes the files from the run's artifact.
 name: MadCAD Windows
 
@@ -32,6 +32,7 @@ jobs:
       - name: Build
         run: cargo build --locked --release -p solidcraft -p solidcraft-cli --target x86_64-pc-windows-msvc
       - name: Package
+        id: package
         shell: pwsh
         run: |
           $version = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
@@ -47,6 +48,16 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive -Path $stage -DestinationPath "dist/$name.zip"
           Copy-Item "$bin/solidcraft.exe" "dist/$name.exe"
+          Copy-Item assets/icons/app/madcad/madcad.ico "$stage/MadCAD.ico"
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "stage=$((Resolve-Path $stage).Path)" >> $env:GITHUB_OUTPUT
+      - name: Installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /Q "/DVersion=${{ steps.package.outputs.version }}" "/DStage=${{ steps.package.outputs.stage }}" "/DOut=$((Resolve-Path dist).Path)" packaging/madcad/madcad.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           Get-ChildItem dist
       - uses: actions/upload-artifact@v4
         with:

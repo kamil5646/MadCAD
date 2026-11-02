@@ -161,14 +161,15 @@ pub struct CameraAnim {
 }
 
 impl CameraAnim {
-    /// The usual length of a view change, in seconds.
-    pub const DURATION: f64 = 0.5;
-    /// A view change: half a second, longer for turns past a quarter turn (so a big turn, such
-    /// as from the home view to the bottom, never sweeps more than about 9 degrees a frame).
+    /// The usual length of a view change, in seconds. MadCAD: 0.3 s (was 0.5 s), so entering and
+    /// leaving a sketch, Home and Fit don't keep the user waiting.
+    pub const DURATION: f64 = 0.3;
+    /// A view change: 0.3 s, up to 0.48 s for turns past a quarter turn (so a big turn, such
+    /// as from the home view to the bottom, still sweeps no more than about 12 degrees a frame).
     pub fn new(from: Camera, to: Camera, now: f64) -> CameraAnim {
         let dy = (to.yaw - from.yaw + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU) - std::f64::consts::PI;
         let turn = dy.abs().max((to.pitch - from.pitch).abs());
-        let k = if turn.is_finite() { (turn / std::f64::consts::FRAC_PI_2).clamp(1.0, 2.0) } else { 1.0 };
+        let k = if turn.is_finite() { (turn / std::f64::consts::FRAC_PI_2).clamp(1.0, 1.6) } else { 1.0 };
         CameraAnim { from, to, start: now, duration: CameraAnim::DURATION * k }
     }
     /// The camera at time `now`, and whether the move has finished.
