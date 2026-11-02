@@ -17,6 +17,11 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![deny(unsafe_code)]
 
+/// MadCAD: mimalloc on Windows, where the system heap slows the kernel's many small allocations.
+#[cfg(target_os = "windows")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 /// The MadCAD mark as 64×64 RGBA, for the window and taskbar on Windows and Linux.
 #[cfg(not(target_os = "macos"))]
 const MADCAD_ICON_64: &[u8] = include_bytes!("../../../assets/icons/app/madcad/madcad-64.rgba");

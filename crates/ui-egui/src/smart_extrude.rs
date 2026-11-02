@@ -37,6 +37,8 @@ pub struct Smart {
     pub shown: Option<Vec<String>>,
     /// Picks off the profile plane become the To Object target (Preferences › Design).
     pub auto_to_object: bool,
+    /// MadCAD: the Cut or Intersect chosen by hand that was already turned into the body.
+    pub cut_checked: Option<usize>,
 }
 
 /// One-side direction for a new pick: 0 (along the normal) or 1 (reversed). `ray` is the view

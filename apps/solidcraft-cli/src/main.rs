@@ -29,6 +29,11 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 
+/// MadCAD: mimalloc on Windows, where the system heap slows the kernel's many small allocations.
+#[cfg(target_os = "windows")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod bench_agent;
 mod bench_assistant;
 mod crashes;

@@ -51,6 +51,16 @@ jobs:
           Copy-Item assets/icons/app/madcad/madcad.ico "$stage/MadCAD.ico"
           "version=$version" >> $env:GITHUB_OUTPUT
           "stage=$((Resolve-Path $stage).Path)" >> $env:GITHUB_OUTPUT
+      - name: Benchmark
+        shell: pwsh
+        run: |
+          # Kernel times of a block with fillets and cuts (and two corpus scripts), to compare with the Mac build.
+          $cli = "target/x86_64-pc-windows-msvc/release/solidcraft-cli.exe"
+          foreach ($s in 'packaging/madcad/bench-cut.json', 'examples/bracket.json', 'apps/solidcraft-cli/tests/corpus/scripts/m0-revolve-primitives.json') {
+            $r = & $cli run $s --timings --quiet | ConvertFrom-Json
+            "{0}: {1:N1} ms" -f $s, $r.total_ms
+            $r.timings | Where-Object { $_.ms -gt 1 } | ForEach-Object { "  {0,8:N1} {1}" -f $_.ms, $_.command }
+          }
       - name: Installer
         shell: pwsh
         run: |

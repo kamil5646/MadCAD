@@ -3129,6 +3129,7 @@ fn auto_operation(app: &SolveApp, d: &mut Dialog) {
         let Kind::Extrude { direction, smart, .. } = &mut d.kind else { return };
         smart.picked = picked;
         smart.latch = None;
+        smart.cut_checked = None;
         if *direction < 2
             && let Some(dir) = side_of_pick
         {
@@ -3182,6 +3183,42 @@ fn auto_operation(app: &SolveApp, d: &mut Dialog) {
     };
     if let Kind::Extrude { operation, smart, .. } = &mut d.kind {
         *operation = crate::smart_extrude::operation(fresh, *operation, side, &mut smart.latch);
+    }
+}
+
+/// MadCAD: a Cut or Intersect chosen by hand goes into the body. Off a face sketch the extrude
+/// first grows outward (a Join), so picking Cut there cut only air and nothing seemed to happen:
+/// the direction flips when the other side meets a body and this one does not. Once per choice,
+/// and never over a direction set by hand.
+fn cut_into_body(app: &SolveApp, d: &mut Dialog) {
+    let Kind::Extrude { direction, operation, smart, .. } = &d.kind else { return };
+    let (direction, operation) = (*direction, *operation);
+    if !matches!(OPS.get(operation), Some(&("cut" | "intersect"))) {
+        if let Kind::Extrude { smart, .. } = &mut d.kind {
+            smart.cut_checked = None;
+        }
+        return;
+    }
+    if smart.manual_dir || direction >= 2 || smart.cut_checked == Some(operation) {
+        return;
+    }
+    if let Kind::Extrude { smart, .. } = &mut d.kind {
+        smart.cut_checked = Some(operation);
+    }
+    let Some(params) = dialog_commands(app, d).ok().and_then(|c| c.into_iter().next()).map(|(_, p)| p) else { return };
+    if params.get("to").is_some() {
+        return;
+    }
+    let into = |p: &Value| solidcraft_engine::auto_operation(&app.session, p) == Some("cut");
+    if into(&params) {
+        return;
+    }
+    let mut flipped = params.clone();
+    flipped["direction"] = json!(DIRS[1 - direction]);
+    if into(&flipped)
+        && let Kind::Extrude { direction, .. } = &mut d.kind
+    {
+        *direction = 1 - *direction;
     }
 }
 
@@ -3300,6 +3337,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     }
     sync_reach(app, &mut d);
     auto_operation(app, &mut d);
+    cut_into_body(app, &mut d);
     crate::op_auto::update(app, &mut d, ctx);
     d.sync_thread(&app.session);
     d.sync_material(&app.session);

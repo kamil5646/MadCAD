@@ -34,3 +34,7 @@ serde_json = { workspace = true }
 [dev-dependencies]
 # Snapshot tests decode the pictures to compare them with a tolerance.
 image = { workspace = true }
+
+# MadCAD: the same allocator as the app on Windows (see apps/solidcraft/Cargo.toml).
+[target.'cfg(target_os = "windows")'.dependencies]
+mimalloc = { version = "0.1", default-features = false }
