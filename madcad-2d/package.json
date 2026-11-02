@@ -68,7 +68,7 @@
     "replicad-opencascadejs": "^1.1.0",
     "three": "^0.186.1",
     "vite": "^8.3.5",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.5"
   },
   "build": {
     "appId": "pl.kamilkasprzak.madcad2d",
