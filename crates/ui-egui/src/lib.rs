@@ -1119,6 +1119,14 @@ impl SolveApp {
                 };
             }
             p.madmag_palette_initialized = true;
+            // Saved files carry the upstream "keep" view after a sketch; MadCAD goes back to the
+            // 3D view once, so Extrude shows the depth. Later choices are kept.
+            if v.get("preferences").and_then(|p| p.get("madcad_sketch_exit_initialized")).and_then(Value::as_bool) != Some(true)
+                && p.sketch_exit_view == prefs::SketchExitView::Keep
+            {
+                p.sketch_exit_view = prefs::SketchExitView::UnlessRotated;
+            }
+            p.madcad_sketch_exit_initialized = true;
             p.ai_features = false;
             p.connect_ai_apps = false;
             self.ui.layout = p.layout;
@@ -1982,7 +1990,7 @@ impl SolveApp {
                 let _ = self.session.execute("select.clear", &json!({}));
             }
             self.tool = Some(t);
-            self.set_status(tools::hint(id), false);
+            self.set_status(tools::hint(self, id), false);
             return;
         }
         if let Some(mut d) = dialogs::Dialog::for_command(self, id) {
@@ -2242,8 +2250,16 @@ impl SolveApp {
         }
         // Only the views saved when this sketch opened: one opened another way saved none.
         if let Some(view) = self.pre_sketch_cam.take().filter(|v| Some(v.sketch) == open)
-            && let Some(to) = self.preferences.sketch_exit_view.view_after(view.before, view.facing, self.settled_cam())
+            && let Some(mut to) = self.preferences.sketch_exit_view.view_after(view.before, view.facing, self.settled_cam())
         {
+            // MadCAD: the first sketch of a design goes back to the empty design's view, which
+            // knows nothing of the sketch; frame it with room for an extrusion and the dialog.
+            if self.session.world_state().bodies.is_empty()
+                && let Some(layout) = self.viewport.layout.as_ref()
+                && let Some(framed) = viewport_layout::fit_bounds_sized(to, &viewport::view_bounds(self), layout, self.view_fov(), 0.6)
+            {
+                to = Camera { fov: to.fov, ..framed };
+            }
             self.animate_to(to);
         }
     }
@@ -2287,6 +2303,12 @@ impl SolveApp {
     /// model (a plane inside a body stays visible), even when the browser hides it.
     pub fn origin_visible(&self) -> bool {
         self.origin_shown() || self.picking_plane()
+    }
+
+    /// World size of the origin widget. Twice the usual size while a dialog picks a plane, so the
+    /// planes are easy to hit on an empty design.
+    pub fn origin_size(&self) -> f64 {
+        selection::origin_size(self.cam.half_height()) * if self.picking_plane() { 2.0 } else { 1.0 }
     }
 
     /// Is Create Sketch open, waiting for its plane?

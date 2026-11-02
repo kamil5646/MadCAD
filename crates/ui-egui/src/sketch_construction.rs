@@ -17,8 +17,9 @@ fn references(mode: &str) -> usize {
     }
 }
 
-pub fn hint(id: &str) -> String {
-    let key = match construction_line_mode(id).unwrap_or("free") {
+/// The catalog id of a construction-line tool's hint.
+pub fn hint_id(id: &str) -> &'static str {
+    match construction_line_mode(id).unwrap_or("free") {
         "free" => "ui.construction.free_hint",
         "horizontal" | "vertical" => "ui.construction.point_hint",
         "angle" => "ui.construction.angle_hint",
@@ -28,8 +29,7 @@ pub fn hint(id: &str) -> String {
         "tangent_two" => "ui.construction.common_hint",
         "bisector" => "ui.construction.bisector_hint",
         _ => "ui.construction.point_hint",
-    };
-    crate::i18n::tr(key).to_owned()
+    }
 }
 
 fn arg(point: &(Vec2, Option<String>), preview: bool) -> Value {

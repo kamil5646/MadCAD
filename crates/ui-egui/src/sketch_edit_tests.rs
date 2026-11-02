@@ -388,8 +388,8 @@ mod exit_view_preference {
     }
 
     #[test]
-    fn keep_is_the_default() {
-        assert_eq!(crate::prefs::Prefs::default().sketch_exit_view, SketchExitView::Keep);
+    fn unless_rotated_is_the_default() {
+        assert_eq!(crate::prefs::Prefs::default().sketch_exit_view, SketchExitView::UnlessRotated);
     }
 
     #[test]

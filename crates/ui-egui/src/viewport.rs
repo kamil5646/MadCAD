@@ -13,7 +13,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::gpu::{Frame, GpuScene, GpuTarget, SceneSlot, ViewportCallback};
 use crate::navigation::{CameraInput, NavCaps, orbit_drag};
-use crate::selection::{BoxSel, origin_quads, origin_size, ray_quad};
+use crate::selection::{BoxSel, origin_quads, ray_quad};
 use crate::theme::Tokens;
 use crate::{SolveApp, icons};
 
@@ -1945,7 +1945,7 @@ pub fn origin_planes(app: &SolveApp) -> Vec<(&'static str, Vec3, [Vec3; 4])> {
     // While the Origin is hidden, a dialog picking a plane brings the planes back: then every
     // plane; otherwise only those not hidden one by one.
     let creating = !app.origin_shown() && app.picking_plane();
-    origin_quads(origin_size(app.cam.half_height()))
+    origin_quads(app.origin_size())
         .into_iter()
         .filter(|(n, _, _)| creating || !app.session.visibility.hidden_origin.iter().any(|h| h == n))
         .collect()
@@ -2010,7 +2010,7 @@ pub fn construction_axis_segments(app: &SolveApp) -> Vec<(String, Vec3, Vec3)> {
 /// How far an axis through `o` along `d` is drawn: across the model's box `bb` where it passes
 /// it (a little past it either side), at least the origin axes' length around `o`.
 fn axis_span(app: &SolveApp, bb: &solidcraft_engine::geom::Aabb3, o: Vec3, d: Vec3) -> (Vec3, Vec3) {
-    let h = origin_size(app.cam.half_height()) * AXIS_LEN;
+    let h = app.origin_size() * AXIS_LEN;
     let (mut lo, mut hi) = (-h, h);
     if !bb.is_empty() {
         for i in 0..8 {
@@ -2078,7 +2078,7 @@ pub fn construction_points(app: &SolveApp) -> Vec<(String, Vec3)> {
 
 /// Construction planes drawn as squares around their origin: (name, normal, quad).
 pub fn construction_quads(app: &SolveApp) -> Vec<(String, Vec3, [Vec3; 4])> {
-    let h = origin_size(app.cam.half_height()) * 1.2;
+    let h = app.origin_size() * 1.2;
     solidcraft_engine::view::construction_planes(&app.session)
         .into_iter()
         .filter(|(_, n, _)| app.session.construction_visible(n))
@@ -2675,7 +2675,7 @@ fn pick_hits(app: &SolveApp, proj: &Proj, pos: Pos2, other_sketch_points: bool, 
     hits.extend(bestv.hits());
     hits.extend(beste.hits());
     // Origin axes.
-    let size = origin_size(app.cam.half_height());
+    let size = app.origin_size();
     let mut besta = Near::new(all);
     for (name, dir) in origin_axes(app) {
         if let (Some(a), Some(b)) = (proj.to_screen(Vec3::ZERO), proj.to_screen(dir * (size * AXIS_LEN))) {
@@ -3737,7 +3737,7 @@ pub(crate) fn build_highlight(app: &SolveApp) -> GpuScene {
             .map(|(_, s)| displayed_selection(app, &s))
     });
     let hover = app.viewport.hover.as_ref().filter(|_| component_hover.is_none());
-    let size = origin_size(app.cam.half_height());
+    let size = app.origin_size();
     if !product {
         // Origin planes and construction planes.
         let plane_state = |name: &str| {
@@ -5152,7 +5152,7 @@ fn quick_measure_readout(app: &mut SolveApp, ui: &egui::Ui, viewport: Rect) -> O
 /// calibration offer and the stand-up note, stacked from the bottom of the free view. Returns the toasts' rects.
 pub(crate) fn transient_messages(app: &mut SolveApp, ui: &egui::Ui, viewport: Rect, readout: Option<Rect>) -> Vec<Rect> {
     let placement_hint =
-        app.tool.as_ref().filter(|tool| matches!(tool.cmd, "canvas.insert" | "canvas.decal")).map(|tool| crate::tools::hint(tool.cmd));
+        app.tool.as_ref().filter(|tool| matches!(tool.cmd, "canvas.insert" | "canvas.decal")).map(|tool| crate::tools::hint(app, tool.cmd));
     // Nothing to show or time: an idle window skips the layout. The offer is checked too, as its clock
     // runs from the frames `due` sees.
     if placement_hint.is_none()

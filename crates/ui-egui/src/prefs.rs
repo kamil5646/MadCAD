@@ -676,11 +676,12 @@ impl TrackpadZoomModifier {
 pub enum SketchExitView {
     /// Back to the view from before the sketch opened.
     Previous,
-    /// The view stays where it is (the default since #4909).
-    #[default]
+    /// The view stays where it is.
     Keep,
     /// Back to the view from before the sketch, unless the sketch view was turned: a view only
-    /// panned or zoomed goes back, a turned one stays.
+    /// panned or zoomed goes back, a turned one stays. MadCAD's default, so a profile is seen in
+    /// 3D again when Extrude opens after the sketch.
+    #[default]
     UnlessRotated,
 }
 
@@ -1194,6 +1195,8 @@ preference_settings! {
     hidden_toolbar_tabs: Vec<String> = ["SURFACE", "ASSEMBLE", "MANAGE", "SHEET METAL", "WELDMENTS"].map(str::to_string).to_vec(), PAGE_LAYOUT;
     /// Marks preferences saved after MadCAD adopted the compact ribbon.
     madcad_layout_initialized: bool = true;
+    /// Marks preferences saved after MadCAD made the view go back when a sketch ends.
+    madcad_sketch_exit_initialized: bool = true;
     /// Show the ribbon's panel drop-downs as a grid of large icons, their names in the tooltips,
     /// instead of a list of small icons with names (#4739).
     ribbon_icon_grid: bool = false, PAGE_LAYOUT;

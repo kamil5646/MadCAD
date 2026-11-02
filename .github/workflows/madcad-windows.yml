@@ -10,6 +10,13 @@ on:
 permissions:
   contents: read
 
+# Faster than the Mac release build: no LTO and no debug info (no PDBs to write). The cache keeps
+# the dependencies, so a later run rebuilds only MadCAD's own crates.
+env:
+  CARGO_PROFILE_RELEASE_LTO: "false"
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+  CARGO_INCREMENTAL: "0"
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -21,6 +28,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: madcad-windows-x64
+          cache-on-failure: true
       - name: Build
         run: cargo build --locked --release -p solidcraft -p solidcraft-cli --target x86_64-pc-windows-msvc
       - name: Package

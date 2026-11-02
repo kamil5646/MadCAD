@@ -159,10 +159,16 @@ impl Tool {
     }
 }
 
-pub fn hint(id: &str) -> String {
+/// The status-bar hint for a sketch tool, in the app's language. Hints are catalog ids or English
+/// text (the catalog key); they are translated here because the status is set outside drawing.
+pub fn hint(app: &SolveApp, id: &str) -> String {
+    app.tr_label(&english_hint(id)).to_string()
+}
+
+fn english_hint(id: &str) -> String {
     match id {
-        "sketch.line" => crate::i18n::tr("sketch.line_hint").into(),
-        "sketch.polyline" => crate::i18n::tr("sketch.polyline_hint").into(),
+        "sketch.line" => "sketch.line_hint".into(),
+        "sketch.polyline" => "sketch.polyline_hint".into(),
         "sketch.rectangle.two_point" => "Rectangle: click two opposite corners".into(),
         "sketch.rectangle.center" => "Center rectangle: click the centre, then a corner".into(),
         "sketch.rectangle.rounded" => "Rounded rectangle: click two opposite corners (Tab to the radius box to type the corner radius)".into(),

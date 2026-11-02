@@ -977,7 +977,7 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
                 crate::viewport::origin_plane_target(app, &proj, n)
             } else if let Some(n) = p.get("axis").and_then(Value::as_str) {
                 // Along an origin axis, on its solid part.
-                let size = crate::selection::origin_size(app.cam.half_height());
+                let size = app.origin_size();
                 crate::viewport::origin_axes(app).into_iter().find(|(name, _)| *name == n).map(|(_, d)| d * (size * 0.8))
             } else if let Some(n) = p.get("gizmo").and_then(Value::as_str) {
                 // A handle of the move triad ("x", "xy", "rz", "ball"), moved `by` [x,y,z] mm or

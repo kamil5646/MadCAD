@@ -791,7 +791,7 @@ pub fn image_placement_finished(tool: &Tool) -> bool {
 
 pub fn hint(id: &str) -> Option<String> {
     if solidcraft_engine::cmd::construction_line_mode(id).is_some() {
-        return Some(crate::sketch_construction::hint(id));
+        return Some(crate::sketch_construction::hint_id(id).to_string());
     }
     Some(
         match id {
@@ -805,8 +805,8 @@ pub fn hint(id: &str) -> Option<String> {
             "inspect.center_of_mass" => "Center of mass of all bodies; click a body for its own",
             "inspect.isocurve" => "Isocurves: click faces",
             "inspect.continuity" => "Continuity: click an edge for its numbers (the button again turns the colours off)",
-            "canvas.insert" => crate::i18n::tr("canvas.place_hint"),
-            "canvas.decal" => crate::i18n::tr("canvas.decal_place_hint"),
+            "canvas.insert" => "canvas.place_hint",
+            "canvas.decal" => "canvas.decal_place_hint",
             "sketch.trim" => "Trim: click the piece of a curve to remove, or drag across the pieces to remove",
             "sketch.extend" => "Extend: click a curve near the end to extend (Shift: click two curves to extend both to where they meet)",
             "sketch.break" => "Break: click a curve where it should split",

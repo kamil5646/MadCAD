@@ -729,7 +729,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
 fn navigation(app: &SolveApp, ui: &mut egui::Ui, action: &mut Option<FileAction>) {
     let busy = app.file_picker_busy();
     let design = !crate::documents::active_is_blank(app);
-    let response = FileView::back_to(ui, "home:back", app.tr("home.back"), &app.session.doc.name, "Esc");
+    let response = FileView::back_to(ui, "home:back", app.tr("home.back"), &crate::i18n::tr_name(&app.session.doc.name), "Esc");
     publish("home:back", &response);
     if response.clicked() {
         *action = Some(FileAction::Back);

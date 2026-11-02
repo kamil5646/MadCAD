@@ -113,7 +113,7 @@ fn switch(app: &mut SolveApp) {
     next.hover = old.hover.clone();
     next.chain = LineChain { curve: old.chain.curve.clone(), owner: Some(owner), back_to_lines: !to_arc, ..LineChain::default() };
     app.tool = Some(next);
-    let hint = if to_arc { app.tr("ui.line_arc_hint").to_string() } else { crate::tools::hint(owner) };
+    let hint = if to_arc { app.tr("ui.line_arc_hint").to_string() } else { crate::tools::hint(app, owner) };
     app.set_status(hint, false);
 }
 
@@ -125,7 +125,7 @@ pub fn finish(app: &mut SolveApp) -> bool {
     }
     let owner = app.tool.as_ref().and_then(|t| t.chain.owner).unwrap_or(LINE);
     app.tool = Tool::for_command(owner);
-    app.set_status(crate::tools::hint(owner), false);
+    app.set_status(crate::tools::hint(app, owner), false);
     true
 }
 
