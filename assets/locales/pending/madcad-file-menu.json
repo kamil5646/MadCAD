@@ -1,0 +1,44 @@
+{
+  "en": {
+    "file.menu_export_format": "Export {format}…",
+    "file.menu_export_project_json": "Export Design as JSON…",
+    "file.menu_insert_format": "Insert {format}…",
+    "file.menu_insert_mesh": "Insert Mesh…",
+    "file.menu_save_json": "Save As JSON…"
+  },
+  "pl": {
+    "file.menu_export_format": "Eksportuj {format}…",
+    "file.menu_export_project_json": "Eksportuj projekt jako JSON…",
+    "file.menu_insert_format": "Wstaw {format}…",
+    "file.menu_insert_mesh": "Wstaw siatkę…",
+    "file.menu_save_json": "Zapisz jako JSON…"
+  },
+  "de": {
+    "file.menu_export_format": "{format} exportieren…",
+    "file.menu_export_project_json": "Entwurf als JSON exportieren…",
+    "file.menu_insert_format": "{format} einfügen…",
+    "file.menu_insert_mesh": "Netz einfügen…",
+    "file.menu_save_json": "Als JSON speichern…"
+  },
+  "ja": {
+    "file.menu_export_format": "{format} をエクスポート…",
+    "file.menu_export_project_json": "設計を JSON としてエクスポート…",
+    "file.menu_insert_format": "{format} を挿入…",
+    "file.menu_insert_mesh": "メッシュを挿入…",
+    "file.menu_save_json": "JSON として保存…"
+  },
+  "ko": {
+    "file.menu_export_format": "{format} 내보내기…",
+    "file.menu_export_project_json": "설계를 JSON으로 내보내기…",
+    "file.menu_insert_format": "{format} 삽입…",
+    "file.menu_insert_mesh": "메시 삽입…",
+    "file.menu_save_json": "JSON으로 다른 이름으로 저장…"
+  },
+  "zh": {
+    "file.menu_export_format": "导出 {format}…",
+    "file.menu_export_project_json": "将设计导出为 JSON…",
+    "file.menu_insert_format": "插入 {format}…",
+    "file.menu_insert_mesh": "插入网格…",
+    "file.menu_save_json": "另存为 JSON…"
+  }
+}

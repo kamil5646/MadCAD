@@ -1,0 +1,430 @@
+//! The command registry. Ids are SolidCraft's own dotted ids (`solid.extrude`,
+//! `sketch.rectangle.two_point`); the toolbar placement (`tab`, `panel`) follows the familiar
+//! Design workspace layout.
+
+/// The params-doc note of every command that adds sketch geometry (see `sketch::created`).
+macro_rules! created_doc {
+    () => {
+        ". Returns created: {points, curves, constraints, dimensions}: the ids of what it added (stable and never reused: usable right away in sketch.dimension, sketch.constraint.*, sketch.delete…)"
+    };
+}
+
+/// A command that is designed and registered (id, toolbar place, icon, params doc) but not built
+/// yet. It is disabled with the reason, so the toolbar greys it and says why, and its `run`
+/// refuses too, however it is reached. `$issue` is the GitHub issue that tracks building it.
+macro_rules! planned {
+    ($id:literal, $label:literal, $issue:literal) => {
+        CommandSpec::new($id, $label, |_, _| Err(crate::EngineError::Other(concat!("not supported yet: ", $label, " (issue #", $issue, ")").into())))
+            .enabled(|_| Err(concat!("not supported yet (issue #", $issue, ")").into()))
+            .planned($issue)
+    };
+}
+
+mod bom;
+mod browser;
+pub(crate) mod clearance;
+mod clipboard;
+mod clipboard_foreign;
+mod compare;
+mod component;
+mod component_clone;
+mod component_clone_assembly;
+mod construct;
+mod delete;
+mod diagnostics;
+mod edit;
+mod face;
+mod features;
+mod features_more;
+mod join_pieces;
+pub(crate) use construct::{GeoForm, GeoFormError, REF as GEO_REF_FORMS, SKETCH_PART, geo_form, is_model_axis};
+pub(crate) use face::{FaceRefForm, face_ref_form};
+pub(crate) use features::profiles as feature_profiles;
+pub(crate) use features::{EdgeRefForm, PLANE_FORMS, axis_dir_form, axis_line_object, edge_ref_form, explicit_plane, plane_name_problem, sketch_key};
+pub use features::{auto_operation, extrude_reach, shown_scope};
+pub use join_pieces::{Addition, addition};
+pub use sketch::dimension_roles;
+pub(crate) use sketch::face::face_pick_form;
+pub use sketch_construction::{ConstructionLine, construction_line_choice, construction_line_mode, construction_line_solutions};
+pub use sketch_create::tangent_arc_preview;
+pub use sketch_import::drawing_import_command;
+pub use sketch_modify::{extend_arc_preview, extend_preview, trim_piece};
+pub use view_dxf::sketch::exportable as view_dxf_exportable;
+pub use view_navigation::standard_view;
+mod component_link;
+pub use component_link::resolve_design_links;
+mod config;
+mod design_link;
+mod file;
+mod frame;
+pub(crate) mod inspect;
+mod interference;
+pub(crate) mod joints;
+mod libraries;
+pub mod mass_properties;
+mod material_properties;
+mod materials;
+mod measure_sel;
+mod measure_shape;
+mod mesh;
+mod metadata;
+pub(crate) mod motion;
+mod parts;
+mod point_cloud;
+mod script;
+mod section;
+pub mod settings;
+pub(crate) use measure_sel::{measure_items, shape_of};
+pub(crate) use measure_shape::Shape;
+#[cfg(test)]
+mod kernel_heal_tests;
+mod parameter_sweep;
+mod parameters;
+mod plastic;
+mod print_face;
+mod render;
+mod render_ui;
+#[cfg(test)]
+mod script_tests;
+mod sheet;
+pub(crate) use sheet::{
+    FlangeType, ThenStep, flange_edge, flange_edge_list, flange_position, flange_type, fold_points, fold_position, perforation_pattern, sheet_points,
+    then_list,
+};
+mod silhouette;
+mod sketch;
+pub(crate) use sketch::author_path_for_rebind;
+pub(crate) use sketch::collapse_reason;
+pub(crate) use sketch::created as sketch_created;
+mod canvas_sketch;
+mod sketch_3d;
+mod sketch_canvas;
+pub mod sketch_clipboard;
+mod sketch_constraints;
+mod sketch_construction;
+mod sketch_create;
+mod sketch_ends;
+mod sketch_equation;
+mod sketch_freeform;
+mod sketch_import;
+mod sketch_inspect;
+mod sketch_modify;
+mod sketch_project;
+mod sketch_store;
+mod surface;
+mod surface_analysis;
+mod surface_boundary;
+mod surface_match;
+mod view_dxf;
+mod view_navigation;
+
+use serde::Serialize;
+use serde_json::Value;
+
+use crate::{Result, Session};
+
+pub type Run = fn(&mut Session, &Value) -> Result<Value>;
+/// A command's form for one frame of an interactive gesture: its result and the sketch it
+/// changed, for [`Session::execute`] to show without evaluating the rest of the model (`None`:
+/// evaluate as usual).
+pub type LiveRun = fn(&mut Session, &Value) -> Result<(Value, Option<crate::LiveEdit>)>;
+pub type Enabled = fn(&Session) -> std::result::Result<(), String>;
+pub type SchemaFn = fn() -> schemars::Schema;
+
+pub struct CommandSpec {
+    pub id: &'static str,
+    pub label: &'static str,
+    /// Toolbar tab (`SOLID`, `SKETCH`…); empty = not on the toolbar.
+    pub tab: &'static str,
+    /// Toolbar panel (`CREATE`, `MODIFY`…).
+    pub panel: &'static str,
+    /// Icon name for the UI (drawn in code).
+    pub icon: &'static str,
+    pub shortcut: Option<&'static str>,
+    /// One-line parameter documentation.
+    pub params: &'static str,
+    pub enabled: Enabled,
+    pub run: Run,
+    pub undoable: bool,
+    /// What runs instead of `run` when the command is given `live: true` (a frame of an
+    /// interactive gesture, see [`Session::execute`]).
+    pub live: Option<LiveRun>,
+    /// Reads the evaluated model (the default). A command that reads only the document and the
+    /// session's history runs on a model left stale by a live gesture without evaluating it first.
+    pub reads_model: bool,
+    /// Registered but not built yet (see `planned!`): the GitHub issue number that tracks it.
+    pub planned: Option<&'static str>,
+    /// The command's typed parameter contract, which carries its input schema; `None` until
+    /// the command is converted (see `crate::schema`).
+    pub contract: Option<&'static dyn crate::schema::Contract>,
+    /// The JSON Schema of a successful result; `None` until described.
+    pub output: Option<SchemaFn>,
+}
+
+impl CommandSpec {
+    pub const fn new(id: &'static str, label: &'static str, run: Run) -> Self {
+        CommandSpec {
+            id,
+            label,
+            tab: "",
+            panel: "",
+            icon: "",
+            shortcut: None,
+            params: "",
+            enabled: always,
+            run,
+            undoable: true,
+            live: None,
+            reads_model: true,
+            planned: None,
+            contract: None,
+            output: None,
+        }
+    }
+    /// Not built yet; `issue` tracks building it.
+    pub const fn planned(mut self, issue: &'static str) -> Self {
+        self.planned = Some(issue);
+        self
+    }
+    /// Takes `live: true`, run by `run`.
+    pub const fn live(mut self, run: LiveRun) -> Self {
+        self.live = Some(run);
+        self
+    }
+    /// Reads only the document (and history), never the evaluated model.
+    pub const fn doc_only(mut self) -> Self {
+        self.reads_model = false;
+        self
+    }
+    pub const fn at(mut self, tab: &'static str, panel: &'static str) -> Self {
+        self.tab = tab;
+        self.panel = panel;
+        self
+    }
+    pub const fn icon(mut self, i: &'static str) -> Self {
+        self.icon = i;
+        self
+    }
+    pub const fn key(mut self, k: &'static str) -> Self {
+        self.shortcut = Some(k);
+        self
+    }
+    /// The command's typed parameter contract (see `crate::schema`).
+    pub const fn contract(mut self, c: &'static dyn crate::schema::Contract) -> Self {
+        self.contract = Some(c);
+        self
+    }
+    /// The JSON Schema of a successful result.
+    pub const fn output(mut self, f: SchemaFn) -> Self {
+        self.output = Some(f);
+        self
+    }
+    pub const fn params(mut self, p: &'static str) -> Self {
+        self.params = p;
+        self
+    }
+    pub const fn enabled(mut self, e: Enabled) -> Self {
+        self.enabled = e;
+        self
+    }
+    pub const fn noundo(mut self) -> Self {
+        self.undoable = false;
+        self
+    }
+    /// Run inside another command: when it is enabled, its `run` (the caller's command owns the
+    /// undo step and the evaluation).
+    pub(crate) fn run_nested(&self, s: &mut Session, p: &Value) -> Result<Value> {
+        (self.enabled)(s).map_err(|why| crate::EngineError::Disabled(self.id.to_string(), why))?;
+        let r = (self.run)(s, p);
+        // A parameter error that did not name the command names it here (see `Session::execute`).
+        match r {
+            Err(crate::EngineError::BadParams { cmd, msg }) if cmd.is_empty() => Err(crate::EngineError::BadParams { cmd: self.id.to_string(), msg }),
+            other => other,
+        }
+    }
+    pub fn info(&self, s: &Session) -> CommandInfo {
+        let e = (self.enabled)(s);
+        let (label, icon) = match self.id {
+            "inspect.colored_components" if s.colored_components.is_some() => ("Disable Component Colors", "colored_components_off"),
+            _ => (self.label, self.icon),
+        };
+        CommandInfo {
+            id: self.id,
+            label,
+            tab: self.tab,
+            panel: self.panel,
+            icon,
+            shortcut: self.shortcut,
+            params: self.params,
+            enabled: e.is_ok(),
+            disabled_reason: e.err(),
+            planned: self.planned,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct CommandInfo {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub tab: &'static str,
+    pub panel: &'static str,
+    pub icon: &'static str,
+    pub shortcut: Option<&'static str>,
+    pub params: &'static str,
+    pub enabled: bool,
+    pub disabled_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub planned: Option<&'static str>,
+}
+
+pub fn always(_: &Session) -> std::result::Result<(), String> {
+    Ok(())
+}
+
+pub fn in_sketch(s: &Session) -> std::result::Result<(), String> {
+    if s.active_sketch.is_some() { Ok(()) } else { Err("no sketch is being edited (Create Sketch or Edit Sketch first)".into()) }
+}
+
+/// The mirror of [`in_sketch`], for a command that acts on bodies and has nothing to offer the
+/// geometry under the cursor while a sketch is open.
+pub fn not_in_sketch(s: &Session) -> std::result::Result<(), String> {
+    if s.active_sketch.is_none() { Ok(()) } else { Err("a sketch is being edited (this works on bodies: Finish Sketch first)".into()) }
+}
+
+/// Every command, in toolbar order.
+pub fn command_specs() -> Vec<&'static CommandSpec> {
+    let mut v: Vec<&'static CommandSpec> = Vec::new();
+    v.extend(sketch::COMMANDS.iter());
+    v.extend(sketch_create::COMMANDS.iter());
+    v.extend(sketch_construction::COMMANDS.iter());
+    v.extend(sketch_equation::COMMANDS.iter());
+    v.extend(sketch_constraints::COMMANDS.iter());
+    v.extend(sketch_import::COMMANDS.iter());
+    v.extend(sketch_inspect::COMMANDS.iter());
+    v.extend(sketch_ends::COMMANDS.iter());
+    v.extend(sketch_canvas::COMMANDS.iter());
+    v.extend(canvas_sketch::COMMANDS.iter());
+    v.extend(point_cloud::COMMANDS.iter());
+    v.extend(sketch_3d::COMMANDS.iter());
+    v.extend(surface_analysis::COMMANDS.iter());
+    v.extend(surface_boundary::COMMANDS.iter());
+    v.extend(surface::COMMANDS.iter());
+    v.extend(surface_match::COMMANDS.iter());
+    v.extend(sketch_modify::COMMANDS.iter());
+    v.extend(sketch_project::COMMANDS.iter());
+    v.extend(features::COMMANDS.iter());
+    v.extend(features_more::COMMANDS.iter());
+    v.extend(mesh::COMMANDS.iter());
+    v.extend(construct::COMMANDS.iter());
+    v.extend(sheet::COMMANDS.iter());
+    v.extend(plastic::COMMANDS.iter());
+    v.extend(frame::COMMANDS.iter());
+    v.extend(component::COMMANDS.iter());
+    v.extend(component_link::COMMANDS.iter());
+    v.extend(joints::COMMANDS.iter());
+    v.extend(clearance::COMMANDS.iter());
+    v.extend(motion::COMMANDS.iter());
+    v.extend(config::COMMANDS.iter());
+    v.extend(parts::COMMANDS.iter());
+    v.extend(bom::COMMANDS.iter());
+    v.extend(mass_properties::COMMANDS.iter());
+    v.extend(browser::COMMANDS.iter());
+    v.extend(delete::COMMANDS.iter());
+    v.extend(edit::COMMANDS.iter());
+    v.extend(clipboard::COMMANDS.iter());
+    v.extend(sketch_clipboard::COMMANDS.iter());
+    v.extend(script::COMMANDS.iter());
+    v.extend(parameters::COMMANDS.iter());
+    v.extend(parameter_sweep::COMMANDS.iter());
+    v.extend(file::COMMANDS.iter());
+    v.extend(print_face::COMMANDS.iter());
+    v.extend(metadata::COMMANDS.iter());
+    v.extend(inspect::COMMANDS.iter());
+    v.extend(compare::COMMANDS.iter());
+    v.extend(silhouette::COMMANDS.iter());
+    v.extend(materials::COMMANDS.iter());
+    v.extend(material_properties::COMMANDS.iter());
+    v.extend(libraries::COMMANDS.iter());
+    v.extend(section::COMMANDS.iter());
+    v.extend(view_navigation::COMMANDS.iter());
+    v.extend(view_dxf::COMMANDS.iter());
+    v.extend(settings::COMMANDS.iter());
+    v.extend(diagnostics::COMMANDS.iter());
+    v.extend(render::COMMANDS.iter());
+    v.extend(render_ui::COMMANDS.iter());
+    v
+}
+
+pub fn find_command(id: &str) -> Option<&'static CommandSpec> {
+    let all = command_specs();
+    all.iter().find(|c| c.id == id).or_else(|| all.iter().find(|c| c.id.eq_ignore_ascii_case(id))).copied()
+}
+
+/// The end of an unknown command's error: up to three ids like `id`, nearest first. Ids a few
+/// letters away (`solid.extrud` → `solid.extrude`) come before ids that end in the same word
+/// (`file.open` → `doc.open`). Empty when nothing is close.
+pub(crate) fn did_you_mean(id: &str) -> String {
+    let id = id.to_ascii_lowercase();
+    if id.len() > 64 {
+        return String::new();
+    }
+    let last = |s: &str| s.rsplit('.').next().unwrap_or(s).to_string();
+    let near = (id.chars().count() / 4).max(2);
+    let mut found: Vec<(bool, usize, &str)> = command_specs()
+        .iter()
+        .filter_map(|c| {
+            let d = edit_distance(&id, c.id);
+            (d <= near || last(&id) == last(c.id)).then_some((d > near, d, c.id))
+        })
+        .collect();
+    found.sort();
+    let ids: Vec<String> = found.iter().take(3).map(|(_, _, c)| format!("`{c}`")).collect();
+    match ids.as_slice() {
+        [] => String::new(),
+        [one] => format!(" (did you mean {one}?)"),
+        [rest @ .., end] => format!(" (did you mean {} or {end}?)", rest.join(", ")),
+    }
+}
+
+/// "no body `name`", and the closest of `bodies` when it is near enough to be a typo or another
+/// case of the same name (`b` for `B`): `no body `Bdy`; did you mean `Body`?` (#9740).
+pub(crate) fn no_body<'a>(name: &str, bodies: impl IntoIterator<Item = &'a str>) -> String {
+    let want = name.to_lowercase();
+    let near = (want.chars().count() / 3).max(1);
+    let closest = (want.len() <= 256)
+        .then(|| bodies.into_iter().map(|b| (edit_distance(&want, &b.to_lowercase()), b)).filter(|(d, _)| *d <= near).min_by_key(|(d, _)| *d))
+        .flatten();
+    match closest {
+        Some((_, b)) => format!("no body `{name}`; did you mean `{b}`?"),
+        None => format!("no body `{name}`"),
+    }
+}
+
+/// Levenshtein distance: the single-character edits that turn `a` into `b`.
+pub(crate) fn edit_distance(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.chars().enumerate() {
+        let mut prev = row[0];
+        row[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let next = (prev + usize::from(ca != *cb)).min(row[j] + 1).min(row[j + 1] + 1);
+            prev = row[j + 1];
+            row[j + 1] = next;
+        }
+    }
+    row[b.len()]
+}
+
+pub(super) fn alignment_param(p: &Value, key: &str, cmd: &str) -> Result<solidcraft_sketch::PatternAlignment> {
+    p.get(key).map_or(Ok(solidcraft_sketch::PatternAlignment::default()), |value| {
+        serde_json::from_value(value.clone()).map_err(|_| crate::params::bad(cmd, format!("`{key}` must be left, center or right")))
+    })
+}
+
+pub(super) fn reversed_param(p: &Value, key: &str, cmd: &str) -> Result<bool> {
+    p.get(key).map_or(Ok(false), |value| {
+        serde_json::from_value(value.clone()).map_err(|_| crate::params::bad(cmd, format!("`{key}` must be true or false")))
+    })
+}

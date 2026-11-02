@@ -1,0 +1,28 @@
+[package]
+name = "solidcraft-sketch"
+description = "SolidCraft sketches: points, curves, geometric constraints and dimensions, the constraint solver, and profile detection"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Opt-in developer instrumentation; normal builds contain no collection or clocks.
+solver-profiling = []
+
+[[example]]
+name = "solve_profile"
+required-features = ["solver-profiling"]
+
+[dependencies]
+harfrust = "0.12"
+solidcraft-geom = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+ttf-parser = { workspace = true }
+unicode-bidi = "0.3"
+
+[dev-dependencies]
+serde_json = { workspace = true }

@@ -1,0 +1,53 @@
+{
+  "en": {
+    "cmd.sketch.polyline": "Polyline",
+    "help.sketch.polyline": "Draws connected straight segments. Each click extends the chain; right-click or Esc ends it. Use Line for independent segments.",
+    "sketch.line_hint": "Line: click the start and end of a segment",
+    "sketch.polyline_hint": "Polyline: click points; right-click or Esc to end the chain",
+    "prefs.line_clicks_continue": "Continue Line from its last endpoint",
+    "prefs.line_clicks_continue_note": "Keep the previous chain behaviour in the Line tool. Off: each line has a new start; use Polyline for connected segments."
+  },
+  "pl": {
+    "cmd.sketch.polyline": "Polilinia",
+    "help.sketch.polyline": "Rysuje połączone odcinki. Każde kliknięcie przedłuża łańcuch; prawy przycisk lub Esc kończy go. Niezależne odcinki rysuj narzędziem Linia.",
+    "sketch.line_hint": "Linia: wskaż początek i koniec odcinka",
+    "sketch.polyline_hint": "Polilinia: wskazuj kolejne punkty; prawy przycisk lub Esc kończy łańcuch",
+    "prefs.line_clicks_continue": "Kontynuuj linię od ostatniego punktu",
+    "prefs.line_clicks_continue_note": "Zachowuje wcześniejsze rysowanie łańcucha narzędziem Linia. Wyłączone: każda linia ma nowy początek; połączone odcinki rysuj Polilinią.",
+    "help.sketch.line": "Rysuje pojedynczy odcinek między dwoma punktami. Następny odcinek zaczyna się od nowego punktu; połączone odcinki rysuj narzędziem Polilinia.",
+    "prefs.line_hover_tangent_arc": "Przełącz polilinię w łuk styczny po zatrzymaniu na końcu",
+    "prefs.line_hover_tangent_arc_note": "Po narysowaniu odcinka polilinii odsuń kursor od jego końca, wróć na ten punkt i zatrzymaj kursor. Następne kliknięcie wyznaczy koniec łuku stycznego. Ten sam gest wraca do odcinków. Wyłączone: zatrzymanie kursora nie zmienia narzędzia."
+  },
+  "de": {
+    "cmd.sketch.polyline": "Polylinie",
+    "help.sketch.polyline": "Zeichnet verbundene Strecken. Jeder Klick verlängert die Kette; Rechtsklick oder Esc beendet sie. Für einzelne Strecken verwenden Sie Linie.",
+    "sketch.line_hint": "Linie: Anfang und Ende einer Strecke wählen",
+    "sketch.polyline_hint": "Polylinie: Punkte wählen; Rechtsklick oder Esc beendet die Kette",
+    "prefs.line_clicks_continue": "Linie vom letzten Endpunkt fortsetzen",
+    "prefs.line_clicks_continue_note": "Behält das bisherige Kettenverhalten im Linienwerkzeug bei. Aus: Jede Linie beginnt neu; für verbundene Strecken Polylinie verwenden."
+  },
+  "ja": {
+    "cmd.sketch.polyline": "ポリライン",
+    "help.sketch.polyline": "連続した線分を描きます。クリックで線分を追加し、右クリックまたは Esc で終了します。独立した線分には線を使います。",
+    "sketch.line_hint": "線: 線分の始点と終点を指定",
+    "sketch.polyline_hint": "ポリライン: 点を順に指定し、右クリックまたは Esc で終了",
+    "prefs.line_clicks_continue": "線を最後の端点から続ける",
+    "prefs.line_clicks_continue_note": "線ツールの従来の連続描画を維持します。オフ: 線ごとに始点を指定します。連続線分にはポリラインを使います。"
+  },
+  "ko": {
+    "cmd.sketch.polyline": "폴리라인",
+    "help.sketch.polyline": "연결된 선분을 그립니다. 클릭할 때마다 연장하며 오른쪽 클릭 또는 Esc로 종료합니다. 개별 선분은 선을 사용하세요.",
+    "sketch.line_hint": "선: 선분의 시작점과 끝점을 클릭하세요",
+    "sketch.polyline_hint": "폴리라인: 점을 클릭하세요. 오른쪽 클릭 또는 Esc로 종료합니다",
+    "prefs.line_clicks_continue": "마지막 끝점에서 선 계속 그리기",
+    "prefs.line_clicks_continue_note": "선 도구의 기존 연속 그리기를 유지합니다. 끔: 각 선의 시작점을 지정합니다. 연결된 선분은 폴리라인을 사용하세요."
+  },
+  "zh": {
+    "cmd.sketch.polyline": "多段线",
+    "help.sketch.polyline": "绘制连续的直线段。每次点击延长线条，右键或 Esc 结束。独立线段请使用直线工具。",
+    "sketch.line_hint": "直线：点击线段的起点和终点",
+    "sketch.polyline_hint": "多段线：依次点击各点；右键或 Esc 结束连续绘制",
+    "prefs.line_clicks_continue": "从上一终点继续画线",
+    "prefs.line_clicks_continue_note": "保留直线工具原有的连续绘制方式。关闭：每条直线单独指定起点；连续线段请使用多段线。"
+  }
+}

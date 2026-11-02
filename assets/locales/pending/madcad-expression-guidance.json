@@ -1,0 +1,44 @@
+{
+  "en": {
+    "dialog.expression_field": "{field}: {message}",
+    "dialog.expression_incomplete": "Complete the expression after the operator.",
+    "dialog.expression_invalid": "Check the value, operators and units in this expression.",
+    "dialog.expression_unknown_parameter": "There is no parameter “{name}”. Enter a number or the name of an existing parameter.",
+    "dialog.expression_zero_division": "Division by zero is not allowed. Correct the expression."
+  },
+  "pl": {
+    "dialog.expression_field": "{field}: {message}",
+    "dialog.expression_incomplete": "Uzupełnij wyrażenie po operatorze.",
+    "dialog.expression_invalid": "Sprawdź wartość, operatory i jednostki w wyrażeniu.",
+    "dialog.expression_unknown_parameter": "Nie ma parametru „{name}”. Wpisz liczbę lub nazwę istniejącego parametru.",
+    "dialog.expression_zero_division": "Nie można dzielić przez zero. Popraw wyrażenie."
+  },
+  "de": {
+    "dialog.expression_field": "{field}: {message}",
+    "dialog.expression_incomplete": "Vervollständigen Sie den Ausdruck nach dem Operator.",
+    "dialog.expression_invalid": "Prüfen Sie Wert, Operatoren und Einheiten dieses Ausdrucks.",
+    "dialog.expression_unknown_parameter": "Der Parameter „{name}“ ist nicht vorhanden. Geben Sie eine Zahl oder den Namen eines vorhandenen Parameters ein.",
+    "dialog.expression_zero_division": "Division durch null ist nicht zulässig. Korrigieren Sie den Ausdruck."
+  },
+  "ja": {
+    "dialog.expression_field": "{field}: {message}",
+    "dialog.expression_incomplete": "演算子の後に式を入力してください。",
+    "dialog.expression_invalid": "式の値、演算子、単位を確認してください。",
+    "dialog.expression_unknown_parameter": "パラメーター「{name}」はありません。数値または既存のパラメーター名を入力してください。",
+    "dialog.expression_zero_division": "ゼロで除算することはできません。式を修正してください。"
+  },
+  "ko": {
+    "dialog.expression_field": "{field}: {message}",
+    "dialog.expression_incomplete": "연산자 뒤의 수식을 완성하세요.",
+    "dialog.expression_invalid": "수식의 값, 연산자 및 단위를 확인하세요.",
+    "dialog.expression_unknown_parameter": "“{name}” 매개변수가 없습니다. 숫자 또는 기존 매개변수 이름을 입력하세요.",
+    "dialog.expression_zero_division": "0으로 나눌 수 없습니다. 수식을 수정하세요."
+  },
+  "zh": {
+    "dialog.expression_field": "{field}: {message}",
+    "dialog.expression_incomplete": "请补全运算符后面的表达式。",
+    "dialog.expression_invalid": "请检查表达式的值、运算符和单位。",
+    "dialog.expression_unknown_parameter": "参数“{name}”不存在。请输入数字或现有参数的名称。",
+    "dialog.expression_zero_division": "不能除以零。请修改表达式。"
+  }
+}
