@@ -505,6 +505,8 @@ pub struct Dialog {
     pub press_pull: bool,
     /// The operation the window chooses by itself (#6901).
     pub op_auto: crate::op_auto::OpAuto,
+    /// MadCAD: the view has been moved out from under the window, or did not need to be.
+    pub(crate) uncovered: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -761,6 +763,7 @@ impl Dialog {
             shell_chain: Default::default(),
             press_pull: false,
             op_auto: Default::default(),
+            uncovered: false,
         }
     }
 
@@ -3231,6 +3234,67 @@ fn pattern_spacing(app: &SolveApp, d: &mut Dialog) {
     }
 }
 
+/// MadCAD: a command window opened over the sketch being edited moves the view once, so the
+/// sketch comes out from under it: panned into the free part of the view, or framed there when
+/// it does not fit. A sketch the window does not cover, or a view still moving, is left alone.
+fn uncover_sketch(app: &mut SolveApp, d: &mut Dialog) {
+    if d.uncovered || app.cam_anim.is_some() {
+        return;
+    }
+    let (Some(sketch), Some(window), Some(rect), Some(layout)) =
+        (app.session.active_sketch, app.viewport.dialog_rect, app.viewport.rect, app.viewport.layout.as_ref())
+    else {
+        d.uncovered = app.session.active_sketch.is_none();
+        return;
+    };
+    // The layout is made before the window is drawn: wait for one that leaves it out.
+    let free = layout.drawable;
+    if free.intersect(window).is_positive() {
+        return;
+    }
+    d.uncovered = true;
+    let st = app.session.world_state();
+    let Some(ss) = st.sketch(sketch) else { return };
+    let Some((lo, hi)) = ss.sketch.bounds() else { return };
+    let mut bounds = Aabb3::EMPTY;
+    for (x, y) in [(lo.x, lo.y), (hi.x, lo.y), (lo.x, hi.y), (hi.x, hi.y)] {
+        let mut p = lo;
+        (p.x, p.y) = (x, y);
+        bounds.add(ss.plane.to_world(p));
+    }
+    let proj = crate::viewport::projection(app, rect);
+    let mut on_screen = egui::Rect::NOTHING;
+    for x in [bounds.min.x, bounds.max.x] {
+        for y in [bounds.min.y, bounds.max.y] {
+            for z in [bounds.min.z, bounds.max.z] {
+                match proj.to_screen(Vec3::new(x, y, z)) {
+                    Some(p) => on_screen.extend_with(p),
+                    None => return,
+                }
+            }
+        }
+    }
+    if !on_screen.intersect(window).is_positive() {
+        return;
+    }
+    let to = if on_screen.width() <= free.width() && on_screen.height() <= free.height() {
+        let shift = |lo: f32, hi: f32, min: f32, max: f32| if lo < min { min - lo } else if hi > max { max - hi } else { 0.0 };
+        let dx = shift(on_screen.left(), on_screen.right(), free.left(), free.right());
+        let dy = shift(on_screen.top(), on_screen.bottom(), free.top(), free.bottom());
+        let mut to = app.cam;
+        to.pan(f64::from(dx), f64::from(dy), f64::from(rect.height()));
+        Some(to)
+    } else {
+        crate::viewport_layout::fit_bounds(app.cam, &bounds, layout, app.view_fov()).map(|mut to| {
+            to.fov = app.cam.fov;
+            to
+        })
+    };
+    if let Some(to) = to {
+        app.animate_to(to);
+    }
+}
+
 /// MadCAD: a Cut or Intersect chosen by hand goes into the body. Off a face sketch the extrude
 /// first grows outward (a Join), so picking Cut there cut only air and nothing seemed to happen:
 /// the direction flips when the other side meets a body and this one does not. Once per choice,
@@ -3581,6 +3645,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
         crate::scenario::publish_rect("dialog:outer", r);
         crate::scenario::publish_target("dialog:card", r);
     }
+    uncover_sketch(app, &mut d);
     if let Some(field) = crate::ui_kit::canvas_value_focus(ctx) {
         value_fields.push(field);
     }
