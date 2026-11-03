@@ -3234,6 +3234,55 @@ fn pattern_spacing(app: &SolveApp, d: &mut Dialog) {
     }
 }
 
+/// MadCAD: Tab and Shift+Tab move the keyboard through the window's values and wrap around,
+/// instead of handing it to whatever egui finds next (often nothing, so the next digits were
+/// lost). The box in the view stands for the form's first value, which it mirrors.
+fn tab_through_values(ctx: &egui::Context, form: &[(egui::Id, usize)], canvas: Option<(egui::Id, usize)>) {
+    // egui hands Shift+Tab's focus over a frame later, over the one chosen here: choose again.
+    let again = egui::Id::new("sc_tab_value_again");
+    if let Some(field) = ctx.data_mut(|data| data.remove_temp::<Option<(egui::Id, usize)>>(again)).flatten() {
+        focus_value(ctx, field);
+    }
+    let back = ctx.input(|i| {
+        i.events.iter().find_map(|event| match event {
+            egui::Event::Key { key: egui::Key::Tab, pressed: true, modifiers, .. } if !modifiers.ctrl && !modifiers.alt && !modifiers.command => {
+                Some(modifiers.shift)
+            }
+            _ => None,
+        })
+    });
+    let Some(back) = back else { return };
+    let from = ctx.memory(|memory| {
+        if canvas.is_some_and(|(id, _)| memory.had_focus_last_frame(id)) {
+            Some(0)
+        } else {
+            form.iter().position(|(id, _)| memory.had_focus_last_frame(*id))
+        }
+    });
+    let Some(from) = from else { return };
+    let to = if form.is_empty() {
+        canvas
+    } else {
+        let n = form.len();
+        Some(form[if back { (from + n - 1) % n } else { (from + 1) % n }])
+    };
+    let Some(field) = to else { return };
+    ctx.memory_mut(|memory| memory.move_focus(egui::FocusDirection::None));
+    focus_value(ctx, field);
+    if back {
+        ctx.data_mut(|data| data.insert_temp(again, Some(field)));
+        ctx.request_repaint();
+    }
+}
+
+/// Give the value editor `id` the keyboard with its whole text (`length` characters) selected.
+fn focus_value(ctx: &egui::Context, (id, length): (egui::Id, usize)) {
+    ctx.memory_mut(|memory| memory.request_focus(id));
+    let mut state = egui::text_edit::TextEditState::load(ctx, id).unwrap_or_default();
+    state.cursor.set_char_range(Some(egui::text_selection::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(length))));
+    state.store(ctx, id);
+}
+
 /// MadCAD: a command window opened over the sketch being edited moves the view once, so the
 /// sketch comes out from under it: panned into the free part of the view, or framed there when
 /// it does not fit. A sketch the window does not cover, or a view still moving, is left alone.
@@ -3646,6 +3695,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
         crate::scenario::publish_target("dialog:card", r);
     }
     uncover_sketch(app, &mut d);
+    tab_through_values(ctx, &value_fields, crate::ui_kit::canvas_value_focus(ctx));
     if let Some(field) = crate::ui_kit::canvas_value_focus(ctx) {
         value_fields.push(field);
     }
