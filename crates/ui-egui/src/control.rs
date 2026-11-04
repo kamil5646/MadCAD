@@ -644,7 +644,7 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
             "adapter": app.viewport.adapter,
             "file_busy": app.file_load.busy(),
             // MadCAD: a command still computing off the window thread (or queued behind one).
-            "computing": app.computing_since().is_some() || !app.deferred_queue.is_empty(),
+            "computing": app.computing_since().is_some() || !app.deferred_queue.is_empty() || app.applying.is_some(),
             "file_picker_busy": app.file_picker_busy(),
             "file_dialog_open": app.file_picker_busy(),
             "build_ms": app.viewport.build_ms,
@@ -833,7 +833,7 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
                     _ => egui::PointerButton::Primary,
                 };
                 let modifiers = egui::Modifiers { shift: b("shift"), ctrl: b("ctrl"), command: b("ctrl"), alt: b("alt"), ..Default::default() };
-                // `double: true` sends two clicks in one frame, which egui reads as a double-click.
+                // `double: true` sends two clicks, the second in the frame of the first release (a double-click).
                 for _ in 0..if b("double") { 2 } else { 1 } {
                     app.synthetic.push(egui::Event::PointerButton { pos, button, pressed: true, modifiers });
                     app.synthetic.push(egui::Event::PointerButton { pos, button, pressed: false, modifiers });

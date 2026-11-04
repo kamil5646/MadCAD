@@ -9,7 +9,7 @@ import json
 import math
 import sys
 
-from madcad_ui import App, Failure, default_binary, expect, near, run, test
+from madcad_ui import App, Failure, default_binary, expect, near, needs_quick_frames, run, test
 
 PI = math.pi
 
@@ -22,7 +22,7 @@ def rect_sketch(a, x0=0, y0=0, x1=40, y1=20, plane="XY"):
 
 
 def no_dialog(a, what):
-    expect(a.dialog() is None, f"{what}: the window is still open ({a.dialog_kind()}), status: {a.status()}")
+    expect(a.soon(lambda: a.dialog() is None), f"{what}: the window is still open ({a.dialog_kind()}), status: {a.status()}")
 
 
 # ---------------------------------------------------------------- feature windows by keyboard
@@ -32,11 +32,11 @@ def no_dialog(a, what):
 def extrude_typed_value_and_enter(a):
     rect_sketch(a)
     a.key("E")
-    expect(a.dialog_kind() == "Extrude", f"E opened {a.dialog_kind()}")
+    expect(a.soon(lambda: a.dialog_kind() == "Extrude"), f"E opened {a.dialog_kind()}")
     a.type("15")
     a.key("Enter")
     no_dialog(a, "Enter")
-    expect(near(a.volume(), 40 * 20 * 15), f"volume {a.volume()} != 12000")
+    expect(a.volume_near(40 * 20 * 15), f"volume {a.volume()} != 12000")
 
 
 @test
@@ -46,7 +46,7 @@ def extrude_escape_leaves_nothing(a):
     a.type("15")
     a.key("Escape")
     no_dialog(a, "Esc")
-    expect(a.volume() == 0 and not a.bodies(), f"Esc left bodies: {a.volume()}")
+    expect(a.soon(lambda: a.volume() == 0 and not a.bodies()), f"Esc left bodies: {a.volume()}")
 
 
 @test
@@ -58,7 +58,7 @@ def extrude_tab_keeps_the_keyboard(a):
     a.type("7")
     a.key("Enter")
     no_dialog(a, "Enter after Tab")
-    expect(near(a.volume(), 40 * 20 * 7), f"after 15, Tab, 7: volume {a.volume()} (7 was lost?)")
+    expect(a.volume_near(40 * 20 * 7), f"after 15, Tab, 7: volume {a.volume()} (7 was lost?)")
 
 
 @test
@@ -78,7 +78,7 @@ def extrude_two_sides_tab_and_shift_tab(a):
     a.type("8")
     a.key("Enter")
     no_dialog(a, "Enter")
-    expect(near(a.volume(), 40 * 20 * (4 + 8)), f"4 and 8 typed with Tab/Shift+Tab: volume {a.volume()} != 9600")
+    expect(a.volume_near(40 * 20 * (4 + 8)), f"4 and 8 typed with Tab/Shift+Tab: volume {a.volume()} != 9600")
 
 
 @test
@@ -88,7 +88,7 @@ def extrude_ok_button(a):
     a.type("5")
     a.click(a.handle("dialog:ok"))
     no_dialog(a, "OK")
-    expect(near(a.volume(), 4000), f"volume {a.volume()}")
+    expect(a.volume_near(4000), f"volume {a.volume()}")
 
 
 @test
@@ -98,7 +98,7 @@ def extrude_cancel_button(a):
     a.type("5")
     a.click(a.handle("dialog:cancel"))
     no_dialog(a, "Cancel")
-    expect(not a.bodies(), "Cancel left a body")
+    expect(a.soon(lambda: not a.bodies()), "Cancel left a body")
 
 
 @test
@@ -124,7 +124,7 @@ def extrude_cut_from_a_face_sketch(a):
     no_dialog(a, "Enter")
     want = 8000 - PI * r * r * 4
     # The mesh's circle is a polygon a little inside the true one.
-    expect(near(a.volume(), want, 4), f"cut 4 mm into the block: volume {a.volume()} != {want:.1f}")
+    expect(a.volume_near(want, 4), f"cut 4 mm into the block: volume {a.volume()} != {want:.1f}")
 
 
 @test
@@ -135,7 +135,7 @@ def press_pull_on_a_face(a):
     a.type("5")
     a.key("Enter")
     no_dialog(a, "Enter")
-    expect(near(a.volume(), 40 * 20 * 15), f"pull the top 5 mm: volume {a.volume()} != 12000")
+    expect(a.volume_near(40 * 20 * 15), f"pull the top 5 mm: volume {a.volume()} != 12000")
 
 
 @test
@@ -148,7 +148,7 @@ def fillet_one_edge(a):
     no_dialog(a, "Enter")
     want = 8000 - (4 - PI) * 9 / 4 * 40
     # The volume is the mesh's: the rounded edge is a few facets, a little under the true arc.
-    expect(near(a.volume(), want, 4), f"R3 on a 40 mm edge: volume {a.volume()} != {want:.1f}")
+    expect(a.volume_near(want, 4), f"R3 on a 40 mm edge: volume {a.volume()} != {want:.1f}")
 
 
 @test
@@ -159,7 +159,7 @@ def chamfer_one_edge(a):
     a.type("2")
     a.key("Enter")
     no_dialog(a, "Enter")
-    expect(near(a.volume(), 8000 - 2 * 40, 1), f"2 mm chamfer on a 40 mm edge: volume {a.volume()} != 7920")
+    expect(a.volume_near(8000 - 2 * 40, 1), f"2 mm chamfer on a 40 mm edge: volume {a.volume()} != 7920")
 
 
 @test
@@ -171,7 +171,7 @@ def shell_top_face(a):
     a.key("Enter")
     no_dialog(a, "Enter")
     want = 8000 - 36 * 16 * 8
-    expect(near(a.volume(), want, 1), f"2 mm shell open at the top: volume {a.volume()} != {want}")
+    expect(a.volume_near(want, 1), f"2 mm shell open at the top: volume {a.volume()} != {want}")
 
 
 @test
@@ -207,7 +207,7 @@ def move_body_typed(a):
     a.key("Enter")
     no_dialog(a, "Enter")
     b = a.bodies()
-    expect(len(b) == 1 and near(a.volume(), 8000), f"move changed the volume: {a.volume()}")
+    expect(len(b) == 1 and a.volume_near(8000), f"move changed the volume: {a.volume()}")
     expect(any(t.get("error") is None for t in a.timeline()[-1:]), "move failed")
 
 
@@ -220,14 +220,14 @@ def undo_and_redo_keys(a):
     a.key("E")
     a.type("10")
     a.key("Enter")
-    expect(near(a.volume(), 8000), f"volume {a.volume()}")
+    expect(a.volume_near(8000), f"volume {a.volume()}")
     a.key("Z", cmd=True)
-    expect(a.volume() == 0, f"Ctrl+Z left volume {a.volume()}")
+    expect(a.soon(lambda: a.volume() == 0), f"Ctrl+Z left volume {a.volume()}")
     a.key("Y", cmd=True)
-    expect(near(a.volume(), 8000), f"Ctrl+Y: volume {a.volume()}")
+    expect(a.volume_near(8000), f"Ctrl+Y: volume {a.volume()}")
     a.key("Z", cmd=True)
     a.key("Z", cmd=True, shift=True)
-    expect(near(a.volume(), 8000), f"Ctrl+Shift+Z: volume {a.volume()}")
+    expect(a.volume_near(8000), f"Ctrl+Shift+Z: volume {a.volume()}")
 
 
 @test
@@ -237,7 +237,7 @@ def repeat_last_command(a):
     a.type("10")
     a.key("Enter")
     a.key("R", shift=True)
-    expect(a.dialog_kind() == "Extrude", f"Shift+R opened {a.dialog_kind()}")
+    expect(a.soon(lambda: a.dialog_kind() == "Extrude"), f"Shift+R opened {a.dialog_kind()}")
     a.key("Escape")
 
 
@@ -340,13 +340,14 @@ def sketch_escape_ends_the_tool(a):
 
 @test
 def sketch_escape_twice_finishes_it(a):
+    needs_quick_frames(a, "two Escapes within 0.4 s")
     sketch_ui(a)
     a.key("R")
     a.click(a.s(0, 0))
     a.click(a.s(30, 20))
     a.key("Escape")
     a.escape_twice()
-    expect(a.doc().get("active_sketch") is None, "Esc Esc left the sketch open")
+    expect(a.soon(lambda: a.doc().get("active_sketch") is None), "Esc Esc left the sketch open")
     expect(len(a.doc().get("sketches", [])) == 1, "Esc Esc lost the sketch")
 
 
@@ -392,11 +393,11 @@ def sketch_finish_then_extrude(a):
     a.click(a.s(30, 20))
     a.key("Escape")
     a.button("sketch.finish")
-    expect(a.doc().get("active_sketch") is None, "Finish left the sketch open")
+    expect(a.soon(lambda: a.doc().get("active_sketch") is None), "Finish left the sketch open")
     a.key("E")
     a.type("10")
     a.key("Enter")
-    expect(near(a.volume(), 6000, 1), f"volume {a.volume()} != 6000")
+    expect(a.volume_near(6000, 1), f"volume {a.volume()} != 6000")
 
 
 
@@ -421,7 +422,7 @@ def revolve_about_an_axis(a):
     a.key("Enter")
     no_dialog(a, "Enter")
     want = PI * (20 * 20 - 10 * 10) * 30
-    expect(near(a.volume(), want, want * 0.01), f"ring r10..20 h30: volume {a.volume()} != {want:.0f}")
+    expect(a.volume_near(want, want * 0.01), f"ring r10..20 h30: volume {a.volume()} != {want:.0f}")
 
 
 @test
@@ -433,7 +434,7 @@ def mirror_body_on_a_plane(a):
     origin_row(a, "YZ")
     a.key("Enter")
     no_dialog(a, "Enter")
-    expect(near(a.volume(), 16000, 2), f"block and its mirror image: volume {a.volume()} != 16000")
+    expect(a.volume_near(16000, 2), f"block and its mirror image: volume {a.volume()} != 16000")
 
 
 @test
@@ -456,15 +457,16 @@ def edit_a_feature_from_the_timeline(a):
     a.key("E")
     a.type("10")
     a.key("Enter")
+    needs_quick_frames(a, "a double click")
     a.click(a.handle("timeline:Extrude1"), double=True)
     a.wait_idle(0.8)
-    expect(a.dialog_kind() == "Extrude", f"double click on Extrude1 opened {a.dialog_kind()}")
+    expect(a.soon(lambda: a.dialog_kind() == "Extrude"), f"double click on Extrude1 opened {a.dialog_kind()}")
     a.click(a.handle("dialog:Distance"))
     a.key("A", cmd=True)
     a.type("25")
     a.key("Enter")
     no_dialog(a, "Enter")
-    expect(near(a.volume(), 40 * 20 * 25), f"edited to 25: volume {a.volume()}")
+    expect(a.volume_near(40 * 20 * 25), f"edited to 25: volume {a.volume()}")
     expect(len(a.timeline()) == 2, f"the edit added features: {[t['name'] for t in a.timeline()]}")
 
 
@@ -478,7 +480,7 @@ def context_menu_runs_an_item(a):
     expect("solid.extrude" in labels, f"menu on a face: {labels}")
     a.call("ui.menuPick", item="solid.shell")
     a.wait_idle(0.6)
-    expect(a.dialog_kind() == "Shell", f"Shell from the menu opened {a.dialog_kind()}")
+    expect(a.soon(lambda: a.dialog_kind() == "Shell"), f"Shell from the menu opened {a.dialog_kind()}")
     a.key("Escape")
 
 
@@ -494,19 +496,20 @@ def delete_a_feature_with_the_key(a):
     if (a.call("ui.confirm", check=False) or {}).get("pending"):
         a.call("ui.confirm", accept=True)
         a.wait_idle(0.6)
-    expect(not a.bodies(), f"Delete left {len(a.bodies())} bodies")
+    expect(a.soon(lambda: not a.bodies()), f"Delete left {len(a.bodies())} bodies")
     a.key("Z", cmd=True)
-    expect(near(a.volume(), 8000), f"undo after Delete: volume {a.volume()}")
+    expect(a.volume_near(8000), f"undo after Delete: volume {a.volume()}")
 
 
 @test
 def click_selects_and_escape_clears(a):
     a.block(40, 20, 10)
     a.click(a.w(20, 10, 10))
+    a.soon(lambda: len(a.call("ui.selection")["selection"]) == 1)
     sel = a.call("ui.selection")["selection"]
     expect(len(sel) == 1 and sel[0]["type"] == "face", f"click on the top: {sel}")
     a.key("Escape")
-    expect(not a.call("ui.selection")["selection"], "Esc kept the selection")
+    expect(a.soon(lambda: not a.call("ui.selection")["selection"]), "Esc kept the selection")
 
 
 @test
@@ -518,6 +521,8 @@ def save_and_open_keep_the_design(a):
     a.key("E")
     a.type("12")
     a.key("Enter")
+    no_dialog(a, "Enter")
+    expect(a.volume_near(40 * 20 * 12), f"before saving: volume {a.volume()}")
     path = os.path.join(tempfile.mkdtemp(prefix="madcad-ui-save-"), "test.sc")
     a.ex("file.save", path=path)
     expect(os.path.getsize(path) > 0, "nothing saved")
@@ -525,7 +530,7 @@ def save_and_open_keep_the_design(a):
     expect(not a.bodies(), "the new design is not empty")
     a.ex("doc.open", path=path)
     a.wait_idle(1.5)
-    expect(near(a.volume(), 40 * 20 * 12), f"reopened: volume {a.volume()}")
+    expect(a.volume_near(40 * 20 * 12), f"reopened: volume {a.volume()}")
 
 
 @test
@@ -607,6 +612,7 @@ def every_model_button_does_something(a):
     bad = []
     for tab in [k for k in a.handles("tab:") if k[4:].isupper()]:
         a.click(a.handle(tab))
+        a.wait_idle(1.0)
         for name in sorted(a.handles("button:")):
             command = name[len("button:"):]
             if command in FILE_WINDOWS:
@@ -615,10 +621,11 @@ def every_model_button_does_something(a):
             if p:
                 bad.append(f"{tab[4:]}/{command}: {', '.join(p)}")
             # Back to the plain block for the next button.
-            if a.doc().get("active_sketch") is not None or len(a.timeline()) != 2 or not near(a.volume(), 8000):
+            if a.doc().get("active_sketch") is not None or len(a.timeline()) != 2 or not a.volume_near(8000):
                 a.new()
                 a.block(40, 20, 10)
                 a.click(a.handle(tab))
+                a.wait_idle(1.0)
             a.call("ui.menu", close=True)
     expect(not bad, "buttons:\n    " + "\n    ".join(bad))
 

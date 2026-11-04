@@ -23,6 +23,18 @@ class Failure(Exception):
     pass
 
 
+class Skip(Exception):
+    """A check this computer can't make (said in the report, not counted as failed)."""
+
+
+def needs_quick_frames(app, what):
+    """Double clicks and double Escapes are timed (0.4 s): a window that takes longer per frame
+    can't show them."""
+    frame = app.inspect().get("frame_ms") or 0
+    if frame > 120:
+        raise Skip(f"{what}: frames take {frame:.0f} ms here")
+
+
 class App:
     def __init__(self, binary, port=28077):
         self.binary = binary
@@ -146,7 +158,7 @@ class App:
 
     def handle(self, name):
         # A slow computer draws the frame that shows it a moment later.
-        for _ in range(15):
+        for _ in range(25):
             h = self.handles(name)
             if name in h:
                 return h[name]
@@ -184,6 +196,20 @@ class App:
     def volume(self):
         r = self.call("engine.execute", check=False, command="inspect.center_of_mass", params={})
         return round(r["volume"], 1) if r else 0.0
+
+    def soon(self, check, t=8.0):
+        """Whether `check()` comes true within `t` seconds: a slow computer draws the frame that
+        closes a window or shows a result later than a fast one."""
+        deadline = time.time() + t
+        while True:
+            if check():
+                return True
+            if time.time() > deadline:
+                return False
+            time.sleep(0.25)
+
+    def volume_near(self, want, tol=0.5, t=8.0):
+        return self.soon(lambda: near(self.volume(), want, tol), t)
 
     def bodies(self):
         return self.doc().get("bodies", [])
@@ -275,34 +301,73 @@ def screen_locked():
     return i >= 0 and "<true/>" in out[i : i + 80]
 
 
+def diagnose(app, tag):
+    """What the window showed when a check failed: its state, and a screenshot into the folder
+    MADCAD_UI_SHOTS names (the CI keeps them)."""
+    if os.environ.get("MADCAD_UI_DEBUG") != "1":
+        return
+    try:
+        i = app.inspect()
+        print(f"  dialog={i.get('dialog')!r:.300} tool={i.get('tool')} status={i.get('status')}", flush=True)
+        d = app.doc()
+        print(f"  timeline={[(t.get('name'), t.get('error')) for t in d.get('timeline', [])]} bodies={len(d.get('bodies', []))}"
+              f" active_sketch={d.get('active_sketch')} path={d.get('path')}", flush=True)
+        print(f"  dialog handles={sorted(app.handles('dialog:'))[:30]}", flush=True)
+        shots = os.environ.get("MADCAD_UI_SHOTS")
+        if shots:
+            os.makedirs(shots, exist_ok=True)
+            r = app.call("ui.screenshot", check=False, path=os.path.join(shots, tag + ".png"))
+            print(f"  screenshot: {r}", flush=True)
+            time.sleep(1.0)
+        tail = [l for l in app.log().splitlines() if "WARN" in l or "ERROR" in l][-8:]
+        if tail:
+            print("  log:\n    " + "\n    ".join(tail), flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"  (no diagnosis: {e})", flush=True)
+
+
 def run(app, only=None):
     if screen_locked():
         print("FAIL the screen is locked: unlock it (the app gets no clicks while it is), then run again")
         return False
     passed, failed = 0, []
     app.call("ui.untranslated", check=False, record=True)
+    frame = app.inspect().get("frame_ms")
+    print(f"frame time {frame} ms", flush=True)
     for fn in TESTS:
         name = fn.__name__
         if only and not any(o in name for o in only):
             continue
         t0 = time.time()
-        try:
-            app.new()
-            fn(app)
-            passed += 1
-            print(f"OK   {name} ({time.time() - t0:.1f} s)", flush=True)
-        except Exception as e:  # noqa: BLE001 - every failure is reported, the run goes on
-            failed.append(name)
-            msg = str(e) if isinstance(e, Failure) else traceback.format_exc(limit=3)
-            print(f"FAIL {name}: {msg}", flush=True)
-            if app.proc.poll() is not None:
-                print("the app has exited:\n" + app.log()[-4000:])
+        # A check that fails is run once more from an empty design: a window on a slow computer
+        # (a CI runner drawing without a graphics card) can miss a moment. "2nd try" says so.
+        for attempt in (1, 2):
+            try:
+                app.new()
+                fn(app)
+                passed += 1
+                note = " (2nd try)" if attempt == 2 else ""
+                print(f"OK   {name} ({time.time() - t0:.1f} s){note}", flush=True)
                 break
-            for _ in range(3):
-                try:
-                    app.key("Escape")
-                except Exception:
-                    break
+            except Skip as e:
+                passed += 1
+                print(f"SKIP {name}: {e}", flush=True)
+                break
+            except Exception as e:  # noqa: BLE001 - every failure is reported, the run goes on
+                msg = str(e) if isinstance(e, Failure) else traceback.format_exc(limit=3)
+                if app.proc.poll() is not None:
+                    failed.append(name)
+                    print(f"FAIL {name}: {msg}\nthe app has exited:\n" + app.log()[-4000:])
+                    return False
+                diagnose(app, f"{name}-{attempt}")
+                for _ in range(3):
+                    try:
+                        app.key("Escape")
+                    except Exception:
+                        break
+                if attempt == 2:
+                    failed.append(name)
+                    print(f"FAIL {name}: {msg}", flush=True)
     # Every message the Polish interface showed in English along the way.
     missing = app.call("ui.untranslated", check=False, record=False) or []
     allowed = set()

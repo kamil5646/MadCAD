@@ -160,6 +160,8 @@ mod status_tests {
 }
 #[cfg(test)]
 mod apply_off_thread_tests;
+#[cfg(test)]
+mod madcad_button_tests;
 mod expression_complete;
 #[cfg(test)]
 mod extrude_auto_to_object_tests;
@@ -1636,6 +1638,26 @@ impl SolveApp {
             }
             return;
         }
+        // MadCAD: Inspect Design says what the design holds (the reply was never shown).
+        if id == "document.inspect" {
+            match self.run(id, json!({})) {
+                Ok(r) => {
+                    let n = |k: &str| r[k].as_array().map_or(0, Vec::len).to_string();
+                    let failed = r["timeline"].as_array().map_or(0, |t| t.iter().filter(|f| !f["error"].is_null()).count());
+                    let mut text = crate::i18n::format(
+                        "ui.inspect_design_summary",
+                        &[("bodies", &n("bodies")), ("sketches", &n("sketches")), ("features", &n("timeline")), ("params", &n("params"))],
+                    );
+                    if failed > 0 {
+                        text.push_str("; ");
+                        text.push_str(&crate::i18n::format("ui.inspect_design_failed", &[("n", &failed.to_string())]));
+                    }
+                    self.set_status(text, failed > 0);
+                }
+                Err(why) => self.set_status(why, true),
+            }
+            return;
+        }
         if id == "view.normal_to" {
             if self.run(id, json!({"camera": self.cam})).is_ok() {
                 self.follow_view_request(true);
@@ -2898,6 +2920,20 @@ impl SolveApp {
                 )
             })
             .map_or(self.synthetic.len(), |i| i + 1);
+        // A double click's second press and release come in the frame of the first release: a
+        // slow window (a CI runner drawing without a graphics card) would otherwise space them
+        // further apart than a double click.
+        let mut n = n;
+        if let Some(egui::Event::PointerButton { pos, button, pressed: false, .. }) = self.synthetic.get(n - 1)
+            && let [egui::Event::PointerButton { pos: p1, button: b1, pressed: true, .. }, egui::Event::PointerButton { pos: p2, button: b2, pressed: false, .. }, ..] =
+                &self.synthetic[n..]
+            && p1 == pos
+            && p2 == pos
+            && b1 == button
+            && b2 == button
+        {
+            n += 2;
+        }
         let follow = self.ui.agent_cursor.show;
         for event in self.synthetic.drain(..n) {
             // The agent cursor shows the agent's own pointer input too, not only its commands.

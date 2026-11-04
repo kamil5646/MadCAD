@@ -4,13 +4,17 @@
     "ui.select_first_generic": "select what it should work on first, then click it again",
     "ui.contact_check_clear": "Check Contact: no parts pass through each other",
     "ui.contact_check_found": "Check Contact: {n} pair(s) of parts pass through each other",
-    "ui.canvas_edit_none": "There is no canvas to edit yet: add one with Insert › Canvas"
+    "ui.canvas_edit_none": "There is no canvas to edit yet: add one with Insert › Canvas",
+    "ui.inspect_design_summary": "Inspect Design: {bodies} bodies, {sketches} sketches, {features} features, {params} parameters",
+    "ui.inspect_design_failed": "{n} feature(s) failed"
   },
   "pl": {
     "ui.restore_view_none": "Nie ma jeszcze zapisanych widoków: najpierw zapisz widok przyciskiem Zapisz widok",
     "ui.select_first_generic": "najpierw zaznacz, na czym ma działać, i kliknij ponownie",
     "ui.contact_check_clear": "Sprawdź kontakt: żadne części się nie przenikają",
     "ui.contact_check_found": "Sprawdź kontakt: przenikające się pary części: {n}",
-    "ui.canvas_edit_none": "Nie ma jeszcze płótna do edycji: dodaj je przez Wstaw › Płótno"
+    "ui.canvas_edit_none": "Nie ma jeszcze płótna do edycji: dodaj je przez Wstaw › Płótno",
+    "ui.inspect_design_summary": "Sprawdź projekt: bryły: {bodies}, szkice: {sketches}, operacje: {features}, parametry: {params}",
+    "ui.inspect_design_failed": "operacje z błędem: {n}"
   }
 }
