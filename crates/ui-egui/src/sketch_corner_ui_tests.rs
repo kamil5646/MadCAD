@@ -708,7 +708,8 @@ fn fillet_chamfer_corner_preview_draws_curves() {
 
     // Open the fillet tool and pick the corner at (0, 10).
     h.step(&json!({"start":"sketch.fillet"})).unwrap();
-    h.frames(2);
+    // MadCAD moves the view out from under the window first: click once it has.
+    h.settle();
     h.step(&json!({"click":{"world":[0.0,10.0,0.0]}})).unwrap();
     h.frames(3);
 
@@ -724,7 +725,7 @@ fn fillet_chamfer_corner_preview_draws_curves() {
     h.step(&json!({"key":"Escape"})).unwrap();
     h.frames(3);
     h.step(&json!({"start":"sketch.chamfer.equal_distance"})).unwrap();
-    h.frames(2);
+    h.settle();
     h.step(&json!({"click":{"world":[0.0,10.0,0.0]}})).unwrap();
     h.frames(3);
 

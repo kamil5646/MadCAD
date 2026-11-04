@@ -68,14 +68,14 @@ fn methods_per_installation() {
     }
 }
 
-const BASE: &str = "https://github.com/bherbruck/solidcraft/releases/download/v9.9.9/";
+const BASE: &str = "https://github.com/kamil5646/MadCAD/releases/download/v9.9.9/";
 
 fn release_with(assets: &[(&str, usize)]) -> Release {
     Release {
         tag: "v9.9.9".into(),
         name: "SolidCraft v9.9.9".into(),
         notes: String::new(),
-        page: "https://github.com/bherbruck/solidcraft/releases/tag/v9.9.9".into(),
+        page: "https://github.com/kamil5646/MadCAD/releases/tag/v9.9.9".into(),
         assets: assets.iter().map(|(n, size)| Asset { name: n.to_string(), url: format!("{BASE}{n}"), size: *size as u64 }).collect(),
     }
 }
@@ -196,7 +196,8 @@ fn the_portable_zip_swaps_both_executables() {
         }
         z.finish().unwrap();
     }
-    let name = "solidcraft-windows-x64-portable.zip";
+    // MadCAD's portable zip.
+    let name = "MadCAD-9.9.9-windows-x64.zip";
     let r = release_with(&[(name, zip_bytes.len()), (SUMS, 100)]);
     let n = net(vec![(name.into(), zip_bytes.clone()), (SUMS.into(), format!("{}  {name}\n", hex(&zip_bytes)).into_bytes())]);
     let out =
@@ -283,7 +284,7 @@ fn installation_refreshes_the_release_and_verifies_the_final_package() {
     let target = dir.join("SolidCraft.AppImage");
     let name = "solidcraft-linux-x86_64.AppImage";
     let shown = release_with(&[(name, 3), (SUMS, 100)]);
-    let base = "https://github.com/tangency-labs/solidcraft/releases/download/v10.0.0/";
+    let base = "https://github.com/kamil5646/MadCAD/releases/download/v10.0.0/";
     let feed = serde_json::json!({
         "tag_name": "v10.0.0",
         "assets": [

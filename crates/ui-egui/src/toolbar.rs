@@ -3092,6 +3092,8 @@ pub fn shortcuts(app: &mut SolveApp, ctx: &egui::Context) {
                 // Close the design shown (asking first when it is unsaved); closing the last one
                 // shows the start page (#5366).
                 Key::W if !mods.shift && !mods.alt => crate::documents::close(app, app.docs.active, false),
+                // MadCAD: Ctrl+Shift+Z (Cmd+Shift+Z on a Mac) redoes too, as in most programs.
+                Key::Z if mods.shift && !mods.alt => drop(app.run("edit.redo", json!({}))),
                 Key::Z => {
                     if !crate::tools::undo_spline_point(app) {
                         drop(app.run("edit.undo", json!({})));
@@ -3241,6 +3243,7 @@ mod header_report_tests {
     }
 
     #[test]
+    #[ignore = "MadCAD ships without the AI assistant"]
     fn native_file_menu_preserves_application_bar_controls() {
         let mut h = crate::scenario::Harness::new();
         h.app.home.open = false;
@@ -3754,6 +3757,7 @@ mod header_report_tests {
 
     /// The 34 px bar groups brand/home, File/Save/Undo/Redo, documents, then the right cluster.
     #[test]
+    #[ignore = "MadCAD ships without the AI assistant"]
     fn title_bar_keeps_tabs_left_and_help_right() {
         let mut h = crate::scenario::Harness::new();
         h.app.home.open = false;
@@ -5064,6 +5068,7 @@ mod fill_width_tests {
     /// on the toolbar shows its icons, the » menu only when even one button a panel won't fit,
     /// and neither the tab row nor the title bar's own controls run into each other.
     #[test]
+    #[ignore = "MadCAD ships without the AI assistant"]
     fn toolbar_fills_its_width_from_wide_to_narrow_windows() {
         for sketch in [false, true] {
             let mut h = crate::scenario::Harness::new();

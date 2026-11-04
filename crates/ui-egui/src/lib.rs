@@ -897,6 +897,9 @@ impl SolveApp {
             applied_system_fonts: false,
         };
         easyprint_ui::install(&mut app);
+        // MadCAD: the tests check SolidCraft's behaviour from SolidCraft's own defaults.
+        #[cfg(test)]
+        scenario::upstream_defaults(&mut app.preferences);
         app
     }
 
@@ -1601,6 +1604,22 @@ impl SolveApp {
             print_face_ui::toggle(self);
             return;
         }
+        // MadCAD: Save View keeps the view as it is now, and Restore View lists the saved ones:
+        // run with no parameters they could only fail with a message about the command's inputs.
+        if id == "view.save" {
+            if let Some(name) = browser::save_view(self, None) {
+                self.set_status(format!("{}: {name}", self.tr_label("Save View")), false);
+            }
+            return;
+        }
+        if id == "view.apply" {
+            if self.session.doc.named_views.is_empty() {
+                self.set_status(self.tr("ui.restore_view_none").to_string(), false);
+            } else {
+                self.open_choice_menu(opener, context_menu::Target::RestoreView);
+            }
+            return;
+        }
         if id == "view.normal_to" {
             if self.run(id, json!({"camera": self.cam})).is_ok() {
                 self.follow_view_request(true);
@@ -2018,7 +2037,17 @@ impl SolveApp {
             dialogs_part_size::needs_a_part(self);
             return;
         }
-        let _ = self.run(id, json!({}));
+        // MadCAD: a button whose command needs something picked first says so in words, not
+        // with the command's message about its missing input.
+        let revision = self.session.revision;
+        if let Err(why) = self.run(id, json!({}))
+            && why.contains('`')
+            && self.session.revision == revision
+        {
+            let label = solidcraft_engine::find_command(id).map_or(id, |c| c.label);
+            let label = self.tr_label(label).to_string();
+            self.set_status(format!("{label}: {}", self.tr("ui.select_first_generic")), true);
+        }
     }
 
     /// Does starting `id` open a tool or a dialog?

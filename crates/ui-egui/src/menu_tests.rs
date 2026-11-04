@@ -865,9 +865,12 @@ fn menus_follow_fusion_order() {
     assert_eq!(find(&face, "Extrude").shortcut, "E");
     assert!(find(&face, "Edit Profile Sketch").enabled, "the plate's extrude has a sketch");
     let body_menu = context_menu::items(&app, &Target::Body { name: b.clone() });
+    // MadCAD: a body's menu starts with Edit Feature and has no Remove (Delete is there).
+    assert!(!body_menu.iter().any(|i| i.label == "Remove"));
     order(
         &body_menu,
         &[
+            "Edit Feature",
             "Move/Copy",
             "Create Components from Bodies",
             "Physical Material",
@@ -875,7 +878,6 @@ fn menus_follow_fusion_order() {
             "Properties",
             "Save As Mesh",
             "Delete",
-            "Remove",
             "Rename",
             "Show/Hide",
             "Isolate",
@@ -1158,7 +1160,8 @@ fn the_workspace_menu_lists_design_and_render_and_greys_future_workspaces() {
     let items = context_menu::items(&app, &Target::Workspace);
     assert!(find(&items, "Design").enabled);
     assert!(find(&items, "Render").enabled);
-    assert!(!find(&items, "Animation").enabled);
+    // MadCAD lists no workspaces that are not there yet (Animation, Simulation, …).
+    assert_eq!(items.len(), 2, "{:?}", items.iter().map(|i| &i.label).collect::<Vec<_>>());
     assert!(!items.iter().any(|i| i.label.contains("Generative")));
 }
 

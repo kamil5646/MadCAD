@@ -1191,6 +1191,7 @@ fn left_history_sidebar_leaves_bottom_readouts_at_the_bottom() {
 /// corner (the Assistant), follow it as it opens, changes width and closes, and stay in the
 /// visible view; with the pane on the left they keep the corner (#6755).
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn frame_rate_readout_stays_beside_a_right_pane() {
     use crate::scenario::{handle_at, rect_of};
     for mode in [LayoutMode::Floating, LayoutMode::Docked] {

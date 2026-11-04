@@ -988,7 +988,7 @@ mod tests {
         for label in [
             "Open GitHub issue form",
             "Copy report",
-            "SolidCraft cannot submit reports directly. Submit on GitHub; no token is needed in the app.",
+            "MadCAD cannot submit reports directly. Submit on GitHub; no token is needed in the app.",
             "If you are offline or GitHub does not open, use Copy report and keep the text to submit later.",
         ] {
             assert!(h.widget(label).is_some(), "missing submission action or explanation: {label}");

@@ -61,6 +61,24 @@ jobs:
             "{0}: {1:N1} ms" -f $s, $r.total_ms
             $r.timings | Where-Object { $_.ms -gt 1 } | ForEach-Object { "  {0,8:N1} {1}" -f $_.ms, $_.command }
           }
+      - name: Function checks
+        shell: pwsh
+        run: |
+          # The engine's checks (packaging/madcad/qa): bodies, volumes and errors of 135 cases.
+          $env:MADCAD_CLI = (Resolve-Path "target/x86_64-pc-windows-msvc/release/solidcraft-cli.exe").Path
+          Set-Location packaging/madcad/qa
+          $failed = $false
+          foreach ($t in 't_solid.py', 't_sketch.py', 't_hist.py') {
+            python $t | Where-Object { $_ -notmatch '^OK' }
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          if ($failed) { exit 1 }
+      - name: Interface checks
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          # The window worked by clicks and keys (packaging/madcad/qa/ui).
+          python packaging/madcad/qa/ui/test_ui.py "${{ steps.package.outputs.stage }}\MadCAD.exe"
       - name: Installer
         shell: pwsh
         run: |

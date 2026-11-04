@@ -312,6 +312,7 @@ fn left_history_and_browser_share_the_left_edge_without_moving_right_controls() 
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn assistant_floats_without_changing_projection_and_shields_the_model() {
     for dark in [false, true] {
         for side in ["left", "right"] {
@@ -387,6 +388,7 @@ fn assistant_floats_without_changing_projection_and_shields_the_model() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn assistant_left_dock_precedes_history_and_drag_hints_match_the_result() {
     for layout in ["floating", "docked"] {
         for (names, stacked) in [(false, false), (true, false), (true, true)] {
@@ -453,6 +455,7 @@ fn assistant_left_dock_precedes_history_and_drag_hints_match_the_result() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn assistant_right_edge_survives_palette_tool_resize_and_minimize() {
     for layout in ["floating", "docked"] {
         let mut h = Harness::new();
@@ -488,6 +491,7 @@ fn assistant_right_edge_survives_palette_tool_resize_and_minimize() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn tool_sheets_drag_over_browser_and_history_but_clear_protected_panels() {
     for side in ["left", "right"] {
         let mut h = Harness::new();
@@ -838,6 +842,7 @@ fn without_a_left_column_a_dialog_docks_at_the_left_edge_at_its_own_width() {
 /// The Assistant docked on the left keeps the outside edge: the column starts beside it, where
 /// the browser was.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_dialog_in_the_left_column_starts_beside_the_assistant() {
     let mut h = Harness::new();
     h.app.home.open = false;
@@ -1231,6 +1236,7 @@ fn a_larger_interface_scale_in_a_narrow_window_keeps_drawing() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn docked_assistant_beside_an_inverted_view_area_does_not_panic() {
     // A surface reconfigure can leave the view area inside out, its left past its right (#9492).
     for side in ["right", "left"] {

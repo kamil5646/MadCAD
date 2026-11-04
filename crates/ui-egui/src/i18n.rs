@@ -154,8 +154,38 @@ pub fn match_system_tags(tags: &[String]) -> &'static str {
 /// The catalog id the system asks for, read once per process: the OS locale on desktop
 /// (Windows, macOS, Linux/BSD) and `navigator.languages` in the browser.
 pub fn system_language() -> &'static str {
-    static CACHED: OnceLock<&'static str> = OnceLock::new();
-    CACHED.get_or_init(|| match_system_tags(&sys_locale::get_locales().collect::<Vec<_>>()))
+    SYSTEM_LANGUAGE.get_or_init(|| {
+        // Tests read the same words on every PC, whatever its language.
+        if cfg!(test) { ENGLISH.id } else { match_system_tags(&sys_locale::get_locales().collect::<Vec<_>>()) }
+    })
+}
+
+static SYSTEM_LANGUAGE: OnceLock<&'static str> = OnceLock::new();
+
+/// `cfg!(test)` for the tests outside this crate, which link it without that: they all start from
+/// the test harness, which calls this first.
+pub(crate) fn pin_system_language() {
+    let _ = SYSTEM_LANGUAGE.set(ENGLISH.id);
+}
+
+/// MadCAD: the messages a non-English interface showed in English, for want of a translation,
+/// while [`record_missing`] is on: the interface checks list them (`ui.untranslated`).
+static MISSING_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static MISSING: std::sync::Mutex<std::collections::BTreeSet<String>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
+
+fn note_missing(id: &str) {
+    if MISSING_ON.load(std::sync::atomic::Ordering::Relaxed)
+        && let Ok(mut missing) = MISSING.lock()
+        && !missing.contains(id)
+    {
+        missing.insert(id.to_string());
+    }
+}
+
+/// MadCAD: the messages noted since the last call, and whether to go on noting them.
+pub fn record_missing(on: bool) -> Vec<String> {
+    MISSING_ON.store(on, std::sync::atomic::Ordering::Relaxed);
+    MISSING.lock().map(|mut missing| std::mem::take(&mut *missing).into_iter().collect()).unwrap_or_default()
 }
 
 /// The catalog id a `language` preference resolves to: the saved choice, or the system's for
@@ -188,7 +218,19 @@ impl Locale {
 
     /// Stable message ID → translation → English → ID, in display order (see [`crate::bidi`]).
     pub fn text(self, id: &str) -> &str {
-        self.0.shown().get(id).or_else(|| ENGLISH.messages().get(id)).map_or(id, String::as_str)
+        if let Some(text) = self.0.shown().get(id) {
+            return text;
+        }
+        // Noted: an English message with no translation here, or English text with no message at
+        // all (not a translation passed through again, nor a name, unit or key).
+        if !self.0.id.starts_with("en")
+            && MISSING_ON.load(std::sync::atomic::Ordering::Relaxed)
+            && (ENGLISH.messages().contains_key(id)
+                || (id.contains(' ') && id.is_ascii() && !self.0.messages().values().any(|text| text == id)))
+        {
+            note_missing(id);
+        }
+        ENGLISH.messages().get(id).map_or(id, String::as_str)
     }
 
     /// Translate source labels from engine/UI tables, preserving unknown labels.
@@ -407,6 +449,12 @@ mod tests {
         assert_eq!(super::match_system_tags(&tags(&["xx-YY", "de-DE"])), "de", "the first tag that matches wins");
     }
 
+    /// Tests name English words, so the PC's own language never reaches them (#10297).
+    #[test]
+    fn tests_take_english_as_the_system_language() {
+        assert_eq!(super::system_language(), "en");
+    }
+
     /// A saved language is never overridden: only `system` resolves through the OS (#10138).
     #[test]
     fn a_saved_language_choice_is_never_overridden() {
@@ -583,12 +631,29 @@ mod tests {
     /// shown in English inside an otherwise translated UI, with nothing in the build to say so.
     /// This is the guard against that: adding a key to `en.json` and forgetting a complete
     /// catalog fails here.
+    /// MadCAD's own messages (`assets/locales/pending/madcad-*.json`): MadCAD translates them into
+    /// Polish only, and the other languages show them in English.
+    fn madcad_ids() -> BTreeSet<String> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/locales/pending");
+        let mut ids = BTreeSet::new();
+        for entry in std::fs::read_dir(dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("madcad-") && n.ends_with(".json")) {
+                let file: BTreeMap<String, Messages> = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+                ids.extend(file.get("en").into_iter().flat_map(|m| m.keys().cloned()));
+            }
+        }
+        ids
+    }
+
     #[test]
     fn every_complete_catalog_carries_every_english_message() {
         let english: Messages = serde_json::from_str(ENGLISH.source).unwrap();
+        let madcad = madcad_ids();
         for catalog in LOCALES.iter().filter(|c| COMPLETE.contains(&c.id)) {
             let messages: Messages = serde_json::from_str(catalog.source).unwrap();
-            let missing: Vec<&str> = english.keys().filter(|id| !messages.contains_key(*id)).map(String::as_str).collect();
+            let missing: Vec<&str> =
+                english.keys().filter(|id| !messages.contains_key(*id) && !madcad.contains(*id)).map(String::as_str).collect();
             assert!(missing.is_empty(), "{} is missing {} English message(s): {}", catalog.id, missing.len(), missing.join(", "));
         }
     }

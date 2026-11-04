@@ -176,8 +176,21 @@ impl Drop for Harness {
     }
 }
 
+/// MadCAD: in the tests `SolveApp::new` starts from SolidCraft's own defaults, so a test reads
+/// the same whatever MadCAD changed about how the app starts (theme, tabs, Origin, the view after
+/// a sketch). MadCAD's defaults are checked by `prefs::madcad_defaults` and, in the running app,
+/// by packaging/madcad/qa/ui.
+#[cfg(test)]
+pub(crate) fn upstream_defaults(p: &mut crate::prefs::Prefs) {
+    p.theme = "dark".into();
+    p.hidden_toolbar_tabs.clear();
+    p.hide_origin = false;
+    p.sketch_exit_view = crate::prefs::SketchExitView::Keep;
+}
+
 impl Harness {
     pub fn new() -> Harness {
+        crate::i18n::pin_system_language();
         let mut h = Harness {
             app: SolveApp::new(Session::default(), Services::default()),
             ctx: {

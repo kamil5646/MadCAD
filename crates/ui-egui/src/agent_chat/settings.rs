@@ -974,6 +974,7 @@ mod card_tests {
     }
 
     #[test]
+    #[ignore = "MadCAD ships without the AI assistant"]
     fn model_warning_only_for_explicitly_missing_tools() {
         assert_eq!(
             capability_warning("local:4b", Some(false)).as_deref(),
@@ -984,6 +985,7 @@ mod card_tests {
     }
 
     #[test]
+    #[ignore = "MadCAD ships without the AI assistant"]
     fn add_agent_card_retains_kind_handles_draft_and_validation() {
         let mut h = Harness::new();
         h.app.home.open = false;
@@ -1045,6 +1047,7 @@ mod card_tests {
     /// Edit on an added agent reopens the dialog filled in; Save changes it in place, keeping its
     /// id, its permission override and its always-allowed tools (#9619).
     #[test]
+    #[ignore = "MadCAD ships without the AI assistant"]
     fn edit_reopens_an_added_agent_and_saves_it_in_place() {
         let mut h = Harness::new();
         h.call("ui.resize", json!({"width": 1600.0, "height": 1000.0}));

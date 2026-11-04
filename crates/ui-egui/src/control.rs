@@ -39,6 +39,8 @@
 //! - `ui.agent_cursor {show?, speed?: 1–5 (times) | "instant", follow_camera?}`: the agent cursor
 //!   (#35); while it is shown, `engine.execute` first glides to the command's button and picks
 //!   and replies once the command has run (`"animate": false` skips that one call)
+//! - `ui.untranslated {record?}`: the messages shown in English for want of a translation since
+//!   the last call (MadCAD)
 //! - `ui.resize {width, height}`, `app.quit`
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -621,6 +623,9 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
             ok(json!({"document_id": app.session.document_id, "revision": revision}))
         }
         "ui.messages" => ok(crate::messages::control(app, p)),
+        // MadCAD: what the interface showed in English for want of a translation, since the last
+        // call (`record: false` stops noting).
+        "ui.untranslated" => ok(json!(crate::i18n::record_missing(p.get("record").and_then(Value::as_bool).unwrap_or(true)))),
         "ui.inspect" => ok(json!({
             "render": crate::render_workspace::inspect_state(app),
             "ui": ui_state(app),

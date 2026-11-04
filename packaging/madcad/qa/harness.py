@@ -1,5 +1,5 @@
 import json, subprocess, sys, math, os, tempfile
-CLI = os.path.expanduser('~/Developer/MadCAD8/target/release/solidcraft-cli')
+CLI = os.environ.get('MADCAD_CLI') or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'target', 'release', 'solidcraft-cli')
 def C(cmd, **p): return {"command": cmd, "params": p}
 def sk(plane="XY", **k): return C("sketch.create", plane=plane, **k)
 def rect(x0, y0, x1, y1): return C("sketch.rectangle.two_point", p0=[x0, y0], p1=[x1, y1])
@@ -49,3 +49,5 @@ def run(name, cmds, vol=None, bodies=1, err=False, tol=2e-3, bbox=None, check=No
 def summary():
     bad = [r for r in results if r[1]]
     print(f'\n{len(results) - len(bad)}/{len(results)} passed')
+    if bad:
+        sys.exit(1)

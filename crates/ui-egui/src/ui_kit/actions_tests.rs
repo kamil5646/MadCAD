@@ -230,7 +230,8 @@ fn one_bit_primary_actions_keep_inverted_labels_and_legacy_fills() {
         let t = crate::theme_files::resolve(&old);
         assert_eq!(t.form_primary_fill, t.form_primary);
     }
-    for theme in crate::theme_files::builtin().iter().filter(|theme| !crate::theme_files::is_two_colour(&theme.id)) {
+    // MadCAD: MadMag Dark's primary buttons are the brand red, its focus accent a lighter red.
+    for theme in crate::theme_files::builtin().iter().filter(|theme| !crate::theme_files::is_two_colour(&theme.id) && theme.id != "madmag-dark") {
         let t = crate::theme_files::resolve(theme);
         assert_eq!(t.form_primary_fill, t.form_primary, "{} retains its primary fill", theme.id);
     }

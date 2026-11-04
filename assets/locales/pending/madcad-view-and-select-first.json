@@ -1,0 +1,10 @@
+{
+  "en": {
+    "ui.restore_view_none": "No saved views yet: save one with Save View first",
+    "ui.select_first_generic": "select what it should work on first, then click it again"
+  },
+  "pl": {
+    "ui.restore_view_none": "Nie ma jeszcze zapisanych widoków: najpierw zapisz widok przyciskiem Zapisz widok",
+    "ui.select_first_generic": "najpierw zaznacz, na czym ma działać, i kliknij ponownie"
+  }
+}

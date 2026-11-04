@@ -363,6 +363,8 @@ mod exit_view_preference {
     /// A sketch on XY started from the iso view with `choice` set, and that iso view.
     fn sketching(choice: SketchExitView) -> (Harness, Camera) {
         let mut h = Harness::new();
+        // A body first: MadCAD frames the first sketch of an empty design instead (below).
+        h.app.run("solid.box", json!({"length": 10, "width": 10, "height": 10})).unwrap();
         h.app.preferences.sketch_exit_view = choice;
         h.call("ui.view", json!({"view": "iso"}));
         h.settle();
@@ -385,6 +387,23 @@ mod exit_view_preference {
         h.app.finish_sketch();
         h.settle();
         assert_eq!(h.app.session.active_sketch, None);
+    }
+
+    /// MadCAD: the first sketch of an empty design goes back to a 3D view framed on the sketch,
+    /// not to the empty design's view, which knew nothing of it.
+    #[test]
+    fn the_first_sketch_of_an_empty_design_is_framed_in_3d() {
+        let mut h = Harness::new();
+        h.app.preferences.sketch_exit_view = SketchExitView::Previous;
+        h.call("ui.view", json!({"view": "iso"}));
+        h.settle();
+        let iso = h.app.cam;
+        h.step(&json!({"start": "sketch.create"})).unwrap();
+        h.step(&json!({"click": {"plane": "XY"}})).unwrap();
+        h.settle();
+        finish(&mut h);
+        assert!((h.app.cam.yaw - iso.yaw).abs() < 1e-9 && (h.app.cam.pitch - iso.pitch).abs() < 1e-9, "back to the 3D view's direction");
+        assert!(h.app.cam.distance < iso.distance, "closer, framed on the sketch: {} vs {}", h.app.cam.distance, iso.distance);
     }
 
     #[test]

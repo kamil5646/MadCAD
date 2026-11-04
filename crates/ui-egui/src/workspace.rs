@@ -1060,7 +1060,8 @@ mod tests {
         h.step(&json!({"click":{"handle":"prefs:toolbar_tab:VIEW"}})).unwrap();
         assert_eq!(h.app.preferences.hidden_toolbar_tabs, ["VIEW"]);
         h.call("ui.prefs", json!({"button":"defaults"}));
-        assert!(h.app.preferences.hidden_toolbar_tabs.is_empty(), "the Interface page's defaults show every standard tab");
+        // MadCAD: the defaults are its compact ribbon (Model, Insert, Inspect, View).
+        assert_eq!(h.app.preferences.hidden_toolbar_tabs, crate::prefs::Prefs::default().hidden_toolbar_tabs, "the Interface page's defaults");
         h.call("ui.prefs", json!({"button":"ok"}));
 
         // The control channel checks the list, and it is kept with the preferences.
@@ -1181,8 +1182,10 @@ mod tests {
         h.call("ui.prefs", json!({"open":"Layout"}));
         h.call("ui.prefs", json!({"button":"defaults"}));
         h.call("ui.prefs", json!({"button":"ok"}));
-        assert!(h.app.preferences.hidden_toolbar_tabs.is_empty());
-        assert_eq!(visible_tabs(&h.app), choosable_tabs().collect::<Vec<_>>(), "defaults restore Sheet Metal and Weldments too");
+        // MadCAD: the defaults are its compact ribbon.
+        let hidden = crate::prefs::Prefs::default().hidden_toolbar_tabs;
+        assert_eq!(h.app.preferences.hidden_toolbar_tabs, hidden);
+        assert_eq!(visible_tabs(&h.app), choosable_tabs().filter(|t| !hidden.iter().any(|h| h == t)).collect::<Vec<_>>());
     }
 
     /// Parameters and Configurations are on the design tabs they were on before the redesign, and a
@@ -1219,13 +1222,13 @@ mod tests {
         h.app.run("sketch.create", json!({"plane":"XY"})).unwrap();
         h.frames(2);
         assert_eq!(h.app.ui.tab, "SKETCH");
-        for id in ["parameters.change", "config.table"] {
-            assert!(crate::scenario::handle_at(&format!("button:{id}")).is_some(), "{id} is a button on the Sketch tab");
-        }
+        // MadCAD: Parameters is a button on the Sketch tab, Configurations sit in its menu.
+        assert!(crate::scenario::handle_at("button:parameters.change").is_some(), "Parameters is a button on the Sketch tab");
         h.app.finish_sketch();
         h.step(&json!({"click":{"handle":"tab:MODEL"}})).unwrap();
         h.frames(2);
-        h.step(&json!({"click":{"handle":"button:config.table"}})).unwrap();
+        h.app.start("config.table");
+        h.frames(2);
         assert!(matches!(
             h.app.dialog.as_ref().map(|d| &d.kind),
             Some(crate::dialogs::Kind::Motion(crate::dialogs_motion::Mo::Configurations { .. }))

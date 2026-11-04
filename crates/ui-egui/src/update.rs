@@ -162,6 +162,9 @@ pub enum InstallKind {
     LinuxTarball,
     /// Installed by the `.msi` (under Program Files, or in the folder the installer recorded).
     WindowsMsi,
+    /// MadCAD: installed by `MadCAD-<version>-windows-x64-setup.exe` (Inno Setup; its uninstaller
+    /// sits beside the program, wherever it was installed).
+    WindowsSetup,
     /// The portable `.zip`, unpacked somewhere.
     WindowsPortable,
     /// The lone `SolidCraft-<version>-windows-x64.exe`.
@@ -220,6 +223,9 @@ pub fn detect(p: &Probe) -> InstallKind {
             InstallKind::LinuxTarball
         }
         "windows" => {
+            if exe.parent().is_some_and(|d| (p.exists)(&d.join("unins000.exe"))) {
+                return InstallKind::WindowsSetup;
+            }
             let under = |k: &str| env(k).is_some_and(|dir| starts_with_ci(&exe, Path::new(&dir)));
             let installed = p.msi_dir.as_deref().is_some_and(|dir| starts_with_ci(&exe, dir));
             if installed || under("ProgramFiles") || under("ProgramW6432") || under("ProgramFiles(x86)") {
@@ -410,6 +416,7 @@ impl InstallKind {
             InstallKind::Rpm => ".rpm package",
             InstallKind::LinuxTarball => ".tar.gz",
             InstallKind::WindowsMsi => "Windows installer (.msi)",
+            InstallKind::WindowsSetup => "Windows installer",
             InstallKind::WindowsPortable => "portable .zip",
             InstallKind::WindowsExe => "standalone .exe",
             InstallKind::MacApp(_) => "macOS app",
@@ -461,10 +468,11 @@ pub fn asset_name(kind: &InstallKind, arch: &str, version: &str) -> Option<Strin
         InstallKind::Rpm => format!("solidcraft-linux-{}.rpm", linux?),
         InstallKind::LinuxTarball => format!("solidcraft-{version}-linux-{}.tar.gz", linux?),
         InstallKind::WindowsMsi => format!("solidcraft-windows-{}.msi", windows?),
-        InstallKind::WindowsPortable => format!("solidcraft-windows-{}-portable.zip", windows?),
-        // Only x64 has the lone .exe; elsewhere the portable zip is the same thing.
-        InstallKind::WindowsExe if windows == Some("x64") => format!("MadCAD-{version}-win-x64.exe"),
-        InstallKind::WindowsExe => format!("solidcraft-windows-{}-portable.zip", windows?),
+        // MadCAD's Windows packages are x64 only, named as the release workflow names them.
+        InstallKind::WindowsSetup if windows == Some("x64") => format!("MadCAD-{version}-windows-x64-setup.exe"),
+        InstallKind::WindowsPortable if windows == Some("x64") => format!("MadCAD-{version}-windows-x64.zip"),
+        InstallKind::WindowsExe if windows == Some("x64") => format!("MadCAD-{version}-windows-x64.exe"),
+        InstallKind::WindowsSetup | InstallKind::WindowsPortable | InstallKind::WindowsExe => return None,
         InstallKind::MacApp(_) => format!("MadCAD-{version}-mac-arm64.dmg"),
         InstallKind::Dev | InstallKind::Web | InstallKind::Other => return None,
     })
@@ -982,7 +990,7 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
         _ => State::Offer,
     };
     let primary = match (&install, one_click) {
-        (Some(install::Method::Msi), true) => crate::i18n::tr("update.install_msi"),
+        (Some(install::Method::Msi | install::Method::Setup), true) => crate::i18n::tr("update.install_msi"),
         (Some(install::Method::Dmg), true) => crate::i18n::tr("update.download_open"),
         (Some(_), true) => crate::i18n::tr("update.update_now"),
         _ if kind.system_managed() => crate::i18n::tr("update.release_page"),

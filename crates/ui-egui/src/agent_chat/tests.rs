@@ -223,6 +223,7 @@ fn boxed(x: f64) -> Value {
 /// Everything the agent changed in one message undoes as one step, and the conversation offers
 /// that undo while nothing else has happened since.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_messages_changes_undo_as_one_step() {
     let (mut app, tx) = app_in_a_turn();
     let before = app.session.doc.clone();
@@ -246,6 +247,7 @@ fn a_messages_changes_undo_as_one_step() {
 
 /// Saving waits for Allow or Deny; Deny answers the agent without running it, Allow runs it.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn file_actions_wait_for_the_user() {
     let (mut app, tx) = app_in_a_turn();
     let dir = solidcraft_engine::io::vfs::temp_dir().join(format!("sc-agent-chat-approve-{}", std::process::id()));
@@ -275,6 +277,7 @@ fn file_actions_wait_for_the_user() {
 /// Crash reports and app methods never run for the agent, requests outside a message don't
 /// either, and a message stops taking changes at the limit.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_gate_refuses_and_limits() {
     let (mut app, tx) = app_in_a_turn();
     assert_eq!(app.preferences.agent_chat_turn_limit, 0, "no limit by default");
@@ -326,6 +329,7 @@ fn merging_finds_the_turns_start_when_the_history_was_trimmed() {
 /// shortcut does nothing, no panel draws, nothing is looked for and nothing starts, even when
 /// asked over the control channel. Turned on, the button is there; discovery waits for the panel.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn with_ai_features_off_nothing_of_the_chat_shows_or_runs() {
     use crate::scenario::{handle_at, rect_of};
     let mut h = crate::scenario::Harness::new();
@@ -365,6 +369,7 @@ fn with_ai_features_off_nothing_of_the_chat_shows_or_runs() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn ai_features_and_the_toolbar_button_are_on_by_default() {
     let p = crate::prefs::Prefs::default();
     assert!(p.ai_features && p.ai_toolbar_button);
@@ -374,6 +379,7 @@ fn ai_features_and_the_toolbar_button_are_on_by_default() {
 /// another screen; embedded here, where the test context has one viewport), and Dock puts it back
 /// in the side panel. The control channel does the same.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_chat_pops_out_into_its_own_window_and_docks_back() {
     use crate::scenario::{handle_at, rect_of};
     let mut h = crate::scenario::Harness::new();
@@ -411,6 +417,7 @@ fn the_chat_pops_out_into_its_own_window_and_docks_back() {
 /// Given every frame, it chased the system's own rounding: a window that shook a pixel up and
 /// down (686, 687, 686…) on a Retina screen.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_window_place_is_given_once_when_it_opens() {
     let mut app = SolveApp::new(solidcraft_engine::Session::default(), crate::Services::default());
     app.preferences.agent_chat_window = Some([1967.0, 160.0, 569.0, 686.0]);
@@ -476,6 +483,7 @@ fn the_popped_out_window_and_its_place_are_remembered() {
 /// "Ask every time": a modelling command waits for Allow; "Always allow" lets the same command
 /// through from then on for this agent. "Allow everything": even a save runs without a question.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn permission_modes_decide_what_asks() {
     let (mut app, tx) = app_in_a_turn();
     app.agent_chat.running_id = "claude".into();
@@ -610,6 +618,7 @@ fn ended(script: &Script, reason: &str) {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn document_tabs_keep_their_conversations_and_backend_context() {
     let (mut app, first, ctx) = app_with_script();
     app.agent_chat.open = true;
@@ -667,6 +676,7 @@ fn document_tabs_keep_their_conversations_and_backend_context() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn leaving_during_startup_or_sign_in_keeps_the_unsent_message_for_send() {
     for state in [State::Starting, State::NeedsAuth] {
         let (mut app, script, ctx) = app_with_script();
@@ -692,6 +702,7 @@ fn leaving_during_startup_or_sign_in_keeps_the_unsent_message_for_send() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_late_sign_in_retry_or_permission_cannot_restart_a_departed_turn() {
     let (mut app, script, ctx) = app_with_script();
     send(&mut app, &ctx, "first request".into());
@@ -775,6 +786,7 @@ fn an_agents_new_design_keeps_its_conversation_and_continues() {
 
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn an_agents_opened_design_keeps_its_conversation_and_undo_ownership() {
     for blank in [true, false] {
         let dir = std::env::temp_dir().join(format!("solidcraft-chat-open-{}-{blank}", std::process::id()));
@@ -1020,6 +1032,7 @@ fn leaving_a_tab_refuses_admitted_commands_animations_and_screenshots() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn late_events_approvals_and_undo_stay_with_the_originating_document() {
     let (mut app, first, ctx) = app_with_script();
     let (tx, rx) = channel();
@@ -1090,6 +1103,7 @@ fn a_message_typed_while_busy_is_queued() {
 
 /// When the turn ends normally the queue goes as the next prompt, all messages in order in one.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_queue_is_sent_when_the_turn_ends() {
     let (mut app, script, ctx) = app_with_script();
     send(&mut app, &ctx, "first".into());
@@ -1110,6 +1124,7 @@ fn the_queue_is_sent_when_the_turn_ends() {
 
 /// Stop does not send the queue by itself; it stays, with a Send that sends it later.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn stop_keeps_the_queue() {
     let (mut app, script, ctx) = app_with_script();
     send(&mut app, &ctx, "first".into());
@@ -1130,6 +1145,7 @@ fn stop_keeps_the_queue() {
 /// Send now: cancel first, the prompt only after the agent has ended the cancelled turn, with a
 /// note that the previous step was interrupted (shown without it in the conversation).
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn send_now_cancels_then_sends_with_a_note() {
     let (mut app, script, ctx) = app_with_script();
     send(&mut app, &ctx, "build a gearbox".into());
@@ -1153,6 +1169,7 @@ fn send_now_cancels_then_sends_with_a_note() {
 
 /// The steered message also goes after a turn that ended by itself just before the cancel arrived.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn send_now_after_the_turn_already_ended_still_sends() {
     let (mut app, script, ctx) = app_with_script();
     send(&mut app, &ctx, "a".into());
@@ -1165,6 +1182,7 @@ fn send_now_after_the_turn_already_ended_still_sends() {
 
 /// What an interrupted turn changed undoes as one step, and the steered message starts its own.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn an_interrupted_turns_changes_undo_as_one_step() {
     let (mut app, script, ctx) = app_with_script();
     let (tx, rx) = channel();
@@ -1194,6 +1212,7 @@ fn an_interrupted_turns_changes_undo_as_one_step() {
 /// `session/prompt`.
 #[cfg(unix)]
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn send_now_with_an_acp_agent_sends_cancel_then_the_prompt() {
     let dir = std::env::temp_dir().join(format!("sc-agent-chat-steer-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -1265,6 +1284,7 @@ done
 /// New chat: the running message is stopped, the transcript and the queue are cleared, a fresh
 /// session starts on the same agent, the mode stays, and the design's undo history is untouched.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn new_chat_clears_everything_and_keeps_the_agent_and_mode() {
     let (mut app, script, ctx) = app_with_script();
     app.agent_chat.modes = vec![("plan".into(), "Plan".into()), ("code".into(), "Code".into())];
@@ -1295,6 +1315,7 @@ fn new_chat_clears_everything_and_keeps_the_agent_and_mode() {
 /// With a real ACP agent, New chat sends `session/new` on the same process (no restart).
 #[cfg(unix)]
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn new_chat_with_an_acp_agent_opens_a_new_session_on_the_same_process() {
     let dir = std::env::temp_dir().join(format!("sc-agent-chat-new-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -1349,6 +1370,7 @@ done
 /// session and on the one New chat opens.
 #[cfg(unix)]
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn an_acp_agent_offering_the_standard_field_gets_the_system_note_in_every_session() {
     let dir = std::env::temp_dir().join(format!("sc-agent-chat-note-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -1403,6 +1425,7 @@ fn models_reply(current: &str) -> Event {
 /// Choosing a model tells the agent, shows it as current and remembers it for this agent; a model
 /// the agent did not offer is ignored.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn choosing_a_model_sets_it_and_remembers_it() {
     let (mut app, script, ctx) = app_with_script();
     app.agent_chat.running_id = "claude".into();
@@ -1425,6 +1448,7 @@ fn choosing_a_model_sets_it_and_remembers_it() {
 
 /// The next session puts back the model chosen last time, when the agent offers it.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_remembered_model_is_set_on_the_next_session() {
     let (mut app, script, ctx) = app_with_script();
     app.agent_chat.running_id = "claude".into();
@@ -1459,6 +1483,7 @@ fn provider_models() -> Vec<acp::ModelInfo> {
 /// Models from several providers: the header picks a provider, then one of its models, listed
 /// without the provider in front. Picking a provider alone leaves the agent's model as it is.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn models_from_several_providers_are_picked_by_provider_first() {
     let (mut app, script, ctx) = app_with_script();
     app.agent_chat.running_id = "hermes".into();
@@ -1490,6 +1515,7 @@ fn models_from_several_providers_are_picked_by_provider_first() {
 
 /// Models from one provider, or with none named: one list, every model as the agent names it.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn models_from_one_provider_keep_one_list() {
     let (mut app, script, ctx) = app_with_script();
     script.report(models_reply("fast"));
@@ -1545,6 +1571,7 @@ fn modern_options(model: &str) -> Vec<acp::ConfigOption> {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn modern_snapshots_replace_provider_choices_and_ignore_legacy_updates() {
     let (mut app, script, ctx) = app_with_script();
     script.report(Event::Models { current: "plain".into(), available: provider_models() });
@@ -1569,6 +1596,7 @@ fn modern_snapshots_replace_provider_choices_and_ignore_legacy_updates() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn modern_acknowledgements_stay_with_their_document_without_resuming_its_queue() {
     let (mut app, first, ctx) = app_with_script();
     app.agent_chat.running_id = "first-modern".into();
@@ -1610,6 +1638,7 @@ fn modern_acknowledgements_stay_with_their_document_without_resuming_its_queue()
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn closing_a_pending_modern_chat_preserves_the_surviving_api_endpoint_and_saved_models() {
     for close_active in [false, true] {
         let (mut app, modern, ctx) = app_with_script();
@@ -1713,6 +1742,7 @@ fn document_disconnect_paths_clear_modern_configuration_and_pending_requests() {
 
 #[cfg(unix)]
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn modern_config_requests_roundtrip_success_rejection_malformed_and_retry() {
     let dir = std::env::temp_dir().join(format!("sc-chat-config-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -1819,6 +1849,7 @@ fn modern_rejection_and_malformed_success_unlock_without_changing_confirmed_valu
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn modern_saved_model_restore_waits_for_ack_and_manual_confirmation_persists() {
     let (mut app, script, ctx) = app_with_script();
     app.agent_chat.running_id = "modern".into();
@@ -1836,6 +1867,7 @@ fn modern_saved_model_restore_waits_for_ack_and_manual_confirmation_persists() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn modern_model_restore_then_mode_restore_are_acknowledged_before_queued_prompt() {
     let (mut app, script, ctx) = app_with_script();
     app.agent_chat.running_id = "modern".into();
@@ -1880,6 +1912,7 @@ fn invalidated_modern_sessions_do_not_expose_stale_legacy_choices() {
 
 /// An agent that reports no models gets no picker; another agent's choice is not applied to it.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn an_agent_without_models_shows_no_picker() {
     let (mut app, script, ctx) = app_with_script();
     app.agent_chat.running_id = "other".into();
@@ -1894,6 +1927,7 @@ fn an_agent_without_models_shows_no_picker() {
 /// With a real ACP agent the choice goes out as `session/set_model` with the session and model.
 #[cfg(unix)]
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn set_model_goes_to_an_acp_agent() {
     let dir = std::env::temp_dir().join(format!("sc-agent-chat-model-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -1947,6 +1981,7 @@ done
 /// "method not found": the choice stays and no error shows (#9970). Other errors still show.
 #[cfg(unix)]
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn set_model_method_not_found_shows_no_error() {
     let dir = std::env::temp_dir().join(format!("sc-agent-chat-model-unserved-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -2045,6 +2080,7 @@ fn pictures_in(parts: &[PromptPart]) -> usize {
 /// Files attached to a message go with it: the pictures as images, the text files in its text,
 /// and every file by name; the message lists them in the conversation.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_message_carries_its_files() {
     let d = attachable("carry");
     let (mut app, script, ctx) = app_with_script();
@@ -2073,6 +2109,7 @@ fn a_message_carries_its_files() {
 /// It is read off it now: the message waits for it (Send waits too), the files keep the order they
 /// were attached in, and a refused picture says why later, in the app's language.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn pictures_are_read_off_the_window_thread() {
     let d = attachable("worker");
     std::fs::write(d.join("fake.png"), b"not a picture at all").unwrap();
@@ -2105,6 +2142,7 @@ fn pictures_are_read_off_the_window_thread() {
 /// Review of #1744: the prompt cap applied to the typed text only, so eight 256 KB text files
 /// took a message to about 2 MB. The whole message stays within it now, every file still named.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_message_with_large_text_files_stays_within_the_prompt_cap() {
     let d = attachable("cap");
     let (mut app, script, ctx) = app_with_script();
@@ -2124,6 +2162,7 @@ fn a_message_with_large_text_files_stays_within_the_prompt_cap() {
 /// no pictures gets none, and the message says which were left out. Files alone make a message,
 /// and its undo step is named after the first file.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn files_wait_with_their_message_and_pictures_skip_an_agent_that_takes_none() {
     let d = attachable("wait");
     let (mut app, script, ctx) = app_with_script();
@@ -2144,6 +2183,7 @@ fn files_wait_with_their_message_and_pictures_skip_an_agent_that_takes_none() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn at_most_eight_files_on_a_message() {
     let d = attachable("eight");
     let mut app = SolveApp::new(solidcraft_engine::Session::default(), crate::Services::default());
@@ -2163,6 +2203,7 @@ fn at_most_eight_files_on_a_message() {
 /// While the agent works, a message queues with its files: the queue shows them, Stop keeps
 /// them, and they go with the queue.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_queued_message_keeps_its_files_through_stop_and_sends_them() {
     let d = attachable("queue");
     let (mut app, script, ctx) = app_with_script();
@@ -2194,6 +2235,7 @@ fn a_queued_message_keeps_its_files_through_stop_and_sends_them() {
 
 /// Queued messages go as one prompt with at most eight files; the rest are named, not sent.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_queue_sends_at_most_eight_files_and_names_the_rest() {
     let d = attachable("queue-cap");
     let (mut app, script, ctx) = app_with_script();
@@ -2240,6 +2282,7 @@ fn narrow_chat() -> crate::scenario::Harness {
 /// with Add agent and Refresh) keeps the panel's side margin, docked and floating: nothing starts
 /// at the panel's edge or is cut off at the other one.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_agent_list_keeps_the_panels_side_margin() {
     use crate::shell::LayoutMode;
     for layout in [LayoutMode::Docked, LayoutMode::Floating] {
@@ -2280,6 +2323,7 @@ fn assert_inside_the_panel(chips: usize) {
 /// Files for the next message show as chips above the text box (a picture's thumbnail, the name,
 /// a × that takes it off), inside the chat, and Send sends files with no text.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn attached_files_show_as_chips_that_can_be_taken_off_and_sent_alone() {
     use crate::scenario::handle_at;
     let d = attachable("chips");
@@ -2310,6 +2354,7 @@ fn attached_files_show_as_chips_that_can_be_taken_off_and_sent_alone() {
 /// freed address could show an old one. Each file has an id of its own, never reused, and the
 /// cache follows the files on the message.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn each_file_has_its_own_id_and_thumbnail() {
     let d = attachable("ids");
     image::RgbaImage::from_pixel(20, 20, image::Rgba([10, 200, 10, 255])).save(d.join("green.png")).unwrap();
@@ -2340,6 +2385,7 @@ fn each_file_has_its_own_id_and_thumbnail() {
 /// (not the design types Open shows) and attaches what it answers; "Paste a picture" attaches
 /// the clipboard's picture (here given as RGBA, as the system does).
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_plus_button_attaches_a_chosen_file_or_a_pasted_picture() {
     use crate::scenario::handle_at;
     let d = attachable("plus");
@@ -2430,6 +2476,7 @@ endsolid t
 /// told the agent "I added x to the design". The file joins the message once its import is in;
 /// a failed import says why and the agent is told nothing of it.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_cad_file_joins_the_message_once_its_import_is_in() {
     let d = attachable("cad");
     std::fs::write(d.join("block.stl"), TETRA_STL).unwrap();
@@ -2472,6 +2519,7 @@ fn an_imported_parts_chip_says_the_part_stays() {
 /// (while they are dragged over it, the chat says so); dropped on the 3D view they are not the
 /// chat's (the app handles them as before), nor when the chat is closed.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn files_dropped_on_the_chat_attach_and_the_app_does_not_open_them() {
     use crate::scenario::rect_of;
     let d = attachable("drop");
@@ -2511,6 +2559,7 @@ fn files_dropped_on_the_chat_attach_and_the_app_does_not_open_them() {
 /// over it (#2812). Here the window floats inside the app, as it does where the system can't open
 /// one: a drop on the window is the chat's, one elsewhere is not.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn files_dropped_on_the_popped_out_chat_attach() {
     use crate::scenario::rect_of;
     let d = attachable("popdrop");
@@ -2538,6 +2587,7 @@ fn files_dropped_on_the_popped_out_chat_attach() {
 /// Many files and a long message in a narrow chat: the chips wrap onto more rows and the text box
 /// keeps to the chat (a row of chips wider than the chat would widen everything under it).
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn chips_and_a_long_message_wrap_inside_a_narrow_chat() {
     use crate::scenario::handle_at;
     let d = attachable("wrap");
@@ -2556,6 +2606,7 @@ fn chips_and_a_long_message_wrap_inside_a_narrow_chat() {
 /// An agent's text is Markdown: a code block shows with its Copy button and a link is a button
 /// of its own, instead of the raw markers.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn an_agents_markdown_is_drawn_as_blocks() {
     let mut h = crate::scenario::Harness::new();
     h.call("ui.agent_chat", json!({"open": true}));
@@ -2593,6 +2644,7 @@ fn box_selection(app: &mut SolveApp) -> Vec<solidcraft_engine::Sel> {
 /// With Attach selection on, the message goes with what is selected: the agent gets it as text
 /// after the message, the conversation shows the message as typed with the items as chips.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn an_attached_selection_goes_as_text_for_the_agent_and_as_chips_in_the_conversation() {
     let (mut app, script, ctx) = app_with_script();
     app.session.selection = box_selection(&mut app);
@@ -2625,6 +2677,7 @@ fn an_attached_selection_goes_as_text_for_the_agent_and_as_chips_in_the_conversa
 /// A queued message keeps the selection of the moment it was typed; queued messages go as one
 /// prompt with all their items.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn queued_messages_keep_the_selection_they_were_typed_with() {
     use solidcraft_engine::Sel;
     let (mut app, script, ctx) = app_with_script();
@@ -2672,6 +2725,7 @@ fn a_huge_selection_is_counted_not_dropped_silently() {
 
 /// The checkbox shows the number selected, and the chips of a sent message are drawn grouped.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_selection_checkbox_and_the_chips_are_drawn() {
     let mut h = crate::scenario::Harness::new();
     h.call("ui.agent_chat", json!({"open": true}));
@@ -2737,6 +2791,7 @@ fn app_with_endpoints() -> SolveApp {
 
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_agent_started_last_connects_at_start_once_the_agents_are_known() {
     let ctx = crate::fonts::test_context();
     let mut app = app_with_endpoints();
@@ -2778,6 +2833,7 @@ fn the_agent_started_last_connects_at_start_once_the_agents_are_known() {
 
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_connection_that_never_gets_ready_says_connection_failed_and_offers_retry() {
     let ctx = crate::fonts::test_context();
     // The agent started last is gone: the chat says so, and no other agent starts by itself.
@@ -2846,6 +2902,7 @@ fn a_connection_that_never_gets_ready_says_connection_failed_and_offers_retry() 
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn assistant_click_and_shortcut_toggle_the_same_panel_without_a_connection() {
     let mut h = crate::scenario::Harness::new();
     h.frames(3);
@@ -2863,6 +2920,7 @@ fn assistant_click_and_shortcut_toggle_the_same_panel_without_a_connection() {
 /// what that finds (and the status it reports) arrives in its own time and may change what is
 /// around the panel, which is not what this checks.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_long_message_keeps_the_buttons_in_the_window() {
     let mut h = crate::scenario::Harness::new();
     h.call("ui.resize", json!({"width": 1600.0, "height": 1000.0}));
@@ -2905,6 +2963,7 @@ fn test_png(colour: [u8; 4], width: u32) -> Vec<u8> {
 /// A message's pictures show as thumbnails; a click opens the viewer on that one, where Next, the
 /// arrow keys and Esc work (#2224). A message whose picture is not taken yet keeps a plain caption.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_messages_pictures_open_in_a_viewer() {
     let mut h = crate::scenario::Harness::new();
     h.call("ui.agent_chat", json!({"open": true}));
@@ -3007,6 +3066,7 @@ fn the_picture_goes_to_the_message_it_was_taken_for() {
 /// wanted one (#2224 review). The picture itself can't be drawn without a renderer in a test, so the
 /// place a turn is started for is what is checked.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_message_sent_again_after_sign_in_stays_the_message_it_was() {
     let (mut app, script, ctx) = app_with_script();
     app.agent_chat.images = true;
@@ -3034,6 +3094,7 @@ fn a_message_sent_again_after_sign_in_stays_the_message_it_was() {
 
 /// The picture viewer opens over the chat's own window too, not only over the docked panel (#1745).
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_viewer_opens_in_the_popped_out_window() {
     let mut h = crate::scenario::Harness::new();
     h.call("ui.agent_chat", json!({"open": true}));
@@ -3076,6 +3137,7 @@ fn pick_into_dialog(app: &mut SolveApp, sels: &[solidcraft_engine::Sel]) {
 /// Pick context opens the picker with Elements, Features and Bodies; OK puts what was picked in the
 /// tray above the message box, as chips with an ×; × takes one out; Cancel keeps what was there.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_picker_fills_a_tray_of_chips_that_can_be_trimmed() {
     let mut h = crate::scenario::Harness::new();
     h.call("ui.agent_chat", json!({"open": true}));
@@ -3125,6 +3187,7 @@ fn the_picker_fills_a_tray_of_chips_that_can_be_trimmed() {
 /// What was picked goes with the next message, once, together with an attached selection that does
 /// not repeat it.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_picks_go_with_the_next_message_once() {
     let (mut app, script, ctx) = app_with_script();
     let sels = box_selection(&mut app);
@@ -3244,6 +3307,7 @@ fn until_decoded(h: &mut crate::scenario::Harness, picture: &Picture) -> bool {
 /// Pictures in any format the attachments take are drawn: JPEG and GIF as well as PNG, decoded off
 /// the window thread (the first frames show a spinner), one that isn't a picture says so.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn attached_pictures_of_any_format_are_decoded_in_the_background() {
     let mut h = crate::scenario::Harness::new();
     h.call("ui.agent_chat", json!({"open": true}));
@@ -3296,6 +3360,7 @@ fn an_attached_picture_and_the_views_picture_share_the_viewer() {
 
 /// Settings › AI › Add agent opens its dialog from the Home tab too (#3483, #3513).
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn add_agent_opens_its_dialog_from_home() {
     use crate::scenario::handle_at;
     let mut h = crate::scenario::Harness::new();
@@ -3559,6 +3624,7 @@ fn unknown_or_malformed_tool_calls_keep_their_title_and_never_panic() {
 /// The card's title is the summary; the raw arguments and result wait behind Details until it is
 /// opened. A call with no words keeps its title.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_tool_card_shows_its_summary_and_keeps_the_json_behind_details() {
     use crate::scenario::handle_at;
     let mut h = crate::scenario::Harness::new();
@@ -3599,6 +3665,7 @@ fn a_tool_card_shows_its_summary_and_keeps_the_json_behind_details() {
 
 /// The card says "Screenshot"; the full temp path is only under Details.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn a_screenshot_card_hides_the_path_until_details() {
     use crate::scenario::handle_at;
     let mut h = crate::scenario::Harness::new();
@@ -3626,6 +3693,7 @@ fn a_screenshot_card_hides_the_path_until_details() {
 /// The composer's input box fills its parent composer area on all four sides, in every layout:
 /// the only inset left is the text's own padding inside the box (no second margin around it).
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_composer_box_fills_its_parent_in_every_layout() {
     use crate::scenario::rect_of;
     for (layout, popped) in [("floating", false), ("docked", false), ("floating", true), ("docked", true)] {
@@ -3652,6 +3720,7 @@ fn the_composer_box_fills_its_parent_in_every_layout() {
 /// The composer hint (idle and busy, in every language) stays on one row, even at the narrowest
 /// panel, and is cut with an ellipsis instead of wrapping.
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_composer_hint_stays_on_one_row_at_the_narrowest_width() {
     let mut h = narrow_chat();
     h.app.agent_chat.state = Some(State::Ready);

@@ -411,7 +411,9 @@ pub(crate) fn selection_field(ui: &mut Ui, text: &str, options: Selection) -> Re
     let t = Tokens::get();
     let (rect, response) = ui.allocate_exact_size(vec2(dimension(ui.available_width()), row_height()), egui::Sense::CLICK);
     // A separate action fill lets two-colour palettes reserve the focus accent for inverted ink.
-    let inverted = t.form_primary_fill != t.form_primary;
+    // MadCAD: only those, whose accent is the page itself; MadMag Dark's red buttons with a pink
+    // focus accent keep a filled and an empty input apart.
+    let inverted = t.form_primary_fill != t.form_primary && t.form_primary == t.control_fill;
     if active && !filled && !inverted {
         ui.painter().rect_filled(rect, t.control_radius, t.selected_bg);
     }

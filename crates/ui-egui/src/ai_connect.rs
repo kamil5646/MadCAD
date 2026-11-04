@@ -147,10 +147,12 @@ mod tests {
     }
 
     #[test]
-    fn it_is_on_by_default_and_saved_off_stays_off() {
-        assert!(crate::prefs::Prefs::default().connect_ai_apps);
+    fn it_is_off_by_default_and_stays_off() {
+        // MadCAD ships without AI: nothing is added to other apps, even from an older settings
+        // file that had it on.
+        assert!(!crate::prefs::Prefs::default().connect_ai_apps);
         let mut app = SolveApp::new(Default::default(), Default::default());
-        app.load_prefs(&serde_json::json!({ "preferences": { "connect_ai_apps": false } }).to_string());
+        app.load_prefs(&serde_json::json!({ "preferences": { "connect_ai_apps": true } }).to_string());
         assert!(!app.preferences.connect_ai_apps);
     }
 }

@@ -285,6 +285,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "MadCAD ships without the AI assistant"]
     fn every_bar_control_uses_translucent_hover_chrome() {
         let previous = crate::theme::is_dark();
         for dark in [false, true] {

@@ -1865,9 +1865,26 @@ fn single_profile(s: &Session, sketch: u64) -> Vec<Sel> {
     }
     let mut outer = outermost_profiles(&ss.profiles);
     match (outer.next(), outer.next()) {
-        (Some(index), None) => vec![Sel::Profile { sketch, index }],
+        (Some(index), None) if !face_outline(&ss.sketch, &ss.profiles[index]) => vec![Sel::Profile { sketch, index }],
+        // MadCAD: on a face sketch the face's own outline is not what was drawn: a circle drawn
+        // there is taken, not the face around it (whose Cut went around the circle).
+        (Some(index), None) => {
+            let mut inner = (0..ss.profiles.len()).filter(|&i| i != index && !face_outline(&ss.sketch, &ss.profiles[i]));
+            match (inner.next(), inner.next()) {
+                (Some(i), None) => vec![Sel::Profile { sketch, index: i }],
+                _ => Vec::new(),
+            }
+        }
         _ => Vec::new(),
     }
+}
+
+/// MadCAD: whether `profile` is bounded by the outline of the face the sketch was started on (the
+/// edges projected into it on its own), not by curves drawn in it.
+fn face_outline(sketch: &solidcraft_engine::sketch::Sketch, profile: &solidcraft_engine::sketch::Profile) -> bool {
+    let auto: Vec<&str> = sketch.links.iter().filter(|l| l.auto_face).map(|l| l.id.as_str()).collect();
+    !auto.is_empty()
+        && profile.outer_curves.iter().all(|id| sketch.curves.iter().any(|c| &c.id == id && c.link.as_deref().is_some_and(|l| auto.contains(&l))))
 }
 
 /// The sketch point (its sketch and id) a Single hole's face place `x` sits on: the one it was

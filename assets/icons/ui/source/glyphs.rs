@@ -111,9 +111,10 @@ pub(crate) fn breadcrumb(p: &egui::Painter, c: egui::Pos2, col: Color32) {
 
 /// MadCAD's mark: a blue rounded tile with a white "M".
 pub(crate) fn brand_mark(p: &egui::Painter, c: Pos2) {
+    let t = crate::theme::Tokens::get();
     let tile = Rect::from_center_size(c, vec2(22.0, 22.0));
-    p.rect_filled(tile, 5.0, crate::theme::Tokens::get().logo[1]);
-    let s = Stroke::new(2.2, Color32::WHITE);
+    p.rect_filled(tile, 5.0, t.logo[1]);
+    let s = Stroke::new(2.2, t.on_accent);
     let (l, r, t, b) = (c.x - 6.0, c.x + 6.0, c.y - 6.0, c.y + 6.0);
     p.line_segment([pos2(l, b), pos2(l, t)], s);
     p.line_segment([pos2(l, t), pos2(c.x, c.y + 2.0)], s);

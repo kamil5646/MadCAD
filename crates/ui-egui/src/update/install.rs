@@ -10,7 +10,8 @@
 //! What "put in place" means per installation:
 //! - AppImage: the new AppImage is written next to the old one and renamed over it (atomic on
 //!   one file system; the running copy keeps its old inode), then SolidCraft offers a restart.
-//! - Windows installer: the `.msi` is started with `msiexec /i … /passive` as SolidCraft exits.
+//! - Windows installer: the `.msi` is started with `msiexec /i … /passive` as SolidCraft exits;
+//!   MadCAD's setup `.exe` is started with `/SILENT` the same way.
 //! - Windows portable `.zip` / standalone `.exe`: the running `solidcraft.exe` is renamed to
 //!   `solidcraft.exe.old` (Windows allows renaming a running executable), the new one takes its
 //!   name, and SolidCraft offers a restart; the `.old` file is deleted at the next start.
@@ -51,6 +52,8 @@ pub enum Method {
     AppImage(PathBuf),
     /// Run the downloaded `.msi`.
     Msi,
+    /// MadCAD: run the downloaded setup `.exe` over the installed copy.
+    Setup,
     /// Swap the running executable (at this path) for the portable zip's one.
     PortableZip(PathBuf),
     /// Swap the running executable (at this path) for the downloaded `.exe`.
@@ -64,6 +67,7 @@ pub fn method(kind: &InstallKind, exe: Option<&Path>) -> Option<Method> {
     match kind {
         InstallKind::AppImage(path) => Some(Method::AppImage(path.clone())),
         InstallKind::WindowsMsi => Some(Method::Msi),
+        InstallKind::WindowsSetup => Some(Method::Setup),
         InstallKind::WindowsPortable => exe.map(|e| Method::PortableZip(e.to_path_buf())),
         InstallKind::WindowsExe => exe.map(|e| Method::Exe(e.to_path_buf())),
         InstallKind::MacApp(_) => Some(Method::Dmg),
@@ -237,7 +241,7 @@ pub fn run(
     let part = match method {
         Method::AppImage(target) => sibling(target, ".update")?,
         Method::Exe(exe) => sibling(exe, ".update")?,
-        Method::Msi | Method::Dmg | Method::PortableZip(_) => {
+        Method::Msi | Method::Setup | Method::Dmg | Method::PortableZip(_) => {
             std::fs::create_dir_all(staging).map_err(|e| format!("{}: {e}", staging.display()))?;
             staging.join(&asset.name)
         }
@@ -325,6 +329,8 @@ pub fn apply(method: &Method, package: &Path) -> Result<Outcome, String> {
             Ok(Outcome::Restart(exe.clone()))
         }
         Method::Msi => Ok(Outcome::Installer(PathBuf::from("msiexec"), vec!["/i".into(), package.to_string_lossy().to_string(), "/passive".into()])),
+        // Inno Setup updates the installed copy in place (same AppId), showing only its progress.
+        Method::Setup => Ok(Outcome::Installer(package.to_path_buf(), vec!["/SILENT".into(), "/SUPPRESSMSGBOXES".into(), "/NORESTART".into()])),
         Method::Dmg => Ok(Outcome::Opened(package.to_path_buf())),
     }
 }

@@ -721,8 +721,9 @@ mod tests {
         h.call("ui.drag", json!({"x0":800,"y0":500,"x1":850,"y1":520,"button":"middle","shift":true,"steps":20}));
         assert!(h.app.cam_anim.is_none(), "the orbit cancels the glide");
         expected.orbit(50.0, 20.0);
-        // The glide may step once, in the frame the orbit starts and cancels it.
-        assert!((h.app.cam.yaw - expected.yaw).abs() < 0.03 && (h.app.cam.pitch - expected.pitch).abs() < 0.03, "{:?} vs {:?}", h.app.cam, expected);
+        // The glide may step once, in the frame the orbit starts and cancels it (MadCAD's glide is
+        // shorter, 0.3 s, so that step is a little larger).
+        assert!((h.app.cam.yaw - expected.yaw).abs() < 0.05 && (h.app.cam.pitch - expected.pitch).abs() < 0.05, "{:?} vs {:?}", h.app.cam, expected);
         let done = h.app.cam;
         h.frames(30);
         assert_eq!(h.app.cam, done, "nothing keeps easing after the pointer stops");

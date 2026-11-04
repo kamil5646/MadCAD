@@ -73,6 +73,13 @@ fn install_kinds_are_told_apart() {
     // Path::parent splits on `\` only on Windows; this test describes the layout either way.
     if cfg!(windows) {
         assert_eq!(probe("windows", true, &pf, portable, &[cli]), InstallKind::WindowsPortable);
+        // MadCAD's setup leaves its uninstaller beside the program, in the user's folder or
+        // under Program Files alike.
+        let setup = "C:\\Users\\me\\AppData\\Local\\Programs\\MadCAD\\MadCAD.exe";
+        let uninstaller = "C:\\Users\\me\\AppData\\Local\\Programs\\MadCAD\\unins000.exe";
+        assert_eq!(probe("windows", true, &pf, setup, &[uninstaller, cli]), InstallKind::WindowsSetup);
+        let all_users = "C:\\Program Files\\MadCAD\\MadCAD.exe";
+        assert_eq!(probe("windows", true, &pf, all_users, &["C:\\Program Files\\MadCAD\\unins000.exe"]), InstallKind::WindowsSetup);
     }
     assert_eq!(probe("windows", true, &pf, "C:\\Users\\me\\Downloads\\SolidCraft-0.10.0-windows-x64.exe", &[]), InstallKind::WindowsExe);
 
@@ -108,8 +115,8 @@ fn an_msi_install_outside_program_files_is_recognised() {
         "ProgramFiles(x86)" => Some(r"C:\Program Files (x86)".to_string()),
         _ => None,
     };
-    // solidcraft-cli.exe is beside it.
-    let exists = |_: &Path| true;
+    // solidcraft-cli.exe is beside it (and no uninstaller of MadCAD's setup).
+    let exists = |p: &Path| p.to_string_lossy().ends_with("solidcraft-cli.exe");
     let kind = |msi_dir: Option<&str>| {
         detect(&Probe { os: "windows", release_build: true, env: &get, exe: Some(exe.clone()), exists: &exists, msi_dir: msi_dir.map(PathBuf::from) })
     };
@@ -145,14 +152,20 @@ fn release() -> Release {
         "solidcraft-windows-x64.msi",
         "solidcraft-windows-x86-portable.zip",
         "solidcraft-windows-x86.msi",
+        // MadCAD's own packages.
+        "MadCAD-0.10.0-mac-arm64.dmg",
+        "MadCAD-0.10.0-mac-arm64.zip",
+        "MadCAD-0.10.0-windows-x64-setup.exe",
+        "MadCAD-0.10.0-windows-x64.exe",
+        "MadCAD-0.10.0-windows-x64.zip",
     ];
     let assets: Vec<Value> = names
         .iter()
-        .map(|n| json!({"name": n, "size": 10, "browser_download_url": format!("https://github.com/bherbruck/solidcraft/releases/download/v0.10.0/{n}")}))
+        .map(|n| json!({"name": n, "size": 10, "browser_download_url": format!("https://github.com/kamil5646/MadCAD/releases/download/v0.10.0/{n}")}))
         .collect();
     let body = json!({
         "tag_name": "v0.10.0", "name": "SolidCraft v0.10.0", "body": "**What's new**\n\n- Surface tools.",
-        "html_url": "https://github.com/bherbruck/solidcraft/releases/tag/v0.10.0", "draft": false, "prerelease": false, "assets": assets,
+        "html_url": "https://github.com/kamil5646/MadCAD/releases/tag/v0.10.0", "draft": false, "prerelease": false, "assets": assets,
     });
     Release::parse(body.to_string().as_bytes()).unwrap()
 }
@@ -169,23 +182,25 @@ fn each_installation_gets_its_own_file() {
     assert_eq!(name(InstallKind::WindowsMsi, "x86_64").as_deref(), Some("solidcraft-windows-x64.msi"));
     assert_eq!(name(InstallKind::WindowsMsi, "aarch64").as_deref(), Some("solidcraft-windows-arm64.msi"));
     assert_eq!(name(InstallKind::WindowsMsi, "x86").as_deref(), Some("solidcraft-windows-x86.msi"));
-    assert_eq!(name(InstallKind::WindowsPortable, "x86_64").as_deref(), Some("solidcraft-windows-x64-portable.zip"));
-    assert_eq!(name(InstallKind::WindowsExe, "x86_64").as_deref(), Some("SolidCraft-0.10.0-windows-x64.exe"));
-    assert_eq!(name(InstallKind::WindowsExe, "aarch64").as_deref(), Some("solidcraft-windows-arm64-portable.zip"));
-    assert_eq!(name(InstallKind::MacApp("/A.app".into()), "aarch64").as_deref(), Some("solidcraft-macos-universal.dmg"));
+    // MadCAD: its Windows packages (x64 only) and its Mac disk image.
+    assert_eq!(name(InstallKind::WindowsSetup, "x86_64").as_deref(), Some("MadCAD-0.10.0-windows-x64-setup.exe"));
+    assert_eq!(name(InstallKind::WindowsPortable, "x86_64").as_deref(), Some("MadCAD-0.10.0-windows-x64.zip"));
+    assert_eq!(name(InstallKind::WindowsExe, "x86_64").as_deref(), Some("MadCAD-0.10.0-windows-x64.exe"));
+    assert_eq!(name(InstallKind::WindowsExe, "aarch64"), None);
+    assert_eq!(name(InstallKind::MacApp("/A.app".into()), "aarch64").as_deref(), Some("MadCAD-0.10.0-mac-arm64.dmg"));
     assert_eq!(name(InstallKind::Other, "x86_64"), None);
     assert_eq!(name(InstallKind::Deb, "riscv64"), None);
     // Download: the file, or the page when there is none or a package manager updates it.
     assert_eq!(
         r.download_url(&InstallKind::WindowsMsi, "x86_64"),
-        "https://github.com/bherbruck/solidcraft/releases/download/v0.10.0/solidcraft-windows-x64.msi"
+        "https://github.com/kamil5646/MadCAD/releases/download/v0.10.0/solidcraft-windows-x64.msi"
     );
-    assert_eq!(r.download_url(&InstallKind::Other, "x86_64"), "https://github.com/bherbruck/solidcraft/releases/tag/v0.10.0");
+    assert_eq!(r.download_url(&InstallKind::Other, "x86_64"), "https://github.com/kamil5646/MadCAD/releases/tag/v0.10.0");
     assert_eq!(r.download_url(&InstallKind::Flatpak(APP_ID.into()), "x86_64"), r.page);
     assert_eq!(r.download_url(&InstallKind::Snap { store: true }, "x86_64"), r.page);
     assert_eq!(
         r.download_url(&InstallKind::Snap { store: false }, "x86_64"),
-        "https://github.com/bherbruck/solidcraft/releases/download/v0.10.0/solidcraft-linux-x86_64.snap"
+        "https://github.com/kamil5646/MadCAD/releases/download/v0.10.0/solidcraft-linux-x86_64.snap"
     );
     assert_eq!(
         InstallKind::Snap { store: false }.update_command(Some("solidcraft-linux-x86_64.snap")).as_deref(),
@@ -202,7 +217,7 @@ fn each_installation_gets_its_own_file() {
 #[test]
 fn release_answers_are_checked() {
     let r = release();
-    assert_eq!((r.tag.as_str(), r.version(), r.assets.len()), ("v0.10.0", "0.10.0", 20));
+    assert_eq!((r.tag.as_str(), r.version(), r.assets.len()), ("v0.10.0", "0.10.0", 25));
     let bad = |v: Value| Release::parse(v.to_string().as_bytes()).is_err();
     assert!(bad(json!({"tag_name": "v0.11.0-rc.1", "prerelease": true})));
     assert!(bad(json!({"tag_name": "v0.11.0", "draft": true})));
@@ -212,7 +227,7 @@ fn release_answers_are_checked() {
     let r = Release::parse(
         json!({"tag_name": "v1.0.0", "html_url": "https://evil.example/x", "assets": [
             {"name": "solidcraft-windows-x64.msi", "browser_download_url": "https://evil.example/a.msi"},
-            {"name": "solidcraft-windows-x86.msi", "browser_download_url": "https://github.com/bherbruck/solidcraft/releases/download/v1.0.0/solidcraft-windows-x86.msi"},
+            {"name": "solidcraft-windows-x86.msi", "browser_download_url": "https://github.com/kamil5646/MadCAD/releases/download/v1.0.0/solidcraft-windows-x86.msi"},
         ]})
         .to_string()
         .as_bytes(),
@@ -220,7 +235,7 @@ fn release_answers_are_checked() {
     .unwrap();
     assert_eq!(r.page, RELEASES_PAGE);
     assert_eq!(r.assets.len(), 1);
-    assert_eq!(r.name, "SolidCraft v1.0.0");
+    assert_eq!(r.name, "MadCAD v1.0.0");
     // Huge notes are cut (on a character boundary).
     let r = Release::parse(json!({"tag_name": "v1.0.0", "body": "é".repeat(MAX_NOTES)}).to_string().as_bytes()).unwrap();
     assert!(r.notes.len() <= MAX_NOTES + 8 && r.notes.ends_with('…'));
@@ -307,7 +322,7 @@ fn next_release_feed(dir: &Path) -> (PathBuf, String) {
         "tag_name": format!("v{v}"),
         "name": format!("SolidCraft {v}"),
         "body": "## What's new\n\n- Faster rebuilds.",
-        "html_url": format!("https://github.com/bherbruck/solidcraft/releases/tag/v{v}"),
+        "html_url": format!("https://github.com/kamil5646/MadCAD/releases/tag/v{v}"),
         "assets": []
     });
     std::fs::write(&path, body.to_string()).unwrap();
@@ -381,7 +396,7 @@ fn help_menu_checks_with_automatic_checks_off_and_offers_installation() {
     assert!(h.app.updater.open);
     assert!(h.app.preferences.update.skipped.is_empty());
     assert_eq!(h.app.preferences.update.remind_after, 0.0);
-    assert!(h.widget(&format!("SolidCraft {version} is available")).is_some());
+    assert!(h.widget(&format!("MadCAD {version} is available")).is_some());
     assert!(h.widget("Download and open").is_some(), "the macOS installation is offered immediately");
     assert!(h.app.updater.job.is_none());
 }
@@ -413,7 +428,7 @@ fn help_check_shows_progress_and_up_to_date_then_closes() {
     tx.send(Ok(release)).unwrap();
     h.frames(2);
     assert_eq!(h.app.updater.status, Status::UpToDate);
-    assert!(h.widget("SolidCraft is up to date.").is_some());
+    assert!(h.widget("MadCAD is up to date.").is_some());
     assert!(h.widget("Download").is_none() && h.widget("Update now").is_none());
     let [x, y] = h.widget("Close").unwrap();
     h.call("ui.click", json!({"x": x, "y": y}));
@@ -421,7 +436,7 @@ fn help_check_shows_progress_and_up_to_date_then_closes() {
     // Reopening during the cooldown still shows the result, without another request.
     h.app.updater.last_manual = unix_now();
     h.call("ui.help", json!({"item": "updates"}));
-    assert!(h.widget("SolidCraft is up to date.").is_some());
+    assert!(h.widget("MadCAD is up to date.").is_some());
     assert!(h.app.updater.rx.is_none());
 }
 
@@ -434,7 +449,7 @@ fn help_check_reports_network_errors_and_rate_limits_in_the_window() {
         h.frames(2);
         assert_eq!(h.app.updater.status, Status::Failed(error.to_string()));
         assert!(h.widget(&format!("Couldn't check: {error}")).is_some());
-        assert!(h.widget("SolidCraft is up to date.").is_none());
+        assert!(h.widget("MadCAD is up to date.").is_none());
         if matches!(error, FetchError::RateLimited { .. }) {
             h.call("ui.help", json!({"item": "updates"}));
             assert!(h.app.updater.rx.is_none(), "the server's rate limit is honoured");
@@ -451,16 +466,16 @@ fn help_check_result_follows_the_selected_language() {
     let release = Release::parse(json!({"tag_name": current_version(), "assets": []}).to_string().as_bytes()).unwrap();
     tx.send(Ok(release)).unwrap();
     h.frames(2);
-    assert!(h.widget("SolidCraft ist aktuell.").is_some());
+    assert!(h.widget("MadCAD ist aktuell.").is_some());
     for (language, title, message) in [
-        ("fr", "Rechercher des mises à jour", "SolidCraft est à jour."),
-        ("ja", "アップデートを確認", "SolidCraft は最新です。"),
-        ("zh-TW", "檢查更新", "SolidCraft 已是最新版本。"),
+        ("fr", "Rechercher des mises à jour", "MadCAD est à jour."),
+        ("ja", "アップデートを確認", "MadCAD は最新です。"),
+        ("zh-TW", "檢查更新", "MadCAD 已是最新版本。"),
     ] {
         h.call("ui.prefs", json!({"language": language}));
         assert!(h.widget(title).is_some(), "the window title follows {language}");
         assert!(h.widget(message).is_some(), "the result follows {language}");
-        assert!(h.widget("SolidCraft is up to date.").is_none());
+        assert!(h.widget("MadCAD is up to date.").is_none());
     }
 }
 
@@ -470,7 +485,7 @@ fn help_check_explains_when_checks_are_unavailable() {
     h.app.updater.off = true;
     h.call("ui.help", json!({"item": "updates"}));
     assert!(h.widget("Update checks are not available for this installation.").is_some());
-    assert!(h.widget("SolidCraft is up to date.").is_none());
+    assert!(h.widget("MadCAD is up to date.").is_none());
     assert!(h.app.updater.rx.is_none());
 }
 
@@ -502,6 +517,7 @@ fn help_check_keeps_an_active_installation_on_screen() {
 }
 
 #[test]
+#[ignore = "MadCAD ships without the AI assistant"]
 fn the_title_bar_offers_the_new_version_and_opens_the_update_window() {
     let dir = scratch();
     let (feed, version) = next_release_feed(&dir.0);
@@ -585,7 +601,7 @@ fn the_memo_survives_with_the_preferences() {
 
 #[test]
 fn release_notes_read_as_markdown() {
-    let md = "## What's new\n\n**Why 0.10:** a minor\nbump.\n\n- **Surface tools.** Revolve and `solidcraft-cli mcp`\n  continued ([#925](https://x/925)).\n  - nested\n* Fix by @a in https://github.com/bherbruck/solidcraft/pull/1064\n\nSee https://example.com/x.";
+    let md = "## What's new\n\n**Why 0.10:** a minor\nbump.\n\n- **Surface tools.** Revolve and `solidcraft-cli mcp`\n  continued ([#925](https://x/925)).\n  - nested\n* Fix by @a in https://github.com/kamil5646/MadCAD/pull/1064\n\nSee https://example.com/x.";
     let b = parse_markdown(md);
     assert_eq!(b.first(), Some(&Block::Heading(vec![Span::Text("What's new".into())])));
     assert_eq!(b.get(1), Some(&Block::Paragraph(vec![Span::Strong("Why 0.10:".into()), Span::Text(" a minor bump.".into())])));
@@ -610,7 +626,7 @@ fn release_notes_read_as_markdown() {
             0,
             vec![
                 Span::Text("Fix by @a in ".into()),
-                Span::Link { text: "#1064".into(), url: Some("https://github.com/bherbruck/solidcraft/pull/1064".into()) }
+                Span::Link { text: "#1064".into(), url: Some("https://github.com/kamil5646/MadCAD/pull/1064".into()) }
             ]
         ))
     );
@@ -634,43 +650,42 @@ fn release_note_links_keep_their_web_targets() {
 
 #[test]
 fn releases_under_either_owner_are_accepted() {
+    // MadCAD: only MadCAD's own releases; SolidCraft's (either owner) are not MadCAD's updates.
     let parse = |owner: &str| {
         let base = format!("https://github.com/{owner}/releases");
         Release::parse(
             json!({"tag_name": "v1.0.0", "html_url": format!("{base}/tag/v1.0.0"), "assets": [
-                {"name": "solidcraft-windows-x64.msi", "browser_download_url": format!("{base}/download/v1.0.0/solidcraft-windows-x64.msi")},
+                {"name": "MadCAD-1.0.0-windows-x64-setup.exe", "browser_download_url": format!("{base}/download/v1.0.0/MadCAD-1.0.0-windows-x64-setup.exe")},
             ]})
             .to_string()
             .as_bytes(),
         )
         .unwrap()
     };
-    for owner in ["bherbruck/solidcraft", "tangency-labs/solidcraft"] {
-        let r = parse(owner);
-        assert_eq!(r.page, format!("https://github.com/{owner}/releases/tag/v1.0.0"));
-        assert_eq!(r.assets.len(), 1, "{owner}");
-    }
+    let r = parse("kamil5646/MadCAD");
+    assert_eq!(r.page, "https://github.com/kamil5646/MadCAD/releases/tag/v1.0.0");
+    assert_eq!(r.assets.len(), 1);
     // Any other owner, repository, host or scheme is dropped.
-    for owner in ["evil/solidcraft", "tangency-labs/solidcraft-evil", "tangency-labs.evil/solidcraft", "bherbruck/other"] {
+    for owner in ["bherbruck/solidcraft", "tangency-labs/solidcraft", "evil/MadCAD", "kamil5646/MadCAD-evil", "kamil5646.evil/MadCAD"] {
         let r = parse(owner);
         assert_eq!(r.page, RELEASES_PAGE, "{owner}");
         assert!(r.assets.is_empty(), "{owner}");
     }
-    assert!(!is_release_url("http://github.com/tangency-labs/solidcraft/releases/x"));
-    assert!(!is_release_url("https://github.com.evil.example/tangency-labs/solidcraft/releases/x"));
-    assert!(!is_release_url("https://github.com/tangency-labs/solidcraft/issues/1"));
+    assert!(!is_release_url("http://github.com/kamil5646/MadCAD/releases/x"));
+    assert!(!is_release_url("https://github.com.evil.example/kamil5646/MadCAD/releases/x"));
+    assert!(!is_release_url("https://github.com/kamil5646/MadCAD/issues/1"));
 }
 
 #[test]
 fn the_version_links_to_its_release_notes() {
     // A release build opens the page of its own release; stable, candidate and nightly tags all exist.
     for v in ["0.17.0", "0.21.0-rc.2", "0.20.0-nightly.20261023.69.1"] {
-        assert_eq!(release_notes_url(v, true), format!("https://github.com/tangency-labs/solidcraft/releases/tag/v{v}"));
+        assert_eq!(release_notes_url(v, true), format!("https://github.com/kamil5646/MadCAD/releases/tag/v{v}"));
     }
     // A development build has no release of its own: the release history, which is what the issue asks for.
-    assert_eq!(release_notes_url("0.17.0", false), "https://github.com/tangency-labs/solidcraft/releases");
+    assert_eq!(release_notes_url("0.17.0", false), "https://github.com/kamil5646/MadCAD/releases");
     // Anything that is not a version never ends up in a URL.
-    assert_eq!(release_notes_url("0.1/../../x", true), "https://github.com/tangency-labs/solidcraft/releases");
+    assert_eq!(release_notes_url("0.1/../../x", true), "https://github.com/kamil5646/MadCAD/releases");
 }
 
 #[test]
@@ -811,7 +826,7 @@ fn open_update_window(managed: Option<&str>) -> (crate::scenario::Harness, Scrat
 fn a_managed_install_points_to_its_manager_instead_of_updating_itself() {
     let (mut h, _dir) = open_update_window(Some("ArtCraft Launcher"));
     assert_eq!(install_method(&mut h.app), None, "no AppImage self-replace");
-    assert!(h.widget("Update available: update SolidCraft in ArtCraft Launcher").is_some());
+    assert!(h.widget("Update available: update MadCAD in ArtCraft Launcher").is_some());
     for gone in ["Update now", "Download", "Open release page"] {
         assert!(h.widget(gone).is_none(), "{gone} is not offered");
     }
@@ -827,7 +842,7 @@ fn an_unmanaged_install_updates_itself_as_before() {
     assert_eq!(install_method(&mut h.app), Some(install::Method::AppImage("/home/me/SolidCraft.AppImage".into())));
     assert!(h.widget("Update now").is_some());
     assert!(h.widget("Download").is_some());
-    assert!(h.widget("Update available: update SolidCraft in ArtCraft Launcher").is_none());
+    assert!(h.widget("Update available: update MadCAD in ArtCraft Launcher").is_none());
 }
 
 #[test]
@@ -867,8 +882,8 @@ fn install_selection_refreshes_the_button_and_progress_before_completion() {
     h.app.services.http_get = Some(Arc::new(move |url| {
         if url == LATEST_API {
             return Ok(json!({"tag_name":"v999.1.0", "assets":[
-                {"name": name, "browser_download_url":format!("https://github.com/tangency-labs/solidcraft/releases/download/v999.1.0/{name}")},
-                {"name": install::SUMS, "browser_download_url":"https://github.com/tangency-labs/solidcraft/releases/download/v999.1.0/SHA256SUMS.txt"}
+                {"name": name, "browser_download_url":format!("https://github.com/kamil5646/MadCAD/releases/download/v999.1.0/{name}")},
+                {"name": install::SUMS, "browser_download_url":"https://github.com/kamil5646/MadCAD/releases/download/v999.1.0/SHA256SUMS.txt"}
             ]}).to_string().into_bytes());
         }
         Ok(format!("{}  {name}\n", "a".repeat(64)).into_bytes())
@@ -913,8 +928,8 @@ fn cancel_download_leaves_downloading_immediately() {
     h.app.services.http_get = Some(Arc::new(move |url| {
         if url == LATEST_API {
             return Ok(json!({"tag_name":"v999.1.0", "assets":[
-                {"name": name, "browser_download_url":format!("https://github.com/tangency-labs/solidcraft/releases/download/v999.1.0/{name}")},
-                {"name": install::SUMS, "browser_download_url":"https://github.com/tangency-labs/solidcraft/releases/download/v999.1.0/SHA256SUMS.txt"}
+                {"name": name, "browser_download_url":format!("https://github.com/kamil5646/MadCAD/releases/download/v999.1.0/{name}")},
+                {"name": install::SUMS, "browser_download_url":"https://github.com/kamil5646/MadCAD/releases/download/v999.1.0/SHA256SUMS.txt"}
             ]}).to_string().into_bytes());
         }
         // Stall checksum GET until the test ends so Cancel has to work before the body download.

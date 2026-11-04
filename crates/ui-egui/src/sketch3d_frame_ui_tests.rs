@@ -166,7 +166,7 @@ fn second_occurrence_drawn_wire_fit_picks_and_world_triad_drag_stay_aligned() {
     }
     h.step(&json!({"click":{"world":[17,32,45]}})).unwrap();
     h.step(&json!({"click":{"world":[17,32,55]}})).unwrap();
-    h.step(&json!({"key":"Escape"})).unwrap();
+    // MadCAD's Line ends after each segment: one Esc puts it down (a second would finish the sketch).
     h.step(&json!({"key":"Escape"})).unwrap();
     assert!(h.app.tool.is_none());
     let raw = h.app.session.model.state();

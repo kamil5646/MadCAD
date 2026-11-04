@@ -6954,7 +6954,9 @@ mod tests {
         control(&mut h.app, &json!({"button":"defaults"})).unwrap();
         h.frames(2);
         assert!(h.app.preferences.theme_options.is_empty());
-        assert_eq!(Tokens::get().panel, Tokens::dark().panel);
+        // MadCAD: the default theme is MadMag Dark.
+        let madmag = crate::theme_files::resolve(crate::theme_files::find("madmag-dark", &[]).unwrap());
+        assert_eq!(Tokens::get().panel, madmag.panel);
         control(&mut h.app, &json!({"button":"cancel"})).unwrap();
         h.frames(2);
         assert_eq!(Tokens::get().panel, egui::Color32::from_rgb(0xab, 0xcd, 0xef));
@@ -8793,9 +8795,8 @@ mod tests {
     #[test]
     fn language_preference_switches_and_persists() {
         let mut app = SolveApp::new(solidcraft_engine::Session::default(), Default::default());
-        // A first start follows the system (#10138); pin English so the words below are fixed.
+        // A first start follows the system (#10138), which is English in a test.
         assert_eq!(app.preferences.language, crate::i18n::SYSTEM);
-        app.preferences.language = "en".into();
         assert_eq!(app.tr("ui.preferences"), "Preferences");
         assert_eq!(app.tr("ui.extrude"), "Extrude");
 
@@ -9418,5 +9419,20 @@ mod perspective_fov_tests {
         h.call("ui.prefs", json!({"perspective_fov": 1.1}));
         h.step(&json!({"restart": "close"})).unwrap();
         assert_eq!(h.app.preferences.perspective_fov, 1.1);
+    }
+}
+
+/// MadCAD's own defaults: a simple start (the scenarios start from SolidCraft's, see
+/// `scenario::upstream_defaults`).
+#[cfg(test)]
+mod madcad_defaults {
+    #[test]
+    fn madcad_starts_simple() {
+        let p = super::Prefs::default();
+        assert_eq!(p.theme, "madmag-dark");
+        assert_eq!(p.hidden_toolbar_tabs, ["SURFACE", "ASSEMBLE", "MANAGE", "SHEET METAL", "WELDMENTS"]);
+        assert!(p.hide_origin, "the Origin starts hidden");
+        assert!(!p.ai_features && !p.connect_ai_apps, "no AI");
+        assert!(matches!(p.sketch_exit_view, super::SketchExitView::UnlessRotated));
     }
 }

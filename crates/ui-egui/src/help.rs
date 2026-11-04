@@ -108,7 +108,7 @@ fn connect(app: &mut SolveApp, ctx: &egui::Context) {
         .show(ctx, true, |ui| {
             ui_kit::text(
                 ui,
-                crate::i18n::tr_label("Restart each assistant to load the SolidCraft server. Each file was backed up as .bak before it changed."),
+                crate::i18n::tr_label("Restart each assistant to load the MadCAD server. Each file was backed up as .bak before it changed."),
                 ui_kit::Text::Note("connect_note"),
             );
             ui_kit::text(ui, &lines.join("\n"), ui_kit::Text::Report("connect", false));

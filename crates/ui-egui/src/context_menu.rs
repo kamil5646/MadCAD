@@ -67,6 +67,8 @@ pub enum Target {
     InsertDesign,
     /// Model › Edit Sketch: choose an existing sketch when none is uniquely selected.
     EditSketch,
+    /// MadCAD: View › Restore View: the design's named views.
+    RestoreView,
     /// View › Visual style: the four styles, the current one marked (#8868).
     VisualStyle,
     /// View › Navigation tool: Orbit, Pan, Zoom; the latched one marked (#8868).
@@ -445,6 +447,9 @@ pub fn items(app: &SolveApp, target: &Target) -> Vec<Item> {
                 .map(|f| act("ui.editSketch", &f.name, "sketch").with(json!({"sketch": f.id})))
                 .collect();
             if items.is_empty() { vec![act("ui.editSketch", app.tr("ui.edit_sketch_empty"), "sketch").on(false)] } else { items }
+        }
+        Target::RestoreView => {
+            app.session.doc.named_views.iter().map(|v| act("ui.restoreView", &v.name, "perspective").with(json!({ "view": v.name }))).collect()
         }
         Target::VisualStyle => crate::navigation_bar::VISUAL_STYLES
             .iter()
@@ -2982,17 +2987,12 @@ mod workspace_menu_tests {
         h.call("ui.resize", json!({"width":1200,"height":1000}));
         h.step(&json!({"click":{"handle":"ribbon:workspace"}})).unwrap();
         let opener = rect_of("ribbon:workspace").unwrap();
-        let rows: Vec<_> = ["design", "render", "animation", "simulation", "manufacture", "drawing"]
-            .iter()
-            .map(|slug| rect_of(&format!("workspace:menu:{slug}")).unwrap())
-            .collect();
+        // MadCAD: Design and Render only, no placeholder workspaces.
+        let rows: Vec<_> = ["design", "render"].iter().map(|slug| rect_of(&format!("workspace:menu:{slug}")).unwrap()).collect();
         assert!(rows.windows(2).all(|pair| pair[0].bottom() <= pair[1].top()));
         assert!(rows[0].top() > opener.bottom());
         assert_eq!(rows[0].width(), 450.0);
-        assert!(items(&h.app, &Target::Workspace).iter().skip(2).all(|item| !item.enabled));
-        h.step(&json!({"click":{"handle":"workspace:menu:animation"}})).unwrap();
-        assert!(!crate::render_workspace::active(&h.app));
-        assert!(h.app.viewport.context_menu.is_some());
+        assert!(rect_of("workspace:menu:animation").is_none());
         h.step(&json!({"click":{"handle":"workspace:menu:render"}})).unwrap();
         assert!(crate::render_workspace::active(&h.app));
         h.step(&json!({"click":{"handle":"ribbon:workspace"}})).unwrap();
