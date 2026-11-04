@@ -130,10 +130,12 @@ class App:
         self.wait_idle()
 
     def wait_idle(self, t=0.35):
+        """Give the window `t` seconds, then wait (up to 30 s) until nothing is loading, previewing
+        or computing: a slow computer finishes a command later than a fast one."""
         time.sleep(t)
-        for _ in range(40):
+        for _ in range(300):
             i = self.call("ui.inspect")
-            if not i.get("file_busy") and not (i.get("preview") or {}).get("pending"):
+            if not (i.get("file_busy") or i.get("computing") or (i.get("preview") or {}).get("pending")):
                 return i
             time.sleep(0.1)
         return i
@@ -143,10 +145,13 @@ class App:
         return {h["name"]: (h["x"], h["y"]) for h in self.call("ui.handles", prefix=prefix)}
 
     def handle(self, name):
-        h = self.handles(name)
-        if name not in h:
-            raise Failure(f"`{name}` is not on screen; near it: {sorted(h)[:12]}")
-        return h[name]
+        # A slow computer draws the frame that shows it a moment later.
+        for _ in range(15):
+            h = self.handles(name)
+            if name in h:
+                return h[name]
+            time.sleep(0.2)
+        raise Failure(f"`{name}` is not on screen; near it: {sorted(h)[:12]}")
 
     def at(self, **where):
         return self.call("ui.at", check=False, **where)
@@ -226,17 +231,19 @@ class App:
         if self.doc().get("active_sketch") is None:
             raise Failure("no sketch is being edited after picking the plane")
 
+    def _point(self, what, **where):
+        for _ in range(15):
+            p = self.at(**where)
+            if p is not None:
+                return p
+            time.sleep(0.2)
+        raise Failure(f"{what} is not on screen")
+
     def s(self, x, y):
-        p = self.at(sketch=[x, y])
-        if p is None:
-            raise Failure(f"sketch point {x},{y} is not on screen")
-        return p
+        return self._point(f"sketch point {x},{y}", sketch=[x, y])
 
     def w(self, x, y, z):
-        p = self.at(world=[x, y, z])
-        if p is None:
-            raise Failure(f"world point {x},{y},{z} is not on screen")
-        return p
+        return self._point(f"world point {x},{y},{z}", world=[x, y, z])
 
 
 def near(a, b, tol=0.5):

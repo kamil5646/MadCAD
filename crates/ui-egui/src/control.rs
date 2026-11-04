@@ -643,6 +643,8 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
             }))),
             "adapter": app.viewport.adapter,
             "file_busy": app.file_load.busy(),
+            // MadCAD: a command still computing off the window thread (or queued behind one).
+            "computing": app.computing_since().is_some() || !app.deferred_queue.is_empty(),
             "file_picker_busy": app.file_picker_busy(),
             "file_dialog_open": app.file_picker_busy(),
             "build_ms": app.viewport.build_ms,

@@ -405,6 +405,7 @@ def sketch_finish_then_extrude(a):
 
 def origin_row(a, name):
     """Click a plane or axis of the Origin in the browser, unfolding the Origin when it is folded."""
+    a.wait_idle(0.5)
     if "row:" + name not in a.handles("row:"):
         a.click(a.handle("fold:Origin"))
     a.click(a.handle("row:" + name))
