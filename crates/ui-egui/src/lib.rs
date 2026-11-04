@@ -1132,6 +1132,11 @@ impl SolveApp {
                 p.sketch_exit_view = prefs::SketchExitView::UnlessRotated;
             }
             p.madcad_sketch_exit_initialized = true;
+            // Saved files from before 8.0.8 carry the upstream shown Origin: MadCAD hides it once.
+            if v.get("preferences").and_then(|p| p.get("madcad_origin_initialized")).and_then(Value::as_bool) != Some(true) {
+                p.hide_origin = true;
+            }
+            p.madcad_origin_initialized = true;
             p.ai_features = false;
             p.connect_ai_apps = false;
             self.ui.layout = p.layout;

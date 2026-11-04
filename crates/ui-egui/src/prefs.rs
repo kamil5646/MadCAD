@@ -1197,6 +1197,8 @@ preference_settings! {
     madcad_layout_initialized: bool = true;
     /// Marks preferences saved after MadCAD made the view go back when a sketch ends.
     madcad_sketch_exit_initialized: bool = true;
+    /// MadCAD: saved preferences from before 8.0.8 hide the Origin once (XY, XZ, YZ start hidden).
+    madcad_origin_initialized: bool = true;
     /// Show the ribbon's panel drop-downs as a grid of large icons, their names in the tooltips,
     /// instead of a list of small icons with names (#4739).
     ribbon_icon_grid: bool = false, PAGE_LAYOUT;

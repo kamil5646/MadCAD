@@ -32,7 +32,7 @@ i na gałęzi `main`.
 ## Budowanie
 
 ```bash
-bash packaging/madcad/build-mac.sh 8.0.7      # macOS: dist/MadCAD-8.0.7-mac-arm64.{dmg,zip}
+bash packaging/madcad/build-mac.sh 8.0.8      # macOS: dist/MadCAD-8.0.8-mac-arm64.{dmg,zip}
 ```
 
 Windows buduje workflow `.github/workflows/madcad-windows.yml` przy każdym pushu na gałąź `madcad8`.

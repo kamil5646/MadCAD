@@ -104,3 +104,12 @@ fn a_double_click_on_a_history_item_edits_it() {
     h.settle();
     assert_eq!(kind(&h), "Extrude", "status {:?}", h.app.status);
 }
+
+#[test]
+fn saved_preferences_from_before_8_0_8_hide_the_origin_once() {
+    let mut h = Harness::new();
+    h.app.load_prefs(r#"{"preferences": {"hide_origin": false}}"#);
+    assert!(h.app.preferences.hide_origin, "XY, XZ and YZ start hidden");
+    h.app.load_prefs(r#"{"preferences": {"hide_origin": false, "madcad_origin_initialized": true}}"#);
+    assert!(!h.app.preferences.hide_origin, "a later choice to show the Origin is kept");
+}
