@@ -252,13 +252,14 @@ class App:
 
     def open_sketch_ui(self, plane="XY"):
         self.button("sketch.create")
-        self.click(self.at(plane=plane))
+        # A slow computer shows the planes to pick a moment after the button.
+        self.click(self._point(f"the {plane} plane", plane=plane))
         self.wait_idle(1.5)
         if self.doc().get("active_sketch") is None:
             raise Failure("no sketch is being edited after picking the plane")
 
     def _point(self, what, **where):
-        for _ in range(15):
+        for _ in range(25):
             p = self.at(**where)
             if p is not None:
                 return p

@@ -544,8 +544,12 @@ def save_view_and_restore_view_buttons(a):
     expect(st and "`" not in st and "camera" not in st, f"Save View says: {st}")
     a.key("1", cmd=True)
     a.button("view.apply")
-    items = [i.get("label") for i in (a.call("ui.menu") or {}).get("items", [])]
-    expect(len(items) == 1, f"Restore View lists the saved view: {items}")
+    # A slow computer draws the menu a moment after the click.
+    items = []
+    def listed():
+        items[:] = [i.get("label") for i in (a.call("ui.menu") or {}).get("items", [])]
+        return len(items) == 1
+    expect(a.soon(listed), f"Restore View lists the saved view: {items}")
     a.call("ui.menu", close=True)
 
 
