@@ -95,6 +95,37 @@ fn revolve_takes_enter_after_the_axis_is_picked_in_the_browser() {
         h.app.dialog.as_ref().map(|d| d.inputs.iter().map(|i| (i.label, i.items.len())).collect::<Vec<_>>()));
 }
 
+/// A slow window may take the click on the axis and the Enter typed right after it in two
+/// frames back to back: Enter comes in the frame that gives the Angle field the keyboard.
+#[test]
+fn revolve_takes_an_enter_typed_right_after_the_pick() {
+    let mut h = Harness::new();
+    h.app.home.open = false;
+    h.app.preferences.hide_origin = true;
+    h.call("ui.resize", json!({"width": 1600, "height": 1000}));
+    for (id, p) in [
+        ("sketch.create", json!({"plane": "XZ"})),
+        ("sketch.rectangle.two_point", json!({"p0": [10, 0], "p1": [20, 30]})),
+        ("sketch.finish", json!({})),
+    ] {
+        h.app.run(id, p).unwrap();
+    }
+    h.frames(3);
+    h.app.start("solid.revolve");
+    h.frames(4);
+    click(&mut h, "dialog:row:Axis", false);
+    if !handles("row:Z").iter().any(|(n, _, _)| n == "row:Z") {
+        click(&mut h, "fold:Origin", false);
+    }
+    let (_, x, y) = handles("row:Z").into_iter().find(|(n, _, _)| n == "row:Z").expect("row:Z");
+    // Both queued before a frame runs (`Harness::call` would settle in between).
+    for (m, p) in [("ui.click", json!({"x": x, "y": y})), ("ui.key", json!({"key": "Enter"}))] {
+        let _ = crate::control::handle(&mut h.app, &h.ctx, &crate::control::ControlRequest::new(m, p).0);
+    }
+    h.settle();
+    assert!(h.app.dialog.is_none(), "Enter left {} open, status {:?}", kind(&h), h.app.status);
+}
+
 #[test]
 fn a_double_click_on_a_history_item_edits_it() {
     let mut h = block();

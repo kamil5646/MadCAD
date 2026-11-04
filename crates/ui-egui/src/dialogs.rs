@@ -3754,7 +3754,10 @@ pub fn show(app: &mut SolveApp, ctx: &egui::Context) {
     }
     // Keyboard: Enter applies (from a value field, or with nothing focused), Esc cancels.
     let (enter_free, esc) = ctx.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
-    let nothing_focused = ctx.memory(|m| m.focused().is_none());
+    // Nothing has the keyboard, or a value field took it only in this frame (after a pick, drawn
+    // before it took it): a slow window runs the Enter typed right after a pick in that frame,
+    // and the field never saw it.
+    let nothing_focused = ctx.memory(|m| m.focused().is_none_or(|id| !m.had_focus_last_frame(id)));
     let canvas_enter = enter_free && ctx.memory(|m| m.had_focus_last_frame(egui::Id::new("sc_canvas_value")));
     // Tables (configurations, a study's keys) take Enter for their cells.
     let enter_applies = !matches!(d.kind, Kind::Sketch | Kind::Measure { .. } | Kind::ConfirmDelete { .. })
