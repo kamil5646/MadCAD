@@ -403,14 +403,20 @@ def sketch_finish_then_extrude(a):
 # ---------------------------------------------------------------- more feature windows
 
 
+def origin_row(a, name):
+    """Click a plane or axis of the Origin in the browser, unfolding the Origin when it is folded."""
+    if "row:" + name not in a.handles("row:"):
+        a.click(a.handle("fold:Origin"))
+    a.click(a.handle("row:" + name))
+
+
 @test
 def revolve_about_an_axis(a):
     rect_sketch(a, 10, 0, 20, 30, plane="XZ")
     a.button("solid.revolve")
     a.click(a.handle("dialog:row:Axis"))
     # The origin's axes are hidden at first: the Z axis is picked in the browser, as a user does.
-    a.click(a.handle("fold:Origin"))
-    a.click(a.handle("row:Z"))
+    origin_row(a, "Z")
     a.key("Enter")
     no_dialog(a, "Enter")
     want = PI * (20 * 20 - 10 * 10) * 30
@@ -423,8 +429,7 @@ def mirror_body_on_a_plane(a):
     a.button("solid.mirror")
     a.click(a.w(20, 10, 10))
     a.click(a.handle("dialog:row:Mirror Plane"))
-    a.click(a.handle("fold:Origin"))
-    a.click(a.handle("row:YZ"))
+    origin_row(a, "YZ")
     a.key("Enter")
     no_dialog(a, "Enter")
     expect(near(a.volume(), 16000, 2), f"block and its mirror image: volume {a.volume()} != 16000")
@@ -630,7 +635,10 @@ def every_sketch_button_does_something(a):
         p = press_and_back(a, command, lambda: a.click(a.handle(name)))
         if a.doc().get("active_sketch") is None:
             bad.append(f"{command}: left the sketch")
+            a.new()
             a.open_sketch_ui("XY")
+            a.ex("sketch.rectangle.two_point", p0=[0, 0], p1=[40, 20])
+            a.ex("sketch.circle.center", center=[60, 10], radius=8)
         if p:
             bad.append(f"{command}: {', '.join(p)}")
     expect(not bad, "sketch buttons:\n    " + "\n    ".join(bad))
@@ -647,6 +655,9 @@ def every_letter_shortcut_starts_its_command(a):
                 keys[k] = c["id"]
     bad = []
     for k, command in sorted(keys.items()):
+        # Render's own keys (paint, pick up) work in the Render workspace only.
+        if command.startswith("render.") or command in ("appearance.paint", "appearance.pick_up"):
+            continue
         sketch = command.startswith("sketch.")
         if sketch and a.doc().get("active_sketch") is None:
             a.ex("sketch.create", plane="XY")

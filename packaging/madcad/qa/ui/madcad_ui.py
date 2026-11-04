@@ -205,6 +205,8 @@ class App:
         if self.inspect().get("home"):
             self.click(self.handle("home:new"))
         self.call("ui.view", view="home")
+        if "tab:MODEL" in self.handles("tab:"):
+            self.click(self.handle("tab:MODEL"))
         self.wait_idle()
 
     def block(self, x=40, y=20, z=10):

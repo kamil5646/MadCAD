@@ -333,6 +333,9 @@ pub fn start_hook(app: &mut SolveApp, id: &str) -> bool {
         // The browser's canvas panel (one panel for canvases).
         if let Some(first) = app.session.doc.canvases.first().map(|c| c.id) {
             app.tree.canvas_panel = Some(crate::browser::CanvasPanel::new(app, first, false));
+        } else {
+            // MadCAD: with no canvas there is nothing to edit; say how to add one.
+            app.set_status(app.tr("ui.canvas_edit_none").to_string(), false);
         }
         return false;
     }

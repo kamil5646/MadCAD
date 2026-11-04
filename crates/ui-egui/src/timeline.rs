@@ -585,8 +585,7 @@ fn playback_ready(app: &SolveApp) -> Result<(), String> {
     if app.computing_since().is_some() || playback_blocked(app) {
         return Err(crate::i18n::tr("ui.history_play_finish_action").into());
     }
-    let n = app.session.doc.features.len();
-    if app.session.doc.marker.unwrap_or(n) >= n {
+    if app.session.doc.features.is_empty() {
         return Err(crate::i18n::tr("ui.history_play_roll_back").into());
     }
     Ok(())
@@ -603,6 +602,14 @@ pub(crate) fn request_playback(app: &mut SolveApp, action: PlaybackAction) -> Re
     playback_ready(app)?;
     let n = app.session.doc.features.len();
     let position = app.session.doc.marker.unwrap_or(n);
+    // MadCAD: Play at the end of the History replays it from the start, instead of asking for
+    // the marker to be moved back first.
+    if position >= n {
+        let revision = app.session.revision;
+        app.run_heavy("timeline.roll_to", json!({"position": 0}))?;
+        app.timeline_playback = Some(Playback { revision, position: 0, waiting: true, next_at: 0.0 });
+        return Ok(());
+    }
     app.timeline_playback = Some(Playback { revision: app.session.revision, position, waiting: false, next_at: 0.0 });
     Ok(())
 }
@@ -1537,16 +1544,34 @@ mod tests {
     }
 
     #[test]
-    fn playback_at_the_end_or_in_an_empty_design_leaves_history_unchanged() {
-        for mut h in [Harness::new(), two_boxes(false)] {
-            h.frames(2);
-            let revision = h.app.session.revision;
-            h.app.start("timeline.play");
-            h.frames(2);
-            h.frames(60);
-            assert_eq!(h.app.session.revision, revision);
-            assert!(h.app.timeline_playback.is_none());
+    fn playback_in_an_empty_design_leaves_history_unchanged() {
+        let mut h = Harness::new();
+        h.frames(2);
+        let revision = h.app.session.revision;
+        h.app.start("timeline.play");
+        h.frames(62);
+        assert_eq!(h.app.session.revision, revision);
+        assert!(h.app.timeline_playback.is_none());
+    }
+
+    /// MadCAD: Play at the end of the History replays it from the start, back to the end.
+    #[test]
+    fn playback_at_the_end_replays_from_the_start() {
+        let mut h = two_boxes(false);
+        h.frames(2);
+        let n = h.app.session.doc.features.len();
+        h.app.start("timeline.play");
+        h.frames(2);
+        assert!(h.app.timeline_playback.is_some(), "it plays");
+        assert!(h.app.session.doc.marker.unwrap_or(n) < n, "from the start");
+        for _ in 0..600 {
+            if h.app.timeline_playback.is_none() {
+                break;
+            }
+            h.frame();
         }
+        assert!(h.app.timeline_playback.is_none(), "and stops");
+        assert_eq!(h.app.session.doc.marker.unwrap_or(n), n, "at the end");
     }
 
     #[test]

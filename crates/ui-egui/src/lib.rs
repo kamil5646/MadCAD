@@ -1620,6 +1620,22 @@ impl SolveApp {
             }
             return;
         }
+        // MadCAD: Check Contact says what it found, also when nothing passes through anything.
+        if id == "contact.check" {
+            match self.run(id, json!({})) {
+                Ok(reply) => {
+                    let n = reply["collisions"].as_array().map_or(0, Vec::len);
+                    let text = if n == 0 {
+                        self.tr("ui.contact_check_clear").to_string()
+                    } else {
+                        crate::i18n::format("ui.contact_check_found", &[("n", &n.to_string())])
+                    };
+                    self.set_status(text, n > 0);
+                }
+                Err(why) => self.set_status(why, true),
+            }
+            return;
+        }
         if id == "view.normal_to" {
             if self.run(id, json!({"camera": self.cam})).is_ok() {
                 self.follow_view_request(true);

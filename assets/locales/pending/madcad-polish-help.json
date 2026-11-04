@@ -2,7 +2,7 @@
   "pl": {
     "help.assembly.bom": "Wypisuje części projektu lub komponentu z ich liczbą, według numeru części, i zapisuje listę jako CSV lub JSON. Służy jako lista części do zamówienia i montażu.",
     "help.canvas.decal": "Umieszcza obraz na płaskiej ścianie modelu, jak naklejkę. Służy do pokazania etykiety, logo lub nadruku na części.",
-    "help.canvas.edit": "Zmienia kanwę: jej położenie, rozmiar, kąt, przezroczystość, odbicie, widoczność lub nazwę. Służy do dopasowania obrazu do szkicu, który na nim odrysowujesz.",
+    "help.canvas.edit": "Zmienia płótno: jego położenie, rozmiar, kąt, przezroczystość, odbicie, widoczność lub nazwę. Służy do dopasowania obrazu do szkicu, który na nim odrysowujesz.",
     "help.canvas.insert": "Umieszcza obraz PNG lub JPEG na płaszczyźnie lub ścianie jako przezroczyste tło. Służy do odrysowania zdjęcia lub rysunku w szkicu, z obrazem przeskalowanym do znanego wymiaru.",
     "help.component.break_link": "Odłącza połączony komponent od jego pliku projektu, zostawiając bryły bez zmian. Służy do tego, żeby część przestała śledzić zmiany w oryginalnym pliku.",
     "help.component.capture_position": "Zapamiętuje położenie części przesuniętych ręcznie, tak że zostają tam, gdzie są. Użyj po przeciągnięciu na miejsce części, których nie trzyma żadne złącze.",
