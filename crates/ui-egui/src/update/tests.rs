@@ -158,6 +158,8 @@ fn release() -> Release {
         "MadCAD-0.10.0-windows-x64-setup.exe",
         "MadCAD-0.10.0-windows-x64.exe",
         "MadCAD-0.10.0-windows-x64.zip",
+        "MadCAD-0.10.0-linux-x86_64.AppImage",
+        "MadCAD-0.10.0-linux-x86_64.tar.gz",
     ];
     let assets: Vec<Value> = names
         .iter()
@@ -174,11 +176,13 @@ fn release() -> Release {
 fn each_installation_gets_its_own_file() {
     let r = release();
     let name = |k: InstallKind, arch: &str| r.asset_for(&k, arch).map(|a| a.name.clone());
-    assert_eq!(name(InstallKind::AppImage("/a".into()), "x86_64").as_deref(), Some("solidcraft-linux-x86_64.AppImage"));
-    assert_eq!(name(InstallKind::AppImage("/a".into()), "aarch64").as_deref(), Some("solidcraft-linux-aarch64.AppImage"));
+    // MadCAD: its Linux packages (x86_64 only so far: none for aarch64 in the release).
+    assert_eq!(name(InstallKind::AppImage("/a".into()), "x86_64").as_deref(), Some("MadCAD-0.10.0-linux-x86_64.AppImage"));
+    assert_eq!(name(InstallKind::AppImage("/a".into()), "aarch64"), None);
+    assert_eq!(name(InstallKind::LinuxTarball, "x86_64").as_deref(), Some("MadCAD-0.10.0-linux-x86_64.tar.gz"));
+    assert_eq!(name(InstallKind::LinuxTarball, "aarch64"), None);
     assert_eq!(name(InstallKind::Deb, "x86_64").as_deref(), Some("solidcraft-linux-x86_64.deb"));
     assert_eq!(name(InstallKind::Rpm, "x86_64").as_deref(), Some("solidcraft-linux-x86_64.rpm"));
-    assert_eq!(name(InstallKind::LinuxTarball, "aarch64").as_deref(), Some("solidcraft-0.10.0-linux-aarch64.tar.gz"));
     assert_eq!(name(InstallKind::WindowsMsi, "x86_64").as_deref(), Some("solidcraft-windows-x64.msi"));
     assert_eq!(name(InstallKind::WindowsMsi, "aarch64").as_deref(), Some("solidcraft-windows-arm64.msi"));
     assert_eq!(name(InstallKind::WindowsMsi, "x86").as_deref(), Some("solidcraft-windows-x86.msi"));
@@ -217,7 +221,7 @@ fn each_installation_gets_its_own_file() {
 #[test]
 fn release_answers_are_checked() {
     let r = release();
-    assert_eq!((r.tag.as_str(), r.version(), r.assets.len()), ("v0.10.0", "0.10.0", 25));
+    assert_eq!((r.tag.as_str(), r.version(), r.assets.len()), ("v0.10.0", "0.10.0", 27));
     let bad = |v: Value| Release::parse(v.to_string().as_bytes()).is_err();
     assert!(bad(json!({"tag_name": "v0.11.0-rc.1", "prerelease": true})));
     assert!(bad(json!({"tag_name": "v0.11.0", "draft": true})));

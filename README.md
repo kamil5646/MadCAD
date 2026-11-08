@@ -17,9 +17,12 @@ Najnowsze wydanie: [github.com/kamil5646/MadCAD/releases/latest](https://github.
 - **macOS (Apple Silicon):** `MadCAD-<wersja>-mac-arm64.dmg` — przeciągnij MadCAD do Aplikacji.
   Aplikacja nie jest podpisana przez Apple: przy pierwszym uruchomieniu kliknij ją prawym
   przyciskiem → Otwórz.
-- **Windows (x64):** `MadCAD-<wersja>-windows-x64.exe` (jeden plik, bez instalacji) albo
-  `.zip` z narzędziem wiersza poleceń. Windows SmartScreen może ostrzec o nieznanym wydawcy:
-  Więcej informacji → Uruchom mimo to.
+- **Windows (x64):** `MadCAD-<wersja>-windows-x64-setup.exe` (instalator), albo
+  `MadCAD-<wersja>-windows-x64.exe` (jeden plik, bez instalacji) lub `.zip` z narzędziem wiersza
+  poleceń. Windows SmartScreen może ostrzec o nieznanym wydawcy: Więcej informacji → Uruchom mimo to.
+- **Linux (x86_64):** `MadCAD-<wersja>-linux-x86_64.AppImage` — nadaj prawo uruchamiania
+  (`chmod +x`) i uruchom; albo `.tar.gz` z programami. Wymaga glibc 2.35 lub nowszej
+  (Ubuntu 22.04, Debian 12, Fedora 36 i nowsze).
 
 ## MadCAD 8 a wersje 7.x
 
@@ -27,15 +30,16 @@ MadCAD 8 to nowy program napisany w Rust, oparty na otwartym projekcie
 [SolidCraft](https://github.com/tangency-labs/solidcraft) (MIT / Apache-2.0).
 Projekty zapisuje w formacie `.sc`. Pliki `.madcad` z wersji 7.x nie są otwierane —
 wersja 7.x pozostaje dostępna w [starszych wydaniach](https://github.com/kamil5646/MadCAD/releases)
-i na gałęzi `main`.
+i na gałęzi `madcad7`.
 
 ## Budowanie
 
 ```bash
-bash packaging/madcad/build-mac.sh 8.0.9      # macOS: dist/MadCAD-8.0.9-mac-arm64.{dmg,zip}
+bash packaging/madcad/build-mac.sh 8.0.10      # macOS: dist/MadCAD-8.0.10-mac-arm64.{dmg,zip}
 ```
 
-Windows buduje workflow `.github/workflows/madcad-windows.yml` przy każdym pushu na gałąź `madcad8`.
+Windows i Linux budują workflowy `.github/workflows/madcad-windows.yml` i `madcad-linux.yml`
+przy każdym pushu na gałąź `madcad8` (Linux lokalnie: `bash packaging/madcad/package-linux.sh`).
 
 ## Licencja i autorzy
 

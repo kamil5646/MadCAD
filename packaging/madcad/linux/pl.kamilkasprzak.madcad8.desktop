@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=MadCAD
+GenericName=2D and 3D CAD
+GenericName[pl]=Projektowanie 2D i 3D
+Comment=Design parts in 2D and 3D: sketch, extrude and change a value to rebuild
+Comment[pl]=Projektowanie części w 2D i 3D: szkic, wyciągnięcie i zmiana wymiaru
+Exec=madcad %f
+TryExec=madcad
+Icon=pl.kamilkasprzak.madcad8
+Terminal=false
+StartupNotify=true
+StartupWMClass=pl.kamilkasprzak.madcad8
+Categories=Graphics;3DGraphics;Engineering;
+Keywords=cad;3d;2d;parametric;sketch;step;stl;
+MimeType=application/x-solidcraft;model/step;model/stl;model/3mf;

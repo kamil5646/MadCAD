@@ -1,0 +1,70 @@
+# MadCAD 8 for Linux x86_64: an AppImage and a tar.gz (packaging/madcad/package-linux.sh).
+# Runs on every push to the madcad8 branch (and trial/* branches); the release takes the files
+# from the run's artifact.
+name: MadCAD Linux
+
+on:
+  push:
+    branches: [madcad8, "trial/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# As on Windows: no LTO and no debug info; the cache keeps the dependencies.
+env:
+  CARGO_PROFILE_RELEASE_LTO: "false"
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  linux:
+    # The oldest GitHub-hosted image, so the programs only need glibc >= 2.35.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          # desktop-file-utils checks the menu entry; Xvfb and Mesa's software Vulkan draw the
+          # window for the interface checks (the runner has no screen and no graphics card);
+          # libxkbcommon-x11 is on every X11 desktop but not on the runner. Openbox gives the window
+          # the keyboard focus a desktop gives it (egui's value boxes only count as focused then).
+          sudo apt-get install -y --no-install-recommends desktop-file-utils xvfb xauth openbox libxkbcommon-x11-0 mesa-vulkan-drivers libvulkan1 libgl1-mesa-dri
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: madcad-linux-x64
+          cache-on-failure: true
+      - name: Build and package
+        run: bash packaging/madcad/package-linux.sh
+      - name: Check the packages
+        run: |
+          ls -l dist
+          ldd target/release/solidcraft | grep -v '=> /' || true
+          APPIMAGE_EXTRACT_AND_RUN=1 dist/MadCAD-*-linux-x86_64.AppImage --version
+          tar -tzf dist/MadCAD-*-linux-x86_64.tar.gz | grep -E '/madcad$|/solidcraft-cli$|/THIRD-PARTY-LICENSES.txt$'
+      - name: Function checks
+        run: |
+          # The engine's checks (packaging/madcad/qa): bodies, volumes and errors of 135 cases.
+          export MADCAD_CLI="$PWD/target/release/solidcraft-cli"
+          cd packaging/madcad/qa
+          failed=0
+          for t in t_solid.py t_sketch.py t_hist.py; do
+            python3 "$t" >"$RUNNER_TEMP/$t.log" || failed=1
+            grep -v '^OK' "$RUNNER_TEMP/$t.log" || true
+          done
+          exit $failed
+      - name: Interface checks
+        continue-on-error: true
+        run: |
+          # The window worked by clicks and keys (packaging/madcad/qa/ui), on a virtual screen with
+          # a window manager.
+          xvfb-run -a -s "-screen 0 1920x1200x24" sh -c 'openbox & sleep 1; python3 packaging/madcad/qa/ui/test_ui.py target/madcad-linux/MadCAD.AppDir/usr/bin/madcad'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: madcad-linux-x64
+          path: |
+            dist/*.AppImage
+            dist/*.tar.gz
+          if-no-files-found: error

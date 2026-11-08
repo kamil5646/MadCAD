@@ -461,12 +461,14 @@ pub fn asset_name(kind: &InstallKind, arch: &str, version: &str) -> Option<Strin
     };
     let version = version.trim_start_matches('v');
     Some(match kind {
-        InstallKind::AppImage(_) => format!("solidcraft-linux-{}.AppImage", linux?),
+        // MadCAD's Linux packages, named as the release workflow names them (x86_64 so far: on
+        // other machines the release has no such file and Download opens the release page).
+        InstallKind::AppImage(_) => format!("MadCAD-{version}-linux-{}.AppImage", linux?),
+        InstallKind::LinuxTarball => format!("MadCAD-{version}-linux-{}.tar.gz", linux?),
         InstallKind::Flatpak(_) => format!("solidcraft-linux-{}.flatpak", linux?),
         InstallKind::Snap { .. } => format!("solidcraft-linux-{}.snap", linux?),
         InstallKind::Deb => format!("solidcraft-linux-{}.deb", linux?),
         InstallKind::Rpm => format!("solidcraft-linux-{}.rpm", linux?),
-        InstallKind::LinuxTarball => format!("solidcraft-{version}-linux-{}.tar.gz", linux?),
         InstallKind::WindowsMsi => format!("solidcraft-windows-{}.msi", windows?),
         // MadCAD's Windows packages are x64 only, named as the release workflow names them.
         InstallKind::WindowsSetup if windows == Some("x64") => format!("MadCAD-{version}-windows-x64-setup.exe"),

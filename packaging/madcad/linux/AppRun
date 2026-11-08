@@ -1,0 +1,61 @@
+#!/bin/sh
+# MadCAD AppImage entry point (packaging/madcad/linux/AppRun; installed by package-linux.sh).
+#
+# A dock finds a window's icon through the installed .desktop file named after the window's app id
+# (pl.kamilkasprzak.madcad8). An AppImage installs nothing, so on each start (when something
+# changed) this puts the menu entry and the icons into $XDG_DATA_HOME, then starts MadCAD.
+# Every failure here leaves the start untouched. Opt out with MADCAD_NO_DESKTOP_INTEGRATION=1.
+# Launchers that manage AppImages (Gear Lever, AppImageLauncher) set DESKTOPINTEGRATION and write
+# their own entry: then nothing is installed here.
+
+set -u
+
+APPDIR="$(dirname "$(readlink -f "$0")")"
+DESK_ID=pl.kamilkasprzak.madcad8
+
+integrate() {
+  case "${MADCAD_NO_DESKTOP_INTEGRATION:-}" in
+    1 | true | yes) return 0 ;;
+  esac
+  [ -z "${DESKTOPINTEGRATION:-}" ] || return 0
+  appimage="${APPIMAGE:-}"
+  [ -n "$appimage" ] && [ -f "$appimage" ] || return 0
+  appimage="$(readlink -f "$appimage")" || return 0
+  # Exec= is parsed by the desktop: skip a path that would need escaping.
+  case "$appimage" in
+    *[\"\`\$\\%]* | *'
+'*) return 0 ;;
+  esac
+  home="${HOME:-}"
+  [ -n "$home" ] || return 0
+  data="${XDG_DATA_HOME:-$home/.local/share}"
+  src="$APPDIR/usr/share/applications/$DESK_ID.desktop"
+  [ -f "$src" ] || return 0
+
+  apps="$data/applications"
+  mkdir -p "$apps" 2>/dev/null || return 0
+  tmp="$apps/.$DESK_ID.tmp.$$"
+  esc="$(printf '%s' "$appimage" | sed 's/[\\&|]/\\&/g')"
+  if sed -e "s|^Exec=.*|Exec=\"$esc\" %F|" -e '/^TryExec=/d' "$src" 2>/dev/null >"$tmp"; then
+    if cmp -s "$tmp" "$apps/$DESK_ID.desktop"; then
+      rm -f "$tmp"
+    elif mv -f "$tmp" "$apps/$DESK_ID.desktop" 2>/dev/null; then
+      command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps" >/dev/null 2>&1
+    else
+      rm -f "$tmp"
+    fi
+  else
+    rm -f "$tmp"
+    return 0
+  fi
+
+  icons="$APPDIR/usr/share/icons/hicolor"
+  [ -d "$icons" ] || return 0
+  (cd "$icons" && find . -type f) | while IFS= read -r rel; do
+    mkdir -p "$data/icons/hicolor/$(dirname "$rel")" 2>/dev/null || continue
+    cmp -s "$icons/$rel" "$data/icons/hicolor/$rel" || cp "$icons/$rel" "$data/icons/hicolor/$rel" 2>/dev/null || true
+  done
+}
+
+integrate
+exec "$APPDIR/usr/bin/madcad" "$@"

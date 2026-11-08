@@ -109,7 +109,7 @@ fn an_appimage_is_replaced_only_when_it_verifies() {
     let target = dir.join("SolidCraft.AppImage");
     std::fs::write(&target, b"old version").unwrap();
     let new = b"new version".to_vec();
-    let name = "solidcraft-linux-x86_64.AppImage";
+    let name = "MadCAD-9.9.9-linux-x86_64.AppImage";
     let kind = InstallKind::AppImage(target.clone());
     let m = Method::AppImage(target.clone());
     let r = release_with(&[(name, new.len()), (SUMS, 100)]);
@@ -258,19 +258,23 @@ fn an_updated_appimage_takes_the_release_file_name() {
     assert_eq!(new("/a/SolidCraft.AppImage"), Path::new("/a/SolidCraft.AppImage"), "a name the user chose");
     assert_eq!(new("/a/solidcraft-linux-x86_64.AppImage"), Path::new("/a/solidcraft-linux-x86_64.AppImage"), "no version in it");
     assert_eq!(new("/a/solidcraft-0.16.2-linux-x86_64.AppImage.bak"), Path::new("/a/solidcraft-0.16.2-linux-x86_64.AppImage.bak"));
+    // MadCAD's own release names.
+    assert_eq!(new("/a/MadCAD-8.0.10-linux-x86_64.AppImage"), Path::new("/a/MadCAD-0.17.0-linux-x86_64.AppImage"));
+    assert_eq!(new("/a/madcad-8.0.10-linux-x86_64.appimage"), Path::new("/a/MadCAD-0.17.0-linux-x86_64.AppImage"));
+    assert_eq!(new("/a/MadCAD.AppImage"), Path::new("/a/MadCAD.AppImage"), "a name the user chose");
 
     // End to end: the old versioned file is gone, the new one has the release's name and works.
     let dir = scratch("appimage-name");
-    let old = dir.join("solidcraft-9.9.8-linux-x86_64.AppImage");
+    let old = dir.join("MadCAD-9.9.8-linux-x86_64.AppImage");
     std::fs::write(&old, b"old version").unwrap();
-    let name = "solidcraft-linux-x86_64.AppImage";
+    let name = "MadCAD-9.9.9-linux-x86_64.AppImage";
     let content = b"new version".to_vec();
     let r = release_with(&[(name, content.len()), (SUMS, 100)]);
     let sums = format!("{}  {name}\n", hex(&content));
     let n = net(vec![(name.into(), content.clone()), (SUMS.into(), sums.into_bytes())]);
     let kind = InstallKind::AppImage(old.clone());
     let out = run(&r, &kind, &Method::AppImage(old.clone()), "x86_64", &n, &dir, &Progress::default()).unwrap();
-    let want = dir.join("solidcraft-9.9.9-linux-x86_64.AppImage");
+    let want = dir.join("MadCAD-9.9.9-linux-x86_64.AppImage");
     assert_eq!(out, Outcome::Restart(want.clone()));
     assert_eq!(std::fs::read(&want).unwrap(), content);
     assert!(!old.exists());
@@ -281,14 +285,15 @@ fn an_updated_appimage_takes_the_release_file_name() {
 #[test]
 fn installation_refreshes_the_release_and_verifies_the_final_package() {
     let dir = scratch("refresh");
-    let target = dir.join("SolidCraft.AppImage");
-    let name = "solidcraft-linux-x86_64.AppImage";
-    let shown = release_with(&[(name, 3), (SUMS, 100)]);
+    let target = dir.join("MadCAD.AppImage");
+    // MadCAD's AppImage carries the release's version in its name.
+    let name = |version: &str| format!("MadCAD-{version}-linux-x86_64.AppImage");
+    let shown = release_with(&[(&name("9.9.9"), 3), (SUMS, 100)]);
     let base = "https://github.com/kamil5646/MadCAD/releases/download/v10.0.0/";
     let feed = serde_json::json!({
         "tag_name": "v10.0.0",
         "assets": [
-            {"name": name, "browser_download_url": format!("{base}{name}"), "size": 3},
+            {"name": name("10.0.0"), "browser_download_url": format!("{base}{}", name("10.0.0")), "size": 3},
             {"name": SUMS, "browser_download_url": format!("{base}{SUMS}")}
         ]
     })
@@ -304,6 +309,8 @@ fn installation_refreshes_the_release_and_verifies_the_final_package() {
     ] {
         std::fs::write(&target, b"old").unwrap();
         let chosen_base = if expected == "10.0.0" { base } else { BASE };
+        let chosen = name(expected);
+        let listed = chosen.clone();
         let n = Net {
             feed: None,
             get: Arc::new(move |url| {
@@ -311,10 +318,10 @@ fn installation_refreshes_the_release_and_verifies_the_final_package() {
                     return answer.clone();
                 }
                 assert_eq!(url, format!("{chosen_base}{SUMS}"), "checksums from the chosen release");
-                Ok(format!("{}  {name}\n", hex(if corrupt { b"bad" } else { b"new" })).into_bytes())
+                Ok(format!("{}  {listed}\n", hex(if corrupt { b"bad" } else { b"new" })).into_bytes())
             }),
             download: Arc::new(move |url, to, report| {
-                assert_eq!(url, format!("{chosen_base}{name}"), "package from the chosen release");
+                assert_eq!(url, format!("{chosen_base}{chosen}"), "package from the chosen release");
                 std::fs::write(to, b"new").unwrap();
                 assert!(report(3, Some(3)));
                 Ok(())

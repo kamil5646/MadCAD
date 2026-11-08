@@ -871,7 +871,9 @@ fn app_viewport(custom_titlebar: bool) -> Result<egui::ViewportBuilder, eframe::
 }
 
 /// The window's app id: it names the desktop entry, so it is the packages' reverse-DNS id.
-const APP_ID: &str = solidcraft_engine::io::APP_ID;
+/// MadCAD: its own id (as the Mac bundle's), so its window never takes SolidCraft's menu entry
+/// and icon (packaging/madcad/linux).
+const APP_ID: &str = "pl.kamilkasprzak.madcad8";
 
 /// Disconnects from the 3D mouse driver when dropped, as `main` returns or a panic unwinds out
 /// of it (`solidcraft_3dx_client::stop`).

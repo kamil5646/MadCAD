@@ -279,13 +279,19 @@ pub fn run(
 }
 
 /// Where an AppImage called `path` goes once it holds `version`: if its name is a release name
-/// (`solidcraft-<version>-linux-<arch>.AppImage`, or the old `solvecraft-` one), the new release's name
-/// in the same folder; any other name (renamed by the user, or without a version) is kept.
+/// (MadCAD's `MadCAD-<version>-linux-<arch>.AppImage`, or SolidCraft's `solidcraft-` / old
+/// `solvecraft-` one), the new release's name in the same folder; any other name (renamed by the
+/// user, or without a version) is kept.
 pub fn release_named(path: &Path, version: &str, arch: &str) -> PathBuf {
     let name = path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+    let release = |r: &str| r.starts_with(|c: char| c.is_ascii_digit()) && r.contains("-linux-") && r.ends_with(".appimage");
+    let version = version.trim_start_matches('v');
+    if name.strip_prefix("madcad-").is_some_and(release) {
+        return path.with_file_name(format!("MadCAD-{version}-linux-{arch}.AppImage"));
+    }
     let rest = name.strip_prefix("solidcraft-").or_else(|| name.strip_prefix("solvecraft-"));
-    if rest.is_some_and(|r| r.starts_with(|c: char| c.is_ascii_digit()) && r.contains("-linux-") && r.ends_with(".appimage")) {
-        path.with_file_name(format!("solidcraft-{}-linux-{arch}.AppImage", version.trim_start_matches('v')))
+    if rest.is_some_and(release) {
+        path.with_file_name(format!("solidcraft-{version}-linux-{arch}.AppImage"))
     } else {
         path.to_path_buf()
     }
