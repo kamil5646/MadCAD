@@ -24,7 +24,7 @@ OutputDir={#Out}
 OutputBaseFilename=MadCAD-{#Version}-windows-x64-setup
 SetupIconFile={#Stage}\MadCAD.ico
 UninstallDisplayIcon={app}\MadCAD.exe
-LicenseFile={#Stage}\LICENSE-MIT
+LicenseFile={#Stage}\LICENSE.txt
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -40,19 +40,24 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "{#Stage}\MadCAD.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#Stage}\solidcraft-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Stage}\madcad-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Stage}\LICENSE.txt"; DestDir: "{app}"
 Source: "{#Stage}\LICENSE-MIT"; DestDir: "{app}\Licenses"
 Source: "{#Stage}\LICENSE-APACHE"; DestDir: "{app}\Licenses"
 Source: "{#Stage}\NOTICE"; DestDir: "{app}\Licenses"
 Source: "{#Stage}\THIRD-PARTY-LICENSES.txt"; DestDir: "{app}\Licenses"
 Source: "{#Stage}\ATTRIBUTION.md"; DestDir: "{app}\Licenses"
 
+[InstallDelete]
+; MadCAD 8.0.10 and earlier installed the command as solidcraft-cli.exe.
+Type: files; Name: "{app}\solidcraft-cli.exe"
+
 [Icons]
 Name: "{autoprograms}\MadCAD"; Filename: "{app}\MadCAD.exe"
 Name: "{autodesktop}\MadCAD"; Filename: "{app}\MadCAD.exe"; Tasks: desktopicon
 
 [Registry]
-; .sc designs open in MadCAD; SolidCraft, when installed, stays in the "Open with" list.
+; .sc designs open in MadCAD.
 Root: HKA; Subkey: "Software\Classes\.sc\OpenWithProgids"; ValueType: string; ValueName: "MadCAD.Design"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.sc"; ValueType: string; ValueName: ""; ValueData: "MadCAD.Design"; Flags: uninsdeletevalue createvalueifdoesntexist
 Root: HKA; Subkey: "Software\Classes\MadCAD.Design"; ValueType: string; ValueName: ""; ValueData: "MadCAD"; Flags: uninsdeletekey

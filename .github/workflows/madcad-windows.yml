@@ -30,7 +30,13 @@ jobs:
           key: madcad-windows-x64
           cache-on-failure: true
       - name: Build
-        run: cargo build --locked --release -p solidcraft -p solidcraft-cli --target x86_64-pc-windows-msvc
+        shell: bash
+        run: |
+          # A release build (update::release_build): the in-app update check and the usage statistics run.
+          export SOLIDCRAFT_VERSION="$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\([^"]*\)"/\1/p' Cargo.toml)"
+          echo "version $SOLIDCRAFT_VERSION"
+          test -n "$SOLIDCRAFT_VERSION"
+          cargo build --locked --release -p solidcraft -p solidcraft-cli --target x86_64-pc-windows-msvc
       - name: Package
         id: package
         shell: pwsh
@@ -43,8 +49,9 @@ jobs:
           $stage = "target/madcad-windows/$name"
           New-Item -ItemType Directory -Force $stage | Out-Null
           Copy-Item "$bin/solidcraft.exe" "$stage/MadCAD.exe"
-          Copy-Item "$bin/solidcraft-cli.exe" "$stage/solidcraft-cli.exe"
+          Copy-Item "$bin/solidcraft-cli.exe" "$stage/madcad-cli.exe"
           foreach ($f in 'LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 'THIRD-PARTY-LICENSES.txt', 'ATTRIBUTION.md') { Copy-Item $f $stage }
+          Copy-Item packaging/madcad/LICENSE-MadCAD.txt "$stage/LICENSE.txt"
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive -Path $stage -DestinationPath "dist/$name.zip"
           Copy-Item "$bin/solidcraft.exe" "dist/$name.exe"

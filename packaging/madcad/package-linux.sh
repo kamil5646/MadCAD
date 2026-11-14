@@ -18,6 +18,8 @@ NAME="MadCAD-$VERSION-linux-$ARCH"
 WORK="$TARGET_DIR/madcad-linux"
 DIST="$ROOT/dist"
 
+# A release build (update::release_build): the in-app update check and the usage statistics run.
+export SOLIDCRAFT_VERSION="$VERSION"
 [[ "${1:-}" == --skip-build ]] || (cd "$ROOT" && cargo build --locked --release -p solidcraft -p solidcraft-cli)
 BIN="$TARGET_DIR/release"
 
@@ -27,8 +29,8 @@ mkdir -p "$DIST"
 # ---- the AppDir: an FHS tree under usr/ ---------------------------------------------------------
 APPDIR="$WORK/MadCAD.AppDir"
 install -Dm755 "$BIN/solidcraft" "$APPDIR/usr/bin/madcad"
-install -Dm755 "$BIN/solidcraft-cli" "$APPDIR/usr/bin/solidcraft-cli"
-strip "$APPDIR/usr/bin/madcad" "$APPDIR/usr/bin/solidcraft-cli" 2>/dev/null || true
+install -Dm755 "$BIN/solidcraft-cli" "$APPDIR/usr/bin/madcad-cli"
+strip "$APPDIR/usr/bin/madcad" "$APPDIR/usr/bin/madcad-cli" 2>/dev/null || true
 install -Dm644 "$HERE/linux/$ID.desktop" "$APPDIR/usr/share/applications/$ID.desktop"
 for s in 16 24 32 48 64 128 256 512; do
   install -Dm644 "$HERE/linux/icons/$s.png" "$APPDIR/usr/share/icons/hicolor/${s}x${s}/apps/$ID.png"
@@ -37,17 +39,18 @@ done
 DOC="$APPDIR/usr/share/doc/madcad"
 mkdir -p "$DOC"
 cp "$ROOT/LICENSE-APACHE" "$ROOT/LICENSE-MIT" "$ROOT/NOTICE" "$ROOT/ATTRIBUTION.md" "$ROOT/THIRD-PARTY-LICENSES.txt" "$DOC/"
+cp "$HERE/LICENSE-MadCAD.txt" "$DOC/LICENSE.txt"
 cp "$ROOT/attribution/pending/madcad-branding.md" "$DOC/MadCAD-branding.md"
 cp "$HERE/CONTINUATION-2026-11-01.md" "$DOC/MadCAD-changes.md"
 if command -v desktop-file-validate >/dev/null; then
   desktop-file-validate "$APPDIR/usr/share/applications/$ID.desktop"
 fi
-"$APPDIR/usr/bin/solidcraft-cli" --version
+"$APPDIR/usr/bin/madcad-cli" --version
 
 # ---- .tar.gz: the same files in one folder ------------------------------------------------------
 TAR="$WORK/tar/$NAME"
 mkdir -p "$TAR"
-cp "$APPDIR/usr/bin/madcad" "$APPDIR/usr/bin/solidcraft-cli" "$TAR/"
+cp "$APPDIR/usr/bin/madcad" "$APPDIR/usr/bin/madcad-cli" "$TAR/"
 cp "$HERE/linux/$ID.desktop" "$TAR/"
 cp "$HERE/linux/icons/256.png" "$TAR/madcad.png"
 cp "$DOC"/* "$TAR/"

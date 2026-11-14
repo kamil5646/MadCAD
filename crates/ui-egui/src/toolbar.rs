@@ -579,6 +579,20 @@ impl FileAction {
         if !self.enabled(app) {
             return;
         }
+        // MadCAD: file actions count in the usage statistics (tools count in `start`).
+        let used = match self {
+            Self::New => Some("file.new".to_string()),
+            Self::Open => Some("file.open".into()),
+            Self::Save => Some("file.save".into()),
+            Self::SaveAs | Self::SaveJson => Some("file.save_as".into()),
+            Self::Export(extension) => Some(format!("file.export.{extension}")),
+            Self::ExportMesh(format) => Some(format!("file.export.{format}")),
+            Self::OpenRecent(_) => Some("file.open_recent".into()),
+            _ => None,
+        };
+        if let Some(id) = used {
+            crate::stats::used(app, &id);
+        }
         match self {
             Self::New => crate::documents::new_design(app),
             Self::Open => app.pick_open(|app, path| {

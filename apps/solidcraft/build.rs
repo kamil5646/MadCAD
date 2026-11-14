@@ -27,6 +27,6 @@ fn version_resource(version: &str) -> String {
     let mut next = || numbers.next().unwrap_or(0);
     let (major, minor, patch) = (next(), next(), next());
     format!(
-        "1 VERSIONINFO\nFILEVERSION {major},{minor},{patch},0\nPRODUCTVERSION {major},{minor},{patch},0\nFILEOS 0x40004\nFILETYPE 0x1\n{{\nBLOCK \"StringFileInfo\"\n{{\nBLOCK \"040904B0\"\n{{\nVALUE \"CompanyName\", \"Kamil Kasprzak, SolidCraft contributors\"\nVALUE \"FileDescription\", \"MadCAD, 2D and 3D CAD\"\nVALUE \"FileVersion\", \"{version}\"\nVALUE \"InternalName\", \"solidcraft\"\nVALUE \"OriginalFilename\", \"solidcraft.exe\"\nVALUE \"ProductName\", \"MadCAD\"\nVALUE \"ProductVersion\", \"{version}\"\n}}\n}}\nBLOCK \"VarFileInfo\"\n{{\nVALUE \"Translation\", 0x0409, 1200\n}}\n}}\n"
+        "1 VERSIONINFO\nFILEVERSION {major},{minor},{patch},0\nPRODUCTVERSION {major},{minor},{patch},0\nFILEOS 0x40004\nFILETYPE 0x1\n{{\nBLOCK \"StringFileInfo\"\n{{\nBLOCK \"040904B0\"\n{{\nVALUE \"CompanyName\", \"Kamil Kasprzak\"\nVALUE \"FileDescription\", \"MadCAD, 2D and 3D CAD\"\nVALUE \"FileVersion\", \"{version}\"\nVALUE \"InternalName\", \"MadCAD\"\nVALUE \"OriginalFilename\", \"MadCAD.exe\"\nVALUE \"ProductName\", \"MadCAD\"\nVALUE \"ProductVersion\", \"{version}\"\n}}\n}}\nBLOCK \"VarFileInfo\"\n{{\nVALUE \"Translation\", 0x0409, 1200\n}}\n}}\n"
     )
 }

@@ -47,6 +47,8 @@ class App:
             SOLIDCRAFT_RECOVERY_DIR=os.path.join(self.work, "recovery"),
             SOLIDCRAFT_CONTROL_PORT=str(port),
             SOLIDCRAFT_CONTROL_DIR=os.path.join(self.work, "control"),
+            MADCAD_STATS="0",
+            SOLIDCRAFT_UPDATE_CHECK="0",
         )
         for d in ("settings", "recovery", "control"):
             os.makedirs(os.path.join(self.work, d), exist_ok=True)

@@ -1,0 +1,23 @@
+﻿Licencja MadCAD
+
+Copyright (c) 2026 Kamil Kasprzak
+
+MadCAD jest bezpłatny do użytku prywatnego i komercyjnego, bez konta, klucza
+i limitu czasu.
+
+Niniejszym udziela się każdej osobie, która otrzyma kopię tego oprogramowania
+i związanej z nim dokumentacji („Oprogramowanie”), bezpłatnej zgody na
+korzystanie z Oprogramowania bez ograniczeń, w tym na używanie, kopiowanie,
+modyfikowanie, łączenie, publikowanie, rozpowszechnianie, sublicencjonowanie
+i sprzedaż kopii Oprogramowania, pod warunkiem dołączenia powyższej informacji
+o prawach autorskich i niniejszej zgody do wszystkich kopii lub istotnych
+części Oprogramowania.
+
+OPROGRAMOWANIE JEST DOSTARCZANE „TAKIE, JAKIE JEST”, BEZ JAKIEJKOLWIEK
+GWARANCJI, WYRAŹNEJ LUB DOROZUMIANEJ, W TYM GWARANCJI PRZYDATNOŚCI HANDLOWEJ,
+PRZYDATNOŚCI DO OKREŚLONEGO CELU I NIENARUSZANIA PRAW. AUTORZY ANI POSIADACZE
+PRAW AUTORSKICH NIE ODPOWIADAJĄ ZA ŻADNE ROSZCZENIA, SZKODY ANI INNE
+ZOBOWIĄZANIA ZWIĄZANE Z OPROGRAMOWANIEM LUB KORZYSTANIEM Z NIEGO.
+
+Części programu pochodzą z projektów open source na licencjach MIT lub
+Apache-2.0. Ich teksty licencji są zainstalowane w folderze „Licenses”.

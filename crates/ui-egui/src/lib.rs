@@ -305,6 +305,8 @@ pub mod ui_kit;
 #[cfg(test)]
 mod ui_kit_guard_tests;
 pub mod update;
+/// MadCAD: anonymous usage statistics.
+pub mod stats;
 mod value_step;
 pub(crate) mod view_angles;
 mod view_confirm;
@@ -566,6 +568,8 @@ pub struct SolveApp {
     pub crashes: crash_ui::CrashUi,
     /// The update check and its window (`update`).
     pub updater: update::Updater,
+    /// MadCAD: anonymous usage statistics (`stats`).
+    pub stats: stats::Stats,
     /// Safari's steps for installing the web app, while their window is open (`install`).
     pub install_steps: Option<install::Steps>,
     /// Toolbar buttons the user pinned, removed or reordered.
@@ -806,6 +810,7 @@ impl SolveApp {
             issue_report: issue_report::ReportState::default(),
             crashes: crash_ui::CrashUi::default(),
             updater: update::Updater::default(),
+            stats: stats::Stats::default(),
             install_steps: None,
             toolbar_custom: toolbar_custom::ToolbarCustom::default(),
             settings_profiles: settings_profiles::Profiles::default(),
@@ -1015,6 +1020,7 @@ impl SolveApp {
             "browser_expanded": self.tree.expanded,
             "recent": self.home.recent,
             "recent_opened_at": self.home.opened_at,
+            "usage_stats": self.stats.memo,
             "recent_forgotten": self.home.forgotten,
             "shortcut_box": self.sbox.prefs(),
             "shortcuts": self.keymap.prefs(),
@@ -1046,6 +1052,7 @@ impl SolveApp {
         let Ok(v) = serde_json::from_str::<Value>(prefs) else { return };
         let flag = |k: &str| v.get(k).and_then(Value::as_bool);
         self.home.opened_at = v.get("recent_opened_at").and_then(|x| serde_json::from_value(x.clone()).ok()).unwrap_or_default();
+        self.stats.memo = v.get("usage_stats").and_then(|x| serde_json::from_value(x.clone()).ok()).unwrap_or_default();
         if let Some(d) = flag("dark") {
             self.ui.dark = d;
         }
@@ -1562,6 +1569,7 @@ impl SolveApp {
     }
 
     fn start_with_variant_memory(&mut self, id: &str, remember_variant: bool, opener: Option<egui::Rect>, section_edit: bool) {
+        stats::used(self, id);
         self.tree.clear_folder_pick();
         if id == "timeline.play" {
             if let Err(why) = self.run(id, json!({})) {
@@ -2883,6 +2891,7 @@ impl SolveApp {
         recovery_ui::tick(self);
         open_elsewhere::tick(self, ctx);
         update::tick(self, ctx);
+        stats::tick(self);
         if self.issue_report.draft.is_none() && self.file_picker.is_none() {
             // Files dropped on the theme Import tile are themes (#8226).
             prefs::take_theme_drops(self, ctx);

@@ -13,4 +13,4 @@ StartupNotify=true
 StartupWMClass=pl.kamilkasprzak.madcad8
 Categories=Graphics;3DGraphics;Engineering;
 Keywords=cad;3d;2d;parametric;sketch;step;stl;
-MimeType=application/x-solidcraft;model/step;model/stl;model/3mf;
+MimeType=application/x-madcad;model/step;model/stl;model/3mf;

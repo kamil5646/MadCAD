@@ -43,7 +43,7 @@ jobs:
           ls -l dist
           ldd target/release/solidcraft | grep -v '=> /' || true
           APPIMAGE_EXTRACT_AND_RUN=1 dist/MadCAD-*-linux-x86_64.AppImage --version
-          tar -tzf dist/MadCAD-*-linux-x86_64.tar.gz | grep -E '/madcad$|/solidcraft-cli$|/THIRD-PARTY-LICENSES.txt$'
+          tar -tzf dist/MadCAD-*-linux-x86_64.tar.gz | grep -E '/madcad$|/madcad-cli$|/THIRD-PARTY-LICENSES.txt$'
       - name: Function checks
         run: |
           # The engine's checks (packaging/madcad/qa): bodies, volumes and errors of 135 cases.

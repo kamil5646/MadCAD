@@ -1,0 +1,12 @@
+{
+  "en": {
+    "stats.label": "Statistics",
+    "stats.note": "A random installation number, the version, the system, the language, how long MadCAD was open and which tools were used. Nothing about your designs or files.",
+    "stats.send": "Send anonymous usage statistics"
+  },
+  "pl": {
+    "stats.label": "Statystyki",
+    "stats.note": "Losowy numer instalacji, wersja, system, język, czas pracy z programem i które narzędzia były używane. Nic o Twoich projektach ani plikach.",
+    "stats.send": "Wysyłaj anonimowe statystyki użycia"
+  }
+}

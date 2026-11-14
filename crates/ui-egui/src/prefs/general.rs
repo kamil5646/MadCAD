@@ -106,6 +106,7 @@ pub(super) fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
     });
     ui_kit::settings_section(ui, "updates", app.tr("prefs.updates"), |ui| {
         ui_kit::settings_block(ui, app.tr("update.prefs_label"), labels, |ui| crate::update::prefs_rows(app, ui));
+        ui_kit::settings_block(ui, app.tr("stats.label"), labels, |ui| crate::stats::prefs_rows(app, ui));
     });
 }
 

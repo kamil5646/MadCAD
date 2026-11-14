@@ -24,13 +24,19 @@ Najnowsze wydanie: [github.com/kamil5646/MadCAD/releases/latest](https://github.
   (`chmod +x`) i uruchom; albo `.tar.gz` z programami. Wymaga glibc 2.35 lub nowszej
   (Ubuntu 22.04, Debian 12, Fedora 36 i nowsze).
 
-## MadCAD 8 a wersje 7.x
+## O programie
 
-MadCAD 8 to nowy program napisany w Rust, oparty na otwartym projekcie
+MadCAD 8 jest napisany w Rust i oparty na otwartym projekcie
 [SolidCraft](https://github.com/tangency-labs/solidcraft) (MIT / Apache-2.0).
-Projekty zapisuje w formacie `.sc`. Pliki `.madcad` z wersji 7.x nie są otwierane —
-wersja 7.x pozostaje dostępna w [starszych wydaniach](https://github.com/kamil5646/MadCAD/releases)
-i na gałęzi `madcad7`.
+Projekty zapisuje w formacie `.sc`.
+
+## Statystyki użycia
+
+MadCAD wysyła anonimowe statystyki: przy starcie losowy numer instalacji, wersję, system, język
+oraz czas poprzedniej sesji i liczbę użyć każdego narzędzia (`crates/ui-egui/src/stats.rs`).
+Nic o projektach, plikach ani komputerze; serwer nie zapisuje adresów IP. Wyłączenie:
+Ustawienia ▸ Ogólne ▸ Statystyki (albo zmienna `MADCAD_STATS=0`). Odbiornik i panel:
+`packaging/madcad/stats-server`.
 
 ## Budowanie
 
